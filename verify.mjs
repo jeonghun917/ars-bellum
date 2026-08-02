@@ -82,14 +82,13 @@ if (fs.existsSync(indexPath)) {
   });
 }
 
-const forbiddenUnix = ['', 'mnt', 'data'].join('/');
-const forbiddenWindows = ['C:', 'Users'].join('\\\\');
-
 for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
   if (!entry.isFile()) continue;
   if (!/\.(?:html|js|mjs|json|css|md|txt)$/i.test(entry.name)) continue;
   const absolutePath = path.join(root, entry.name);
   const content = fs.readFileSync(absolutePath, 'utf8');
+  const forbiddenUnix = '/' + 'mnt' + '/data';
+  const forbiddenWindows = 'C:' + '\\' + 'Users' + '\\';
   if (content.includes(forbiddenUnix) || content.includes(forbiddenWindows)) {
     results.forbiddenAbsolutePaths.push(entry.name);
     fail(`세션 전용 절대 경로 포함: ${entry.name}`);
