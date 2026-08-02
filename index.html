@@ -67,8 +67,8 @@
  <h1>ARS BELLUM</h1>
  <p>전술 리얼타임 시뮬레이터</p>
  <div class="menu-btn-group">
- <button class="menu-btn btn-practice" onclick="resetDiplomacyForNewBattle(); startPracticeMode()">🎲 연습장</button>
- <button class="menu-btn btn-maingame" onclick="resetDiplomacyForNewBattle(); startMainGameMode()">🏰 본게임</button>
+ <button id="btn-practice-mode" class="menu-btn btn-practice">🎲 연습장</button>
+ <button id="btn-main-game-mode" class="menu-btn btn-maingame">🏰 본게임</button>
  <button class="menu-btn btn-worldmap" onclick="startWorldMapMode()">🌍 테네브리스 월드맵</button>
  </div>
  </div>
@@ -621,7 +621,7 @@
      return diagnostic;
  };
 
- window.resetDiplomacyForNewBattle=function(){
+ const resetDiplomacyForNewBattle=()=>{
      diplomacySession=null;
      window.isGameOver=false;
      diploModal.classList.remove('active');
@@ -629,6 +629,10 @@
      diploInput.value='';
      diploChatBox.innerHTML='<div class="lord-msg">"감히 내 영지에 발을 들이다니, 목숨이 아깝지 않은 모양이군. 할 말이 있다면 들어나 보겠다."</div>';
  };
+ const practiceModeButton=document.getElementById('btn-practice-mode');
+ const mainGameModeButton=document.getElementById('btn-main-game-mode');
+ if(practiceModeButton)practiceModeButton.addEventListener('click',()=>{resetDiplomacyForNewBattle();if(typeof window.startPracticeMode==='function')window.startPracticeMode();});
+ if(mainGameModeButton)mainGameModeButton.addEventListener('click',()=>{resetDiplomacyForNewBattle();if(typeof window.startMainGameMode==='function')window.startMainGameMode();});
  window.openDiplomacy=function(){dropdownContent.classList.remove('show');diploModal.style.display='';if(window.gameManager)window.gameManager.setTimeScale(0);diploModal.classList.add('active');getSession();};
  window.closeDiplomacy=function(){diploModal.classList.remove('active');if(window.gameManager)window.gameManager.setTimeScale(1);};
  window.sendDiplomacyMsg=async function(){
