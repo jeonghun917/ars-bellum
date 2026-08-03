@@ -3,6 +3,7 @@
     "use strict";
     const VERSION = 1;
     function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
+    function sameCanonical(a,b){const x=clone(a),y=clone(b);if(x&&y){y.revision=x.revision;}return window.ArsM1AtomicCoordinator._canonicalStringify(x)===window.ArsM1AtomicCoordinator._canonicalStringify(y);}
     function root() { return window.ArsGameState.getState().world.characters; }
     function validId(v) { return typeof v === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/.test(v); }
     function plain(v) { return v && typeof v === "object" && !Array.isArray(v); }
@@ -99,7 +100,15 @@
         }
         return errors;
     }
+    function protectedCreateField(input) {
+        const x=input||{}, a=x.affiliations||{};
+        if ((Array.isArray(x.titleIds)&&x.titleIds.length)||(Array.isArray(x.claimIds)&&x.claimIds.length)) { return "readonly_derived_field"; }
+        if (a.clanId!=null) { return "coordinator_required:affiliations.clanId"; }
+        if (a.factionId!=null) { return "coordinator_required:affiliations.factionId"; }
+        return null;
+    }
     function create(input) {
+        const protectedField=protectedCreateField(input); if(protectedField){return {ok:false,error:protectedField};}
         const id=input && input.id; if (!validId(id)) { return {ok:false,error:"invalid_character_id"}; }
         if (root()[id]) { return {ok:false,error:"duplicate_character_id"}; }
         const next=createDefault(id,input); const errors=validate(next);
@@ -113,7 +122,14 @@
         if (!current) { return {ok:false,error:"missing_character"}; }
         if (!Number.isInteger(c.expectedRevision) || c.expectedRevision!==current.revision) { return {ok:false,error:"revision_conflict"}; }
         const next=clone(current);
-        if (c.type==="replace") { Object.assign(next, clone(c.value || {})); next.id=current.id; }
+        if (c.type==="replace") {
+            const value=clone(c.value||{}), affiliations=value.affiliations||{};
+            if (Object.prototype.hasOwnProperty.call(value,"titleIds")) { return {ok:false,error:"readonly_derived_field:titleIds"}; }
+            if (Object.prototype.hasOwnProperty.call(value,"claimIds")) { return {ok:false,error:"readonly_derived_field:claimIds"}; }
+            if (Object.prototype.hasOwnProperty.call(affiliations,"clanId")) { return {ok:false,error:"coordinator_required:affiliations.clanId"}; }
+            if (Object.prototype.hasOwnProperty.call(affiliations,"factionId")) { return {ok:false,error:"coordinator_required:affiliations.factionId"}; }
+            Object.assign(next,value); next.id=current.id;
+        }
         else if (c.type==="set_condition") { next.condition=Object.assign({},next.condition,clone(c.patch || {})); }
         else if (c.type==="set_personal_account") { next.personalAccountId=c.accountId==null?null:String(c.accountId); }
         else if (c.type==="set_location_group") { next.location.mobileGroupId=c.mobileGroupId==null?null:String(c.mobileGroupId); next.location.mode=c.mobileGroupId==null?"settlement":"mobile_group"; }
@@ -132,6 +148,7 @@
                 next.progression.repetition[c.repetitionKey]=(Number(next.progression.repetition[c.repetitionKey])||0)+1;
             }
         } else { return {ok:false,error:"unsupported_character_command"}; }
+        if(sameCanonical(current,next)){return {ok:false,error:"no_change"};}
         next.revision=current.revision+1;
         const errors=validate(next); if (errors.length) { return {ok:false,error:"invalid_character",errors:errors}; }
         root()[current.id]=next; return {ok:true,character:getSnapshot(current.id)};
@@ -176,6 +193,58 @@
     window.ArsCharacterState=Object.freeze({
         VERSION:VERSION, createDefault:createDefault, create:create, createCharacter:create,
         getSnapshot:getSnapshot, getCharacterSnapshot:getSnapshot, getById:getSnapshot,
-        list:list, listCharacters:list, validate:validate, normalize:normalize, applyCommand:applyCommand, _atomicCommit:atomicCommit, _atomicRestore:atomicRestore
+        list:list, listCharacters:list, validate:validate, normalize:normalize, applyCommand:applyCommand,
+        _getCanonicalSnapshot:getSnapshot, _atomicCommit:atomicCommit, _atomicRestore:atomicRestore
     });
+
+    if (window.ArsRefRegistry) {
+        const resolverResult=window.ArsRefRegistry.registerResolver("character",{
+            exists:function(id){return Boolean(root()[id]);},
+            getSnapshot:getSnapshot
+        });
+        if(!resolverResult.ok){throw new Error(resolverResult.error);}
+    }
+
+    if (window.ArsM1AtomicCoordinator) {
+        const participantResult=window.ArsM1AtomicCoordinator.registerParticipant("character",{
+            prepare:function(operations){
+                const before={},after={},normalized=[];
+                for(const operation of operations){
+                    if(operation.targetRef.type!=="character"){return {ok:false,error:"m156_invalid_character_target"};}
+                    const id=operation.targetRef.id,current=getSnapshot(id);
+                    if(!current){return {ok:false,error:"m156_missing_ref_target",details:"character:"+id};}
+                    if(operation.expectedRevision!==current.revision){return {ok:false,error:"m156_revision_conflict"};}
+                    const next=clone(current),payload=operation.payload||{};
+                    if(operation.command==="character.set_clan_affiliation"){
+                        next.affiliations.clanId=payload.clanId==null?null:String(payload.clanId);
+                    }else if(operation.command==="character.set_faction_affiliation"){
+                        next.affiliations.factionId=payload.factionId==null?null:String(payload.factionId);
+                    }else if(operation.command==="character.rebuild_title_index"){
+                        next.titleIds=uniqueIds(payload.titleIds);
+                    }else if(operation.command==="character.rebuild_claim_index"){
+                        next.claimIds=uniqueIds(payload.claimIds);
+                    }else if(operation.command==="character.replace"){
+                        Object.assign(next,clone(payload.nextValue||{})); next.id=id;
+                    }else{return {ok:false,error:"m156_unsupported_character_command"};}
+                    if(sameCanonical(current,next)){return {ok:false,error:"no_change"};}
+                    next.revision=current.revision+1;
+                    const errors=validate(next); if(errors.length){return {ok:false,error:"invalid_character",details:errors};}
+                    before[id]=current; after[id]=next; normalized.push(clone(operation));
+                }
+                return {ok:true,domainId:"character",normalizedOperations:normalized,beforeSnapshots:before,plannedSnapshots:after,rollbackData:before,eventDescriptors:[]};
+            },
+            commitPrepared:function(prepared){
+                const committed=[];
+                for(const id of Object.keys(prepared.plannedSnapshots).sort()){
+                    const r=atomicCommit(id,prepared.beforeSnapshots[id].revision,prepared.plannedSnapshots[id],false);
+                    if(!r.ok){for(let i=committed.length-1;i>=0;i-=1){atomicRestore(committed[i],prepared.beforeSnapshots[committed[i]]);}return {ok:false,error:"character:"+r.error};}
+                    committed.push(id);
+                }
+                return {ok:true,rollbackToken:{beforeSnapshots:clone(prepared.beforeSnapshots)}};
+            },
+            rollbackCommitted:function(token){Object.keys(token.beforeSnapshots||{}).sort().reverse().forEach(function(id){atomicRestore(id,token.beforeSnapshots[id]);});return {ok:true};},
+            verifyCommitted:function(prepared){for(const id of Object.keys(prepared.plannedSnapshots)){if(window.ArsM1AtomicCoordinator._canonicalStringify(getSnapshot(id))!==window.ArsM1AtomicCoordinator._canonicalStringify(prepared.plannedSnapshots[id])){return {ok:false,error:"character_verify_mismatch:"+id};}}return {ok:true};}
+        });
+        if(!participantResult.ok){throw new Error(participantResult.error);}
+    }
 })();

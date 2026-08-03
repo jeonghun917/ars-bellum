@@ -3,6 +3,7 @@
     "use strict";
     const registry = window.ArsDefinitionRegistry;
     function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
+    function sameCanonical(a,b){const x=clone(a),y=clone(b);if(x&&y){y.revision=x.revision;}return window.ArsM1AtomicCoordinator._canonicalStringify(x)===window.ArsM1AtomicCoordinator._canonicalStringify(y);}
     function validId(v) { return typeof v === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/.test(v); }
     function root() { return window.ArsGameState.getState().world.inventories; }
     if (!registry.hasDomain("equipment_slot")) {
@@ -159,6 +160,7 @@
             const bulkLosses = p.bulkLosses || {};
             for (const resourceId of Object.keys(bulkLosses)) { const q = Math.max(0, Number(bulkLosses[resourceId]) || 0); if (q > (next.bulkItems[resourceId] || 0)) { return { ok: false, error: "loss_exceeds_quantity" }; } next.bulkItems[resourceId] -= q; }
         } else { return { ok: false, error: "unsupported_inventory_command" }; }
+        if (sameCanonical(current, next)) { return { ok: false, error: "no_change" }; }
         next.revision = current.revision + 1; const errors = validate(next); if (errors.length) { return { ok: false, error: "invalid_inventory", errors: errors }; }
         root()[next.id] = next; return { ok: true, inventory: getSnapshot(next.id) };
     }
@@ -188,6 +190,85 @@
         registerEquipmentSlotDefinition: function (d) { return registerDefinition("equipment_slot", d); }, registerCargoPurposeDefinition: function (d) { return registerDefinition("cargo_purpose", d); },
         getEquipmentSlotDefinition: function (id) { return registry.getDefinition("equipment_slot", id); }, getCargoPurposeDefinition: function (id) { return registry.getDefinition("cargo_purpose", id); },
         listEquipmentSlotDefinitions: function () { return registry.listDefinitions("equipment_slot"); }, listCargoPurposeDefinitions: function () { return registry.listDefinitions("cargo_purpose"); },
-        _atomicCommit: atomicCommit, _atomicRestore: atomicRestore
+        _getCanonicalSnapshot: getSnapshot, _atomicCommit: atomicCommit, _atomicRestore: atomicRestore
     });
+
+    if (window.ArsM1AtomicCoordinator) {
+        const participantResult = window.ArsM1AtomicCoordinator.registerParticipant("inventory", {
+            prepare: function (operations) {
+                const before = {}, after = {}, normalized = [];
+                for (const operation of operations) {
+                    if (operation.targetRef.type !== "inventory") { return { ok: false, error: "m156_invalid_inventory_target" }; }
+                    const id = operation.targetRef.id, current = getSnapshot(id);
+                    if (!current) { return { ok: false, error: "m156_missing_asset", details: "inventory:" + id }; }
+                    if (operation.expectedRevision !== current.revision) { return { ok: false, error: "m156_revision_conflict" }; }
+                    const next = clone(current), payload = operation.payload || {};
+                    if (operation.command === "inventory.transfer_owner") {
+                        const validation = window.ArsRefRegistry.validateRef(payload.nextOwnerRef, null);
+                        if (!validation.ok) { return validation; }
+                        next.ownerRef = clone(payload.nextOwnerRef);
+                    } else if (operation.command === "inventory.transfer_items") {
+                        const remove = payload.remove || {}, add = payload.add || {};
+                        Object.keys(remove.bulkItems || {}).forEach(function (definitionId) {
+                            const quantity = remove.bulkItems[definitionId];
+                            if (!Number.isSafeInteger(quantity) || quantity <= 0) { throw new Error("m156_asset_minimum_unit_violation"); }
+                            if ((next.bulkItems[definitionId] || 0) < quantity) { throw new Error("insufficient_quantity"); }
+                            next.bulkItems[definitionId] -= quantity;
+                            if (next.bulkItems[definitionId] === 0) { delete next.bulkItems[definitionId]; }
+                        });
+                        const equipmentIds = Array.isArray(remove.equipmentItemIds) ? remove.equipmentItemIds : [];
+                        if (new Set(equipmentIds).size !== equipmentIds.length) { return { ok: false, error: "m156_allocation_conflict" }; }
+                        equipmentIds.forEach(function (instanceId) {
+                            const index = next.equipmentItems.findIndex(function (item) { return item.instanceId === instanceId; });
+                            if (index < 0) { throw new Error("m156_missing_asset"); }
+                            next.equipmentItems.splice(index, 1);
+                        });
+                        const cargoIds = Array.isArray(remove.cargoIds) ? remove.cargoIds : [];
+                        if (new Set(cargoIds).size !== cargoIds.length) { return { ok: false, error: "m156_allocation_conflict" }; }
+                        cargoIds.forEach(function (cargoId) {
+                            const index = next.assignedCargo.findIndex(function (cargo) { return cargo.cargoId === cargoId; });
+                            if (index < 0) { throw new Error("m156_missing_asset"); }
+                            next.assignedCargo.splice(index, 1);
+                        });
+                        Object.keys(add.bulkItems || {}).forEach(function (definitionId) {
+                            const quantity = add.bulkItems[definitionId];
+                            if (!Number.isSafeInteger(quantity) || quantity <= 0) { throw new Error("m156_asset_minimum_unit_violation"); }
+                            next.bulkItems[definitionId] = (next.bulkItems[definitionId] || 0) + quantity;
+                        });
+                        (add.equipmentItems || []).forEach(function (item) {
+                            if (next.equipmentItems.some(function (existing) { return existing.instanceId === item.instanceId; })) { throw new Error("m156_allocation_conflict"); }
+                            next.equipmentItems.push(clone(item));
+                        });
+                        (add.assignedCargo || []).forEach(function (cargo) {
+                            if (next.assignedCargo.some(function (existing) { return existing.cargoId === cargo.cargoId; })) { throw new Error("m156_allocation_conflict"); }
+                            next.assignedCargo.push(clone(cargo));
+                        });
+                    } else if (operation.command === "inventory.replace") {
+                        Object.assign(next, clone(payload.nextValue || {})); next.id = id;
+                    } else { return { ok: false, error: "m156_unsupported_inventory_command" }; }
+                    if (sameCanonical(current, next)) { return { ok: false, error: "no_change" }; }
+                    next.revision = current.revision + 1;
+                    const errors = validate(next);
+                    if (errors.length) { return { ok: false, error: "invalid_inventory", details: errors }; }
+                    before[id] = current; after[id] = next; normalized.push(clone(operation));
+                }
+                return { ok: true, domainId: "inventory", normalizedOperations: normalized, beforeSnapshots: before, plannedSnapshots: after, rollbackData: before, eventDescriptors: [] };
+            },
+            commitPrepared: function (prepared) {
+                const committed = [];
+                for (const id of Object.keys(prepared.plannedSnapshots).sort()) {
+                    const result = atomicCommit(id, prepared.beforeSnapshots[id].revision, prepared.plannedSnapshots[id], false);
+                    if (!result.ok) {
+                        for (let i = committed.length - 1; i >= 0; i -= 1) { atomicRestore(committed[i], prepared.beforeSnapshots[committed[i]]); }
+                        return { ok: false, error: "inventory:" + result.error };
+                    }
+                    committed.push(id);
+                }
+                return { ok: true, rollbackToken: { beforeSnapshots: clone(prepared.beforeSnapshots) } };
+            },
+            rollbackCommitted: function (token) { Object.keys(token.beforeSnapshots || {}).sort().reverse().forEach(function (id) { atomicRestore(id, token.beforeSnapshots[id]); }); return { ok: true }; },
+            verifyCommitted: function (prepared) { for (const id of Object.keys(prepared.plannedSnapshots)) { if (window.ArsM1AtomicCoordinator._canonicalStringify(getSnapshot(id)) !== window.ArsM1AtomicCoordinator._canonicalStringify(prepared.plannedSnapshots[id])) { return { ok: false, error: "inventory_verify_mismatch:" + id }; } } return { ok: true }; }
+        });
+        if (!participantResult.ok) { throw new Error(participantResult.error); }
+    }
 })();
