@@ -4,6 +4,32 @@
     const VERSION = 1;
     const registry = window.ArsDefinitionRegistry;
     function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
+    function m17SemanticValue(value){
+        if(value===undefined){return null;}
+        if(Array.isArray(value)){
+            const byCanonical={};
+            value.forEach(function(item){const normalized=m17SemanticValue(item),key=window.ArsM1AtomicCoordinator._canonicalStringify(normalized);byCanonical[key]=normalized;});
+            return Object.keys(byCanonical).sort().map(function(key){return byCanonical[key];});
+        }
+        if(value&&typeof value==="object"){
+            const out={};Object.keys(value).sort().forEach(function(key){out[key]=m17SemanticValue(value[key]);});return out;
+        }
+        return value;
+    }
+    function m17SemanticDelta(domainId,command,targetRef,entities,fields){
+        const changes=[];
+        (entities||[]).slice().sort(function(a,b){return String(a.id).localeCompare(String(b.id));}).forEach(function(entity){
+            const before=entity.before===undefined?null:entity.before,after=entity.after===undefined?null:entity.after,beforeOut={},afterOut={};let changed=false;
+            fields.forEach(function(field){
+                const b=before===null?null:m17SemanticValue(Object.prototype.hasOwnProperty.call(before,field)?before[field]:null);
+                const a=after===null?null:m17SemanticValue(Object.prototype.hasOwnProperty.call(after,field)?after[field]:null);
+                if(window.ArsM1AtomicCoordinator._canonicalStringify(b)!==window.ArsM1AtomicCoordinator._canonicalStringify(a)){changed=true;if(before!==null){beforeOut[field]=b;}if(after!==null){afterOut[field]=a;}}
+            });
+            if(changed){changes.push({entityRef:{type:domainId,id:String(entity.id)},before:before===null?null:beforeOut,after:after===null?null:afterOut});}
+        });
+        const target=(entities||[]).filter(function(entity){return String(entity.id)===String(targetRef.id);})[0]||{};
+        return {schemaVersion:"m17.semantic_delta.v1",domainId:domainId,command:command,targetRef:{type:targetRef.type,id:targetRef.id},beforeRevision:target.before&&Number.isInteger(target.before.revision)?target.before.revision:null,afterRevision:target.after&&Number.isInteger(target.after.revision)?target.after.revision:null,changes:changes};
+    }
     function sameCanonical(a,b){const x=clone(a),y=clone(b);if(x&&y){y.revision=x.revision;}return window.ArsM1AtomicCoordinator._canonicalStringify(x)===window.ArsM1AtomicCoordinator._canonicalStringify(y);}
     function validId(v) { return typeof v === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/.test(v); }
     function uniqueIds(v) { return Array.from(new Set((Array.isArray(v) ? v : []).filter(validId))).sort(); }
@@ -64,7 +90,7 @@
     window.ArsFactionState=Object.freeze({VERSION:VERSION,createDefault:createDefault,create:create,getCanonicalSnapshot:getCanonicalSnapshot,listCanonical:listCanonical,getSnapshot:getSnapshot,list:list,validate:validate,normalize:normalize,buildObedienceInput:buildObedienceInput,_atomicCommit:atomicCommit,_atomicRestore:atomicRestore});
     const resolver=window.ArsRefRegistry.registerResolver("faction",{exists:function(id){return Boolean(root()[id]);},getSnapshot:getCanonicalSnapshot});if(!resolver.ok)throw new Error(resolver.error);
     const participant=window.ArsM1AtomicCoordinator.registerParticipant("faction",{
-        prepare:function(operations){const before={},after={},normalized=[],events=[];for(const operation of operations){if(operation.targetRef.type!=="faction")return {ok:false,error:"m156_invalid_faction_target"};const id=operation.targetRef.id,c=getCanonicalSnapshot(id);if(!c)return {ok:false,error:"m156_missing_ref_target",details:"faction:"+id};if(operation.expectedRevision!==c.revision)return {ok:false,error:"m156_revision_conflict"};const n=clone(c),p=operation.payload||{};if(operation.command==="faction.change_ruler")n.rulerCharacterId=p.characterId==null?null:String(p.characterId);else if(operation.command==="faction.change_ruling_clan")n.rulingClanId=p.clanId==null?null:String(p.clanId);else if(operation.command==="faction.set_treasury")n.treasuryAccountId=p.accountId==null?null:String(p.accountId);else if(operation.command==="faction.replace"){Object.assign(n,clone(p.nextValue||{}));n.id=id;}else return {ok:false,error:"m156_unsupported_faction_command"};if(sameCanonical(c,n))return {ok:false,error:"no_change"};n.revision=c.revision+1;const e=validate(n);if(e.length)return {ok:false,error:"invalid_faction",details:e};before[id]=c;after[id]=n;normalized.push(clone(operation));events.push({eventType:"faction_state_changed",targetId:id,payload:{factionId:id,command:operation.command,beforeRevision:c.revision,afterRevision:n.revision}});}return {ok:true,domainId:"faction",normalizedOperations:normalized,beforeSnapshots:before,plannedSnapshots:after,rollbackData:before,eventDescriptors:events};},
+        prepare:function(operations){const before={},after={},normalized=[],events=[];for(const operation of operations){if(operation.targetRef.type!=="faction")return {ok:false,error:"m156_invalid_faction_target"};const id=operation.targetRef.id,c=getCanonicalSnapshot(id);if(!c)return {ok:false,error:"m156_missing_ref_target",details:"faction:"+id};if(operation.expectedRevision!==c.revision)return {ok:false,error:"m156_revision_conflict"};const n=clone(c),p=operation.payload||{};if(operation.command==="faction.change_ruler")n.rulerCharacterId=p.characterId==null?null:String(p.characterId);else if(operation.command==="faction.change_ruling_clan")n.rulingClanId=p.clanId==null?null:String(p.clanId);else if(operation.command==="faction.set_treasury")n.treasuryAccountId=p.accountId==null?null:String(p.accountId);else if(operation.command==="faction.replace"){Object.assign(n,clone(p.nextValue||{}));n.id=id;}else return {ok:false,error:"m156_unsupported_faction_command"};if(sameCanonical(c,n))return {ok:false,error:"no_change"};n.revision=c.revision+1;const e=validate(n);if(e.length)return {ok:false,error:"invalid_faction",details:e};before[id]=c;after[id]=n;normalized.push(clone(operation));events.push({eventType:"faction_state_changed",targetId:id,payload:{factionId:id,command:operation.command,beforeRevision:c.revision,afterRevision:n.revision,semanticDelta:m17SemanticDelta("faction",operation.command,{type:"faction",id:id},[{id:id,before:c,after:n}],["rulerCharacterId","rulingClanId","treasuryAccountId"])}});}return {ok:true,domainId:"faction",normalizedOperations:normalized,beforeSnapshots:before,plannedSnapshots:after,rollbackData:before,eventDescriptors:events};},
         commitPrepared:function(prepared){const committed=[];for(const id of Object.keys(prepared.plannedSnapshots).sort()){const r=atomicCommit(id,prepared.beforeSnapshots[id].revision,prepared.plannedSnapshots[id],false);if(!r.ok){for(let i=committed.length-1;i>=0;i-=1)atomicRestore(committed[i],prepared.beforeSnapshots[committed[i]]);return {ok:false,error:"faction:"+r.error};}committed.push(id);}return {ok:true,rollbackToken:{beforeSnapshots:clone(prepared.beforeSnapshots)}};},
         rollbackCommitted:function(token){Object.keys(token.beforeSnapshots||{}).sort().reverse().forEach(function(id){atomicRestore(id,token.beforeSnapshots[id]);});return {ok:true};},
         verifyCommitted:function(prepared){for(const id of Object.keys(prepared.plannedSnapshots)){if(window.ArsM1AtomicCoordinator._canonicalStringify(getCanonicalSnapshot(id))!==window.ArsM1AtomicCoordinator._canonicalStringify(prepared.plannedSnapshots[id]))return {ok:false,error:"faction_verify_mismatch:"+id};}return {ok:true};}

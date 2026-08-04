@@ -3,6 +3,32 @@
     "use strict";
     const VERSION=1;
     function clone(v){return v==null?v:JSON.parse(JSON.stringify(v));}
+    function m17SemanticValue(value){
+        if(value===undefined){return null;}
+        if(Array.isArray(value)){
+            const byCanonical={};
+            value.forEach(function(item){const normalized=m17SemanticValue(item),key=window.ArsM1AtomicCoordinator._canonicalStringify(normalized);byCanonical[key]=normalized;});
+            return Object.keys(byCanonical).sort().map(function(key){return byCanonical[key];});
+        }
+        if(value&&typeof value==="object"){
+            const out={};Object.keys(value).sort().forEach(function(key){out[key]=m17SemanticValue(value[key]);});return out;
+        }
+        return value;
+    }
+    function m17SemanticDelta(domainId,command,targetRef,entities,fields){
+        const changes=[];
+        (entities||[]).slice().sort(function(a,b){return String(a.id).localeCompare(String(b.id));}).forEach(function(entity){
+            const before=entity.before===undefined?null:entity.before,after=entity.after===undefined?null:entity.after,beforeOut={},afterOut={};let changed=false;
+            fields.forEach(function(field){
+                const b=before===null?null:m17SemanticValue(Object.prototype.hasOwnProperty.call(before,field)?before[field]:null);
+                const a=after===null?null:m17SemanticValue(Object.prototype.hasOwnProperty.call(after,field)?after[field]:null);
+                if(window.ArsM1AtomicCoordinator._canonicalStringify(b)!==window.ArsM1AtomicCoordinator._canonicalStringify(a)){changed=true;if(before!==null){beforeOut[field]=b;}if(after!==null){afterOut[field]=a;}}
+            });
+            if(changed){changes.push({entityRef:{type:domainId,id:String(entity.id)},before:before===null?null:beforeOut,after:after===null?null:afterOut});}
+        });
+        const target=(entities||[]).filter(function(entity){return String(entity.id)===String(targetRef.id);})[0]||{};
+        return {schemaVersion:"m17.semantic_delta.v1",domainId:domainId,command:command,targetRef:{type:targetRef.type,id:targetRef.id},beforeRevision:target.before&&Number.isInteger(target.before.revision)?target.before.revision:null,afterRevision:target.after&&Number.isInteger(target.after.revision)?target.after.revision:null,changes:changes};
+    }
     function sameCanonical(a,b){const x=clone(a),y=clone(b);if(x&&y)y.revision=x.revision;return window.ArsM1AtomicCoordinator._canonicalStringify(x)===window.ArsM1AtomicCoordinator._canonicalStringify(y);}
     function validId(v){return typeof v==="string"&&/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/.test(v);}
     function state(){return window.ArsGameState.getState().playerControl;}
@@ -27,7 +53,7 @@
             else if(op.command==="player_control.end"){if(current.controlStatus!=="active"||p.decisionId==null)return {ok:false,error:"m156_invalid_transition"};next.permanentlyReleasedCharacterIds=unique(next.permanentlyReleasedCharacterIds.concat([current.currentCharacterId]));next.currentCharacterId=null;next.controlStatus="ended";}
             else if(op.command==="player_control.set_campaign_clan"){if(!p.decisionId)return {ok:false,error:"m156_invalid_transition"};const v=window.ArsRefRegistry.validateRef({type:"clan",id:p.clanId},null);if(!v.ok)return v;next.campaignClanId=p.clanId;}
             else return {ok:false,error:"m156_unsupported_player_control_command"};
-            if(sameCanonical(current,next))return {ok:false,error:"no_change"};next.revision=current.revision+1;const e=validate(next);if(e.length)return {ok:false,error:"invalid_player_control",details:e};return {ok:true,domainId:"player_control",normalizedOperations:[clone(op)],beforeSnapshots:{singleton:current},plannedSnapshots:{singleton:next},rollbackData:{singleton:current},eventDescriptors:[{eventType:"player_control_changed",targetId:"singleton",payload:{command:op.command,beforeRevision:current.revision,afterRevision:next.revision,currentCharacterId:next.currentCharacterId,controlStatus:next.controlStatus}}]};},
+            if(sameCanonical(current,next))return {ok:false,error:"no_change"};next.revision=current.revision+1;const e=validate(next);if(e.length)return {ok:false,error:"invalid_player_control",details:e};return {ok:true,domainId:"player_control",normalizedOperations:[clone(op)],beforeSnapshots:{singleton:current},plannedSnapshots:{singleton:next},rollbackData:{singleton:current},eventDescriptors:[{eventType:"player_control_changed",targetId:"singleton",payload:{command:op.command,beforeRevision:current.revision,afterRevision:next.revision,currentCharacterId:next.currentCharacterId,controlStatus:next.controlStatus,semanticDelta:m17SemanticDelta("player_control",op.command,{type:"player_control",id:"singleton"},[{id:"singleton",before:current,after:next}],["currentCharacterId","campaignClanId","controlStatus","permanentlyReleasedCharacterIds"])}}]};},
         commitPrepared:function(prepared){const r=atomicCommit(prepared.beforeSnapshots.singleton.revision,prepared.plannedSnapshots.singleton);return r.ok?{ok:true,rollbackToken:{beforeSnapshot:clone(prepared.beforeSnapshots.singleton)}}:{ok:false,error:"player_control:"+r.error};},
         rollbackCommitted:function(token){return atomicRestore(token.beforeSnapshot);},
         verifyCommitted:function(prepared){return window.ArsM1AtomicCoordinator._canonicalStringify(getSnapshot())===window.ArsM1AtomicCoordinator._canonicalStringify(prepared.plannedSnapshots.singleton)?{ok:true}:{ok:false,error:"player_control_verify_mismatch"};}

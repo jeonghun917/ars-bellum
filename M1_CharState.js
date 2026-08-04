@@ -27,7 +27,6 @@
         const location = plain(src.location) ? src.location : {};
         const condition = plain(src.condition) ? src.condition : {};
         const standing = plain(src.standing) ? src.standing : {};
-        const activity = plain(src.activity) ? src.activity : {};
         const progression = plain(src.progression) ? src.progression : {};
         return Object.assign({}, src, {
             id: id,
@@ -77,11 +76,6 @@
                 reputation: Number(standing.reputation) || 0,
                 prestige: Number(standing.prestige) || 0,
                 legitimacy: Number(standing.legitimacy) || 0
-            }),
-            activity: Object.assign({}, activity, {
-                tier: typeof activity.tier === "string" ? activity.tier : "active_named",
-                lastActiveDay: Number.isInteger(activity.lastActiveDay) ? activity.lastActiveDay : 0,
-                importanceScore: Number(activity.importanceScore) || 0
             })
         });
     }
@@ -102,6 +96,7 @@
     }
     function protectedCreateField(input) {
         const x=input||{}, a=x.affiliations||{};
+        if (Object.prototype.hasOwnProperty.call(x,"activity")) { return "m17_activity_legacy_field_forbidden"; }
         if ((Array.isArray(x.titleIds)&&x.titleIds.length)||(Array.isArray(x.claimIds)&&x.claimIds.length)) { return "readonly_derived_field"; }
         if (a.clanId!=null) { return "coordinator_required:affiliations.clanId"; }
         if (a.factionId!=null) { return "coordinator_required:affiliations.factionId"; }
@@ -124,6 +119,7 @@
         const next=clone(current);
         if (c.type==="replace") {
             const value=clone(c.value||{}), affiliations=value.affiliations||{};
+            if (Object.prototype.hasOwnProperty.call(value,"activity")) { return {ok:false,error:"m17_activity_legacy_field_forbidden"}; }
             if (Object.prototype.hasOwnProperty.call(value,"titleIds")) { return {ok:false,error:"readonly_derived_field:titleIds"}; }
             if (Object.prototype.hasOwnProperty.call(value,"claimIds")) { return {ok:false,error:"readonly_derived_field:claimIds"}; }
             if (Object.prototype.hasOwnProperty.call(affiliations,"clanId")) { return {ok:false,error:"coordinator_required:affiliations.clanId"}; }
@@ -224,6 +220,7 @@
                     }else if(operation.command==="character.rebuild_claim_index"){
                         next.claimIds=uniqueIds(payload.claimIds);
                     }else if(operation.command==="character.replace"){
+                        if(Object.prototype.hasOwnProperty.call(payload.nextValue||{},"activity")){return {ok:false,error:"m17_activity_legacy_field_forbidden"};}
                         Object.assign(next,clone(payload.nextValue||{})); next.id=id;
                     }else{return {ok:false,error:"m156_unsupported_character_command"};}
                     if(sameCanonical(current,next)){return {ok:false,error:"no_change"};}
