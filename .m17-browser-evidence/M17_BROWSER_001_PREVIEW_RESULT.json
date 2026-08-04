@@ -1,0 +1,60 @@
+{
+  "testId": "M17-BROWSER-001",
+  "deploymentId": "dpl_Us3QiV5WdbetfpMVp1Yfyh842yxJ",
+  "deploymentCommit": "40f42e7ba70d0ca1e2a8323d3e7f5f6e07e7f7b4",
+  "branch": "m1-7-browser-gate",
+  "previewUrl": "https://ars-bellum-dd37utftx-ashite1010-3572s-projects.vercel.app/",
+  "browser": "Playwright Chromium 1.54.2 on GitHub Actions ubuntu-latest",
+  "navigationStatus": 200,
+  "navigationOk": true,
+  "navigationError": null,
+  "elapsedMs": 6195,
+  "state": {
+    "href": "https://ars-bellum-dd37utftx-ashite1010-3572s-projects.vercel.app/",
+    "title": "Ars Bellum (아르스 벨룸)",
+    "readyState": "complete",
+    "bodyPresent": true,
+    "mainMenuPresent": true,
+    "canvasPresent": true,
+    "globals": {
+      "ArsRelationshipState": "object",
+      "ArsRelationshipSystem": "object",
+      "ArsMemoryState": "object",
+      "ArsMemorySystem": "object",
+      "ArsNpcActivityState": "object",
+      "ArsNpcActivitySystem": "object",
+      "ArsM1FollowupState": "object",
+      "ArsM1FollowupSystem": "object"
+    },
+    "scriptCount": 65,
+    "m17Scripts": [
+      "M1_Relations.js",
+      "M1_Memories.js",
+      "M1_CharActivity.js",
+      "M1_Followups.js"
+    ],
+    "m17ScriptCounts": {
+      "M1_Relations.js": 1,
+      "M1_Memories.js": 1,
+      "M1_CharActivity.js": 1,
+      "M1_Followups.js": 1
+    }
+  },
+  "pageErrors": [],
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "failedRequests": [],
+  "httpErrors": [],
+  "assertions": {
+    "http200": true,
+    "documentComplete": true,
+    "titleCorrect": true,
+    "requiredGlobalsAccessible": true,
+    "m17ScriptsExactOrderOnce": true,
+    "pageErrorCountZero": true,
+    "consoleErrorCountZero": true,
+    "failedRequestCountZero": true,
+    "httpErrorCountZero": true
+  },
+  "status": "PASS"
+}

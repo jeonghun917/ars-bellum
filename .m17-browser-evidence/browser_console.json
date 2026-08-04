@@ -1,0 +1,114 @@
+[
+  {
+    "type": "log",
+    "text": "[Ars Bellum] GameState 연결 완료"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] GameClock 연결 완료 - 1일 08:00 (초기 정지)"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] WorldMapData 연결 완료 - 거점 3개, 도로 2개"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] ResourceCatalog 연결 완료 - 자원 27종, 생산 레시피 23개"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementLaborTypes 연결 완료 - 직업 9종"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementBuildingCatalog 연결 완료 - 건물 32종"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementDevelopmentState 연결 완료 - 거점 3곳"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementEconomyState 연결 완료 - 거점 3곳"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementPopulationState 연결 완료"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementConstructionState 연결 완료 - 거점 3곳"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementDevelopmentEffects 연결 완료"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementLaborSystem 연결 완료"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementDemographySystem 연결 완료"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementPopulationSystem 연결 완료 - 거점 3곳"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementConstructionSystem 연결 완료 - 거점 3곳"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementEconomyBootstrap 연결 완료"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementDevelopmentPopulationBridge 연결 완료"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SettlementEconomyDiagnostics 연결 완료"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] WorldTerrainTypes 연결 완료 - 기본 지형 10개, 길 3개, 특징 1개"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] WorldTerrainMap 연결 완료 - 기본 지형 전체 평원"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] WorldMapSystem 연결 완료 - 기본 속도 180"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] WorldRoutePlanner 연결 완료 - 수동 클릭 우선"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] WorldMapCommandSystem 연결 완료 - 수동 이동 명령이 자동 경로보다 우선"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] WorldMapDebugOverlay 연결 완료 - 기본 꺼짐"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] WorldMovementTestCourse 연결 완료 - 콘솔에서 ArsWorldMovementTest.spawnAtPlayer() 실행"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] WorldSystemDiagnostics 연결 완료 - 콘솔에서 ArsWorldDiagnostics.runAll() 실행"
+  },
+  {
+    "type": "log",
+    "text": "[Ars Bellum] SimulationTimeController 연결 완료 - 현재 모드: menu 배속: 0"
+  },
+  {
+    "type": "log",
+    "text": "> [GameManager] 시스템 초기화 및 전장 생성 완료."
+  }
+]
