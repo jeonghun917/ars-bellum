@@ -4,6 +4,33 @@
     const VERSION = 1;
     const registry = window.ArsDefinitionRegistry;
     function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
+
+    function m17SemanticValue(value){
+        if(value===undefined){return null;}
+        if(Array.isArray(value)){
+            const byCanonical={};
+            value.forEach(function(item){const normalized=m17SemanticValue(item),key=window.ArsM1AtomicCoordinator._canonicalStringify(normalized);byCanonical[key]=normalized;});
+            return Object.keys(byCanonical).sort().map(function(key){return byCanonical[key];});
+        }
+        if(value&&typeof value==="object"){
+            const out={};Object.keys(value).sort().forEach(function(key){out[key]=m17SemanticValue(value[key]);});return out;
+        }
+        return value;
+    }
+    function m17SemanticDelta(domainId,command,targetRef,entities,fields){
+        const changes=[];
+        (entities||[]).slice().sort(function(a,b){return String(a.id).localeCompare(String(b.id));}).forEach(function(entity){
+            const before=entity.before===undefined?null:entity.before,after=entity.after===undefined?null:entity.after,beforeOut={},afterOut={};let changed=false;
+            fields.forEach(function(field){
+                const b=before===null?null:m17SemanticValue(Object.prototype.hasOwnProperty.call(before,field)?before[field]:null);
+                const a=after===null?null:m17SemanticValue(Object.prototype.hasOwnProperty.call(after,field)?after[field]:null);
+                if(window.ArsM1AtomicCoordinator._canonicalStringify(b)!==window.ArsM1AtomicCoordinator._canonicalStringify(a)){changed=true;if(before!==null){beforeOut[field]=b;}if(after!==null){afterOut[field]=a;}}
+            });
+            if(changed){changes.push({entityRef:{type:domainId,id:String(entity.id)},before:before===null?null:beforeOut,after:after===null?null:afterOut});}
+        });
+        const target=(entities||[]).filter(function(entity){return String(entity.id)===String(targetRef.id);})[0]||{};
+        return {schemaVersion:"m17.semantic_delta.v1",domainId:domainId,command:command,targetRef:{type:targetRef.type,id:targetRef.id},beforeRevision:target.before&&Number.isInteger(target.before.revision)?target.before.revision:null,afterRevision:target.after&&Number.isInteger(target.after.revision)?target.after.revision:null,changes:changes};
+    }
     function sameCanonical(a,b){const x=clone(a),y=clone(b);if(x&&y){y.revision=x.revision;}return window.ArsM1AtomicCoordinator._canonicalStringify(x)===window.ArsM1AtomicCoordinator._canonicalStringify(y);}
     function validId(v) { return typeof v === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/.test(v); }
     function uniqueIds(v) { return Array.from(new Set((Array.isArray(v) ? v : []).filter(validId))).sort(); }
@@ -133,7 +160,7 @@
                 next.revision = current.revision + 1;
                 const errors = validate(next); if (errors.length) { return { ok: false, error: "invalid_clan", details: errors }; }
                 before[id] = current; after[id] = next; normalized.push(clone(operation));
-                events.push({ eventType: "clan_state_changed", targetId: id, payload: { clanId: id, command: operation.command, beforeRevision: current.revision, afterRevision: next.revision } });
+                events.push({ eventType: "clan_state_changed", targetId: id, payload: { clanId: id, command: operation.command, beforeRevision: current.revision, afterRevision: next.revision, semanticDelta: m17SemanticDelta("clan", operation.command, {type:"clan",id:id}, [{id:id,before:current,after:next}], ["factionId","headCharacterId","treasuryAccountId","designatedSuccessorIds","successionLawId"]) } });
             }
             return { ok: true, domainId: "clan", normalizedOperations: normalized, beforeSnapshots: before, plannedSnapshots: after, rollbackData: before, eventDescriptors: events };
         },
