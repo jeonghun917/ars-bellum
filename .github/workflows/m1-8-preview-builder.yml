@@ -1,0 +1,39 @@
+name: M1-8 Preview Builder
+
+on:
+  push:
+    branches:
+      - automation/m1-8-schema-closure-preview-builder
+
+permissions:
+  contents: write
+
+jobs:
+  build-preview-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact M1-8 schema closure tree
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat .m18-preview-payload/chunk_* > /tmp/m18_payload.b64
+          test "$(sha256sum /tmp/m18_payload.b64 | awk '{print $1}')" = "fadfff5702324e19f6a98febc546ff888c4a1e13dcbccf99c6e106e8d3a166cb"
+
+          base64 -d /tmp/m18_payload.b64 > /tmp/m18_changed_files.tar.gz
+          test "$(sha256sum /tmp/m18_changed_files.tar.gz | awk '{print $1}')" = "d30fe50427041e34c82457400840b15ca9a7d544c61e643f6add93bca31e4c20"
+
+          git checkout --detach c4cfe22377d405b9123d060a91ad2f467a973855
+          tar -xzf /tmp/m18_changed_files.tar.gz -C .
+          git add GameState.js GameClock.js SimTime.js M1_Compat.js M1_Followups.js index.html M1_Migration.js M1_Diagnostics.js
+
+          test "$(git write-tree)" = "2ea1e23a618d2d8acba43155bf697775377c992b"
+
+          git config user.name "ars-bellum-preview-builder"
+          git config user.email "ars-bellum-preview-builder@users.noreply.github.com"
+          git commit -m "test: prepare exact M1-8 schema closure preview"
+          git push origin HEAD:refs/heads/m1-8-schema-closure-preview
