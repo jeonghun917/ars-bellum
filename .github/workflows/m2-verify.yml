@@ -16,7 +16,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify-m2:
@@ -24,18 +24,45 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Verify M1 baseline
-        run: node verify.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node verify.mjs | tee m2_ci_m1_verification_result.json
       - name: Verify M2 contract
-        run: node m2_verify.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node m2_verify.mjs
+          cp m2_verification_result.json m2_ci_verification_result.json
       - name: Upload M2 verification result
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: m2-verification-result
-          path: m2_verification_result.json
+          path: |
+            m2_ci_m1_verification_result.json
+            m2_ci_verification_result.json
+            m2_verification_result.json
           if-no-files-found: warn
+      - name: Publish branch verification evidence
+        if: ${{ success() && github.event_name == 'push' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add m2_ci_m1_verification_result.json m2_ci_verification_result.json
+          if git diff --cached --quiet; then
+            echo "Verification evidence is already current."
+            exit 0
+          fi
+          git commit -m "test: record M2-0 verification evidence"
+          git push origin HEAD:m2/3d-tech-prototype-v1
