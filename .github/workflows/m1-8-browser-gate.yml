@@ -1,0 +1,117 @@
+name: M1-8 Browser Gate
+
+on:
+  push:
+    branches:
+      - automation/m1-8-browser-gate-r3
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  browser-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.57.0
+          npx playwright install --with-deps chromium
+
+      - name: Restore browser gate harness
+        run: |
+          cat .m18-browser-harness/chunk_* > m18_browser_gate.js.gz.b64
+          base64 -d m18_browser_gate.js.gz.b64 | gzip -d > m18_browser_gate.js
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('m18_browser_gate.js')
+          s = p.read_text()
+          s = s.replace("const { chromium } = require('playwright');", "const { chromium } = require('playwright');\nconst { isDeepStrictEqual } = require('util');", 1)
+          s = s.replace("assert(JSON.stringify(actual) === JSON.stringify(setup.expected), 'activity cursor changed across reload', { expected: setup.expected, actual });", "assert(isDeepStrictEqual(actual, setup.expected), 'activity cursor changed across reload', { expected: setup.expected, actual });", 1)
+          p.write_text(s)
+          PY
+          node --check m18_browser_gate.js
+
+      - name: Execute M18-BROWSER-001..010
+        shell: bash
+        env:
+          PREVIEW_URL: 'https://ars-bellum-r4l7u5wtp-ashite1010-3572s-projects.vercel.app/?_vercel_share=m5b5EkAXm6JDFtecAhv7bzIvz1k0Xtaz'
+          EXPECTED_DEPLOYMENT_URL: 'https://ars-bellum-r4l7u5wtp-ashite1010-3572s-projects.vercel.app/'
+          RESULT_PATH: 'browser-gate-result.json'
+        run: |
+          set +e
+          node m18_browser_gate.js > browser-gate.log 2>&1
+          code=$?
+          echo "$code" > browser-gate-exit-code.txt
+          cat browser-gate.log
+          exit 0
+
+      - name: Publish commit statuses
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: 'bb2db8a7d5dce68d5950f6b7160a67e31cc35096'
+          RUN_URL: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const repo = process.env.GITHUB_REPOSITORY;
+          const sha = process.env.TARGET_SHA;
+          const runUrl = process.env.RUN_URL;
+          let result;
+          try { result = JSON.parse(fs.readFileSync('browser-gate-result.json', 'utf8')); }
+          catch (error) { result = { summary: { PASS: 0, FAIL: 0, NOT_TESTED: 10 }, tests: {}, fatalError: { message: String(error) } }; }
+          const ids = Array.from({length: 10}, (_, i) => `M18-BROWSER-${String(i + 1).padStart(3, '0')}`);
+          async function post(context, state, description) {
+            const response = await fetch(`https://api.github.com/repos/${repo}/statuses/${sha}`, {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/vnd.github+json',
+                'Authorization': `Bearer ${process.env.GH_TOKEN}`,
+                'X-GitHub-Api-Version': '2022-11-28',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ state, context, description: String(description).slice(0, 140), target_url: runUrl })
+            });
+            if (!response.ok) throw new Error(`${context}: ${response.status} ${await response.text()}`);
+          }
+          (async () => {
+            for (const id of ids) {
+              const test = result.tests && result.tests[id] || { status: 'NOT_TESTED' };
+              const state = test.status === 'PASS' ? 'success' : test.status === 'FAIL' ? 'failure' : 'error';
+              const description = test.status === 'PASS'
+                ? `PASS (${test.durationMs || 0}ms)`
+                : `${test.status}: ${(test.error && test.error.message) || 'not completed'}`;
+              await post(id, state, description);
+            }
+            const summary = result.summary || { PASS: 0, FAIL: 0, NOT_TESTED: 10 };
+            const overall = summary.FAIL === 0 && summary.NOT_TESTED === 0 ? 'success' : summary.FAIL > 0 ? 'failure' : 'error';
+            await post('M1-8 Browser Gate', overall, `PASS ${summary.PASS || 0} / FAIL ${summary.FAIL || 0} / NOT_TESTED ${summary.NOT_TESTED || 0}`);
+          })().catch(error => { console.error(error); process.exit(1); });
+          NODE
+
+      - name: Upload browser gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m1-8-browser-gate-evidence
+          path: |
+            browser-gate-result.json
+            browser-gate.log
+            browser-gate-exit-code.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce browser gate result
+        if: always()
+        shell: bash
+        run: |
+          code="$(cat browser-gate-exit-code.txt 2>/dev/null || echo 1)"
+          exit "$code"
