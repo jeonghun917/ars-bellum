@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ARS BELLUM M2-0 3D Runtime</title>
+  <link rel="stylesheet" href="m2_prototype.css">
+</head>
+<body>
+  <main id="m2App" class="m2-app">
+    <canvas id="m2Canvas" aria-label="M2 3D 기술 프로토타입"></canvas>
+
+    <section class="m2-header" aria-live="polite">
+      <div>
+        <div class="m2-kicker">M2-0 · TECHNICAL RUNTIME</div>
+        <h1>ARS BELLUM</h1>
+        <p>독립 3D 렌더러·단일 루프·전투 프로필 연결점 검증</p>
+      </div>
+      <div id="m2Status" class="m2-status">초기화 중</div>
+    </section>
+
+    <section class="m2-controls" aria-label="M2 런타임 제어">
+      <button id="m2Start" type="button">시작</button>
+      <button id="m2Pause" type="button">일시정지</button>
+      <button id="m2Restart" type="button">재시작</button>
+      <button id="m2Dispose" type="button">해제</button>
+    </section>
+
+    <section class="m2-legend" aria-label="프로토타입 범례">
+      <span><i class="ally"></i>아군 fixture</span>
+      <span><i class="enemy"></i>적군 fixture</span>
+      <span><i class="player"></i>플레이어 표시</span>
+      <span>M2_TEST_ONLY · 정식 밸런스 아님</span>
+    </section>
+
+    <pre id="m2Diagnostics" class="m2-diagnostics">진단 준비 중</pre>
+
+    <noscript>이 프로토타입은 JavaScript가 필요합니다.</noscript>
+  </main>
+
+  <script type="module" src="m2/M2_Bootstrap.js"></script>
+</body>
+</html>

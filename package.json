@@ -4,7 +4,8 @@
   "private": true,
   "description": "ARS BELLUM HTML/CSS/JavaScript strategy game",
   "scripts": {
-    "verify": "node verify.mjs"
+    "verify": "node verify.mjs",
+    "verify:m2": "node m2_verify.mjs"
   },
   "engines": {
     "node": ">=20"

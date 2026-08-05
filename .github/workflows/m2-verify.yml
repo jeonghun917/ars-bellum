@@ -1,0 +1,41 @@
+name: Verify ARS BELLUM M2
+
+on:
+  push:
+    branches:
+      - m2/3d-tech-prototype-v1
+    paths:
+      - m2_prototype.html
+      - m2_prototype.css
+      - m2/**
+      - vendor/three/r184/**
+      - m2_verify.mjs
+      - package.json
+      - .github/workflows/m2-verify.yml
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-m2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify M1 baseline
+        run: node verify.mjs
+      - name: Verify M2 contract
+        run: node m2_verify.mjs
+      - name: Upload M2 verification result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m2-verification-result
+          path: m2_verification_result.json
+          if-no-files-found: warn
