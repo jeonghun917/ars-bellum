@@ -40,7 +40,7 @@ const required = [
 ];
 
 for (const relative of required) {
-  if (!fs.existsSync(path.join(root, relative))) fail(`필수 파일 누락: ${relative}`);
+  if (!fs.existsSync(path.join(root, relative))) fail(`pilsu pail nullom: ${relative}`);
   else results.requiredFiles += 1;
 }
 
@@ -61,27 +61,27 @@ for (const absolute of m2Files.sort()) {
     input: source,
     encoding: "utf8"
   });
-  if (checked.status !== 0) fail(`ESM 문법 오류: ${relative}
+  if (checked.status !== 0) fail(`ESM module syntax error: ${relative}
 ${checked.stderr || checked.stdout}`);
   else results.esmSyntaxPass += 1;
 
-  const imports = [...source.matchAll(/(?:import|export)\s+(?:[^"']*?\s+from\s+)?["']([^"']+)["']/g)].map((match) => match[1]);
+  const imports = [...source.matchAll(/\b(?:import|export)\s+(?:[^"']*?\s+from\s+)?["']([^"']+)["']/g)].map((match) => match[1]);
   for (const specifier of imports) {
     if (/^(?:https?:)?\/\//i.test(specifier)) {
       results.remoteImports.push(`${relative}:${specifier}`);
-      fail(`원격 import 금지: ${relative}:${specifier}`);
+      fail(`remote import forbidden: ${relative}:${specifier}`);
     }
   }
 
-  if (/requestAnimationFrame\s*\(/.test(source)) {
+  if (/\brequestAnimationFrame\s*\(/.test(source)) {
     results.rawAnimationFrameCalls.push(relative);
-    fail(`M2 raw requestAnimationFrame 금지: ${relative}`);
+    fail(`M2 raw requestAnimationFrame forbidden: ${relative}`);
   }
 
   for (const token of ["GameClock", "ArsSimulationTime", "localStorage", "ArsSaveService", "ArsGameState"]) {
     if (source.includes(token)) {
       results.forbiddenReferences.push(`${relative}:${token}`);
-      fail(`금지 참조: ${relative}:${token}`);
+      fail(`forbidden reference: ${relative}:${token}`);
     }
   }
 }
@@ -89,26 +89,26 @@ ${checked.stderr || checked.stdout}`);
 const runtimeSource = fs.existsSync(path.join(root, "m2/M2_BattleRuntime.js"))
   ? fs.readFileSync(path.join(root, "m2/M2_BattleRuntime.js"), "utf8")
   : "";
-if (!runtimeSource.includes("setAnimationLoop(this.#boundFrame)")) fail("M2BattleRuntime animation owner 시작 계약 누락");
-if (!runtimeSource.includes("setAnimationLoop(null)")) fail("M2BattleRuntime dispose animation 해제 계약 누락");
+if (!runtimeSource.includes("setAnimationLoop(this.#boundFrame)")) fail("M2BattleRuntime animation owner start contract missing");
+if (!runtimeSource.includes("setAnimationLoop(null)")) fail("M2BattleRuntime dispose animation contract missing");
 for (const absolute of m2Files) {
   const relative = path.relative(root, absolute).replaceAll(path.sep, "/");
   if (relative !== "m2/M2_BattleRuntime.js" && relative !== "m2/M2_RendererThree.js") {
     const source = fs.readFileSync(absolute, "utf8");
-    if (source.includes("setAnimationLoop")) fail(`animation owner 침범: ${relative}`);
+    if (source.includes("setAnimationLoop")) fail(`animation owner duplicate: ${relative}`);
   }
 }
 
 const htmlPath = path.join(root, "m2_prototype.html");
 if (fs.existsSync(htmlPath)) {
   const html = fs.readFileSync(htmlPath, "utf8");
-  const scripts = [...html.matchAll(/<script([^>]*)src=[#']([^#']+)[#'][^>]*><\/script>/gi)].map((match) => ({ attrs: match[1], src: match[2] }));
+  const scripts = [...html.matchAll(/<script\b([^>]*)\src=["']([^"']+)["'][^>]*><\/script>/gi)].map((match) => ({ attrs: match[1], src: match[2] }));
   results.htmlModuleScripts = scripts.map((entry) => entry.src);
-  if (scripts.length !== 1 || scripts[0].src !== "m2/M2_Bootstrap.js" || !/type=[#']module["']/i.test(scripts[0].attrs)) {
-    fail("m2_prototype.html은 M2_Bootstrap module 하나만 load해야 함");
+  if (scripts.length !== 1 || scripts[0].src !== "m2/M2_Bootstrap.js" || !/type=["']module["']/i.test(scripts[0].attrs)) {
+    fail("m2_prototype.html must load exactly one M2_Bootstrap module");
   }
   for (const forbidden of ["GameClock.js", "SimTime.js", "Campaign.js", "main.js", "BattleEngine.js", "Renderer.js", "index.html"]) {
-    if (html.includes(forbidden)) fail(`M2 entry 기존 runtime load 금지: ${forbidden}`);
+    if (html.includes(forbidden)) fail(`M2 entry forbidden runtime load: ${forbidden}`);
   }
 }
 
@@ -118,7 +118,7 @@ if (fs.existsSync(bootstrapPath)) {
   const apiNames = [...source.matchAll(/window\.(ArsM2[A-Za-z0-9_]*)\s*=/g)].map((match) => match[1]).sort();
   results.publicApis = apiNames;
   if (JSON.stringify(apiNames) !== JSON.stringify(["ArsM2Battle", "ArsM2Diagnostics"])) {
-    fail(`M2 공개 API 위반: ${apiNames.join(",")}`);
+    fail(`M2 public API mismatch: ${apiNames.join(",")}`);
   }
 }
 
@@ -126,14 +126,14 @@ const manifestPath = path.join(root, "vendor/three/r184/MANIFEST.json");
 if (fs.existsSync(manifestPath)) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   if (manifest.release !== "r184" || manifest.packageVersion !== "0.184.0" || manifest.runtimeNetworkImport !== false) {
-    fail("Three.js vendor manifest metadata 불일치");
+    fail("Three.js vendor manifest metadata mismatch");
   }
   for (const record of manifest.files || []) {
     const absolute = path.join(root, "vendor/three/r184", record.path);
-    if (!fs.existsSync(absolute)) { fail(`vendor manifest 파일 누락: ${record.path}`); continue; }
+    if (!fs.existsSync(absolute)) { fail(`vendor manifest file missing: ${record.path}`); continue; }
     const bytes = fs.readFileSync(absolute);
     const digest = crypto.createHash("sha256").update(bytes).digest("hex");
-    if (digest !== record.sha256 || bytes.length !== record.size) fail(`vendor hash/size 불일치: ${record.path}`);
+    if (digest !== record.sha256 || bytes.length !== record.size) fail(`vendor hash/size mismatch: ${record.path}`);
     else results.vendorHashPass += 1;
   }
 }
