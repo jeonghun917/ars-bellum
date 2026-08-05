@@ -42,6 +42,118 @@ jobs:
           set -euo pipefail
           node m2_verify.mjs
           cp m2_verification_result.json m2_ci_verification_result.json
+      - name: Verify actual Chrome WebGL2 lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > m2_browser_probe.html <<'HTML'
+          <!DOCTYPE html>
+          <html><head><meta charset="utf-8"><title>M2_BROWSER_PENDING</title></head>
+          <body data-status="PENDING"><canvas id="probe" width="960" height="540"></canvas><pre id="result"></pre>
+          <script type="module">
+          import { M2BattleRuntime } from './m2/M2_BattleRuntime.js';
+          import { M2Diagnostics } from './m2/M2_Diagnostics.js';
+          import { createCombatProfileCatalog } from './m2/M2_CombatProfiles.js';
+          import { M2_TECHNICAL_COMBAT_PROFILES, M2_TECHNICAL_SNAPSHOT } from './m2/fixtures/m2_technical_fixture_v1.js';
+
+          const output = document.getElementById('result');
+          const canvas = document.getElementById('probe');
+          const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const assert = (condition, message) => { if (!condition) throw new Error(message); };
+          const makeRuntime = () => {
+            const diagnostics = new M2Diagnostics();
+            const combatProfiles = createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES);
+            const runtime = new M2BattleRuntime({ canvas, diagnostics, combatProfiles });
+            const loaded = runtime.loadSnapshot(M2_TECHNICAL_SNAPSHOT);
+            assert(loaded.ok, loaded.error || 'load_failed');
+            return { runtime, diagnostics, combatProfiles };
+          };
+
+          try {
+            const webgl2 = canvas.getContext('webgl2');
+            assert(webgl2, 'webgl2_unavailable');
+
+            const first = makeRuntime();
+            assert(first.combatProfiles.sourceScope === 'M2_TEST_ONLY', 'profile_scope_mismatch');
+            assert(first.runtime.start().ok, 'first_start_failed');
+            await delay(900);
+            const firstSnapshot = first.diagnostics.getSnapshot();
+            assert(firstSnapshot.fixedTickCount > 0, 'first_tick_missing');
+            assert(firstSnapshot.animationOwner === 'M2BattleRuntime', 'owner_mismatch');
+            assert(firstSnapshot.persistenceAccess === false, 'persistence_boundary_broken');
+            assert(first.runtime.pause().ok, 'pause_failed');
+            assert(first.runtime.dispose().ok, 'first_dispose_failed');
+            assert(first.runtime.issueCommand({}).error === 'm2_runtime_disposed', 'disposed_guard_missing');
+
+            const second = makeRuntime();
+            assert(second.runtime.start().ok, 'second_start_failed');
+            await delay(500);
+            const secondSnapshot = second.diagnostics.getSnapshot();
+            assert(secondSnapshot.fixedTickCount > 0, 'second_tick_missing');
+            assert(second.runtime.dispose().ok, 'second_dispose_failed');
+
+            const result = {
+              status: 'PASS',
+              scope: 'M2_0_ACTUAL_CHROME_WEBGL2',
+              actualWebGL2: true,
+              profileCount: first.combatProfiles.size,
+              profileScope: first.combatProfiles.sourceScope,
+              activeCharacters: firstSnapshot.activeCharacters,
+              firstRunTicks: firstSnapshot.fixedTickCount,
+              secondRunTicks: secondSnapshot.fixedTickCount,
+              animationOwner: firstSnapshot.animationOwner,
+              persistenceAccess: firstSnapshot.persistenceAccess,
+              startPauseDispose: 'PASS',
+              restartWithNewRuntime: 'PASS'
+            };
+            output.textContent = JSON.stringify(result);
+            document.body.dataset.status = 'PASS';
+            document.title = 'M2_BROWSER_PASS';
+          } catch (error) {
+            const result = { status: 'FAIL', scope: 'M2_0_ACTUAL_CHROME_WEBGL2', error: String(error?.message || error) };
+            output.textContent = JSON.stringify(result);
+            document.body.dataset.status = 'FAIL';
+            document.title = 'M2_BROWSER_FAIL';
+          }
+          </script></body></html>
+          HTML
+
+          chrome_bin="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
+          test -n "$chrome_bin"
+          python3 -m http.server 4173 --bind 127.0.0.1 > m2_browser_server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          sleep 1
+          timeout 35s "$chrome_bin" \
+            --headless=new \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --use-angle=swiftshader \
+            --enable-unsafe-swiftshader \
+            --enable-webgl \
+            --ignore-gpu-blocklist \
+            --virtual-time-budget=5000 \
+            --dump-dom \
+            http://127.0.0.1:4173/m2_browser_probe.html \
+            > m2_browser_probe_dom.html \
+            2> m2_browser_chrome.log
+          grep -q 'data-status="PASS"' m2_browser_probe_dom.html
+          python3 <<'PY'
+          import html
+          import json
+          import re
+          from pathlib import Path
+          dom = Path('m2_browser_probe_dom.html').read_text(encoding='utf-8')
+          match = re.search(r'<pre id="result">(.*?)</pre>', dom, re.S)
+          if not match:
+              raise SystemExit('browser result element missing')
+          result = json.loads(html.unescape(match.group(1)))
+          if result.get('status') != 'PASS':
+              raise SystemExit(json.dumps(result))
+          result['browser'] = 'GitHub-hosted Ubuntu headless Chrome with SwiftShader'
+          Path('m2_ci_browser_verification_result.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
+          print(json.dumps(result, indent=2))
+          PY
       - name: Upload M2 verification result
         if: always()
         uses: actions/upload-artifact@v4
@@ -50,7 +162,11 @@ jobs:
           path: |
             m2_ci_m1_verification_result.json
             m2_ci_verification_result.json
+            m2_ci_browser_verification_result.json
             m2_verification_result.json
+            m2_browser_probe_dom.html
+            m2_browser_chrome.log
+            m2_browser_server.log
           if-no-files-found: warn
       - name: Publish branch verification evidence
         if: ${{ success() && github.event_name == 'push' }}
@@ -59,7 +175,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add m2_ci_m1_verification_result.json m2_ci_verification_result.json
+          git add m2_ci_m1_verification_result.json m2_ci_verification_result.json m2_ci_browser_verification_result.json
           if git diff --cached --quiet; then
             echo "Verification evidence is already current."
             exit 0
