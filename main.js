@@ -15,6 +15,28 @@ window.isWaypointMode = false;
 let gameMode = 'none'; // 'practice' | 'maingame'
 let squads = [];
 
+function bindSaveButtonOnce() {
+    const btnSave = document.getElementById('btnSave');
+    const menuModal = document.getElementById('menuModal');
+    if (!btnSave || btnSave.dataset.arsSaveBound === '1') return;
+
+    btnSave.dataset.arsSaveBound = '1';
+    btnSave.addEventListener('click', () => {
+        const result = window.saveEconomy();
+        if (!result || !result.ok) {
+            console.error('[Ars Bellum] Save failed:', result && result.error ? result.error : 'unknown_error');
+            btnSave.textContent = '저장 실패';
+            window.setTimeout(() => { btnSave.textContent = '저장'; }, 1500);
+            return;
+        }
+
+        if (menuModal) menuModal.classList.remove('active');
+        btnSave.textContent = '저장 완료';
+        window.setTimeout(() => { btnSave.textContent = '저장'; }, 1500);
+    });
+}
+
+bindSaveButtonOnce();
 
 let economyNewGameInitialized = false;
 
