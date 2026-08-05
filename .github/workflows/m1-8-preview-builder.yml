@@ -1,4 +1,4 @@
-name: M1-8 Preview Builder
+name: M1-8 Browser Gate
 
 on:
   push:
@@ -6,34 +6,108 @@ on:
       - automation/m1-8-schema-closure-preview-builder
 
 permissions:
-  contents: write
+  contents: read
+  statuses: write
 
 jobs:
-  build-preview-branch:
+  browser-gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Reconstruct exact M1-8 schema closure tree
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.57.0
+          npx playwright install --with-deps chromium
+
+      - name: Restore browser gate harness
         shell: bash
         run: |
-          set -euo pipefail
+          cat > /tmp/m18_browser_gate.js.gz.b64 <<'HARNESS'
+H4sIALTJcmoC/+09aXPbRpbf/SuQqlQIliFYlOMkpkeTkmXZ0Y4PlSRPdsrxMhDZpDAGAS4AStYo/O/zrj5w8JAjebzZ5INDdL9+/e5+r9FoDbO0KL1x4e16ufrfeZwrvzMuOt0n94bUc+0Nz/NsGs+n3sKFmSXR1WUeT85LhBXgo+ODvx8e/Dx4e/wSYGd5NlRFEar0InR6NOaD/z462D89eDZ4dnD08s0/Xh28Pm0ZuAzqt9+8TkejevP2tDbs+ODk7cvTwdHe6U8EepZnl4XKtyZRqbZyVcyTMvxnkaWAIh57/lcOfV2vBI4vvVRdegd5nuV+x+VrGhdFnE4crhkdSvB6oSmKkuTgQqXU+u69bi3KKC/VaK+EVkT/DKjxu2GZHZ68OSlzQOsD2kSVntALc4zn6bCMs9QbJlmq/IsomasuqCVX5TxPPXr2dgHfPEm8H+W57/3XyZv4SzKC+XTz4LQx+MrwdB94i0s7qiAyUofqBzF2BB4U5BkNFGBN1JlFCcw4z3PI1EZIG7zPOZNoaiELxaboACOEIr6Q8YGYPyDu1jeBIANi3sOZQoleFgcfCxVnkaJT888M89bqo8ozl+/vqaucJ4nbBwLTzcRCLF9ihOI6B5cqHyokl/CJL5Td+mHYTb95cFvA3l88NtF9EvID1vERE9nZUEwD2JAW5Q+4gYOHYpBknGUxP9SLAViiwmWeVlqaTRVfZHaN98EeLCRKKWxnYAgRY5dT0ykNka6cRjPxaPA1oYfGhNQK4KiuTAga6Iv9lWDF33JAEK9QG7vRcVVOvQM05dRXD7P8qM8G82HpT9DvROjEfZ48BwKzHMZ4/tdb/ev3tMsS1SU%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
+HARNESS
+          base64 -d /tmp/m18_browser_gate.js.gz.b64 | gzip -d > /tmp/m18_browser_gate.js
+          node --check /tmp/m18_browser_gate.js
 
-          cat .m18-preview-payload/chunk_* > /tmp/m18_payload.b64
-          test "$(sha256sum /tmp/m18_payload.b64 | awk '{print $1}')" = "fadfff5702324e19f6a98febc546ff888c4a1e13dcbccf99c6e106e8d3a166cb"
+      - name: Execute M18-BROWSER-001..010
+        id: browser_gate
+        shell: bash
+        env:
+          PREVIEW_URL: 'https://ars-bellum-r4l7u5wtp-ashite1010-3572s-projects.vercel.app/?_vercel_share=m5b5EkAXm6JDFtecAhv7bzIvz1k0Xtaz'
+          EXPECTED_DEPLOYMENT_URL: 'https://ars-bellum-r4l7u5wtp-ashite1010-3572s-projects.vercel.app/'
+          RESULT_PATH: 'browser-gate-result.json'
+        run: |
+          set +e
+          node /tmp/m18_browser_gate.js > browser-gate.log 2>&1
+          code=$?
+          echo "$code" > browser-gate-exit-code.txt
+          cat browser-gate.log
+          exit 0
 
-          base64 -d /tmp/m18_payload.b64 > /tmp/m18_changed_files.tar.gz
-          test "$(sha256sum /tmp/m18_changed_files.tar.gz | awk '{print $1}')" = "d30fe50427041e34c82457400840b15ca9a7d544c61e643f6add93bca31e4c20"
+      - name: Publish commit statuses
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: 'bb2db8a7d5dce68d5950f6b7160a67e31cc35096'
+          RUN_URL: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const repo = process.env.GITHUB_REPOSITORY;
+          const sha = process.env.TARGET_SHA;
+          const runUrl = process.env.RUN_URL;
+          let result;
+          try { result = JSON.parse(fs.readFileSync('browser-gate-result.json', 'utf8')); }
+          catch (error) { result = { summary: { PASS: 0, FAIL: 0, NOT_TESTED: 10 }, tests: {}, fatalError: { message: String(error) } }; }
+          const ids = Array.from({length: 10}, (_, i) => `M18-BROWSER-${String(i + 1).padStart(3, '0')}`);
+          async function post(context, state, description) {
+            const response = await fetch(`https://api.github.com/repos/${repo}/statuses/${sha}`, {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/vnd.github+json',
+                'Authorization': `Bearer ${process.env.GH_TOKEN}`,
+                'X-GitHub-Api-Version': '2022-11-28',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ state, context, description: String(description).slice(0, 140), target_url: runUrl })
+            });
+            if (!response.ok) throw new Error(`${context}: ${response.status} ${await response.text()}`);
+          }
+          (async () => {
+            for (const id of ids) {
+              const test = result.tests && result.tests[id] || { status: 'NOT_TESTED' };
+              const state = test.status === 'PASS' ? 'success' : test.status === 'FAIL' ? 'failure' : 'error';
+              const description = test.status === 'PASS'
+                ? `PASS (${test.durationMs || 0}ms)`
+                : `${test.status}: ${(test.error && test.error.message) || 'not completed'}`;
+              await post(id, state, description);
+            }
+            const summary = result.summary || { PASS: 0, FAIL: 0, NOT_TESTED: 10 };
+            const overall = summary.FAIL === 0 && summary.NOT_TESTED === 0 ? 'success' : summary.FAIL > 0 ? 'failure' : 'error';
+            await post('M1-8 Browser Gate', overall, `PASS ${summary.PASS || 0} / FAIL d{summary.FAIL || 0} / NOT_TESTED ${summary.NOT_TESTED || 0}`);
+          })().catch(error => { console.error(error); process.exit(1); });
+          NODE
 
-          git checkout --detach c4cfe22377d405b9123d060a91ad2f467a973855
-          tar -xzf /tmp/m18_changed_files.tar.gz -C .
-          git add GameState.js GameClock.js SimTime.js M1_Compat.js M1_Followups.js index.html M1_Migration.js M1_Diagnostics.js
+      - name: Upload browser gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m1-8-browser-gate-evidence
+          path: |
+            browser-gate-result.json
+            browser-gate.log
+            browser-gate-exit-code.txt
+          if-no-files-found: warn
+          retention-days: 30
 
-          test "$(git write-tree)" = "2ea1e23a618d2d8acba43155bf697775377c992b"
-
-          git config user.name "ars-bellum-preview-builder"
-          git config user.email "ars-bellum-preview-builder@users.noreply.github.com"
-          git commit -m "test: prepare exact M1-8 schema closure preview"
-          git push origin HEAD:refs/heads/m1-8-schema-closure-preview
+      - name: Enforce browser gate result
+        if: always()
+        shell: bash
+        run: |
+          code="$(cat browser-gate-exit-code.txt 2>/dev/null || echo 1)"
+          exit "$code"
