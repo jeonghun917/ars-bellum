@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
 const failures = [];
-const results = {
+const result = {
   phase: "M2-0",
   requiredFiles: 0,
   esmSyntaxPass: 0,
@@ -40,60 +40,67 @@ const required = [
 ];
 
 for (const relative of required) {
-  if (!fs.existsSync(path.join(root, relative))) fail(`pilsu pail nullom: ${relative}`);
-  else results.requiredFiles += 1;
+  if (fs.existsSync(path.join(root, relative))) result.requiredFiles += 1;
+  else fail(`required file missing: ${relative}`);
 }
 
-const m2Files = [];
-function collect(directory) {
+const moduleFiles = [];
+function collectModules(directory) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const absolute = path.join(directory, entry.name);
-    if (entry.isDirectory()) collect(absolute);
-    else if (entry.isFile() && entry.name.endsWith(".js")) m2Files.push(absolute);
+    if (entry.isDirectory()) collectModules(absolute);
+    else if (entry.isFile() && entry.name.endsWith(".js")) moduleFiles.push(absolute);
   }
 }
-if (fs.existsSync(path.join(root, "m2"))) collect(path.join(root, "m2"));
+const m2Directory = path.join(root, "m2");
+if (fs.existsSync(m2Directory)) collectModules(m2Directory);
 
-for (const absolute of m2Files.sort()) {
+const importPatterns = [
+  /(?:import|export)\s+(?:[^"']*?\s+from\s+)?["']([^"']+)["']/g,
+  /import\s*\(\s*["']([^"']+)["']\s*\)/g
+];
+const forbiddenTokens = ["GameClock", "ArsSimulationTime", "localStorage", "ArsSaveService", "ArsGameState"];
+
+for (const absolute of moduleFiles.sort()) {
   const relative = path.relative(root, absolute).replaceAll(path.sep, "/");
   const source = fs.readFileSync(absolute, "utf8");
-  const checked = spawnSync(process.execPath, ["--check", "--input-type=module"], {
+  const syntax = spawnSync(process.execPath, ["--check", "--input-type=module"], {
     input: source,
     encoding: "utf8"
   });
-  if (checked.status !== 0) fail(`ESM module syntax error: ${relative}
-${checked.stderr || checked.stdout}`);
-  else results.esmSyntaxPass += 1;
+  if (syntax.status === 0) result.esmSyntaxPass += 1;
+  else fail(`ESM syntax error: ${relative}\n${syntax.stderr || syntax.stdout}`);
 
-  const imports = [...source.matchAll(/\b(?:import|export)\s+(?:[^"']*?\s+from\s+)?["']([^"']+)["']/g)].map((match) => match[1]);
-  for (const specifier of imports) {
-    if (/^(?:https?:)?\/\//i.test(specifier)) {
-      results.remoteImports.push(`${relative}:${specifier}`);
-      fail(`remote import forbidden: ${relative}:${specifier}`);
+  for (const pattern of importPatterns) {
+    for (const match of source.matchAll(pattern)) {
+      const specifier = match[1];
+      if (/^(?:https?:)?\/\//i.test(specifier)) {
+        result.remoteImports.push(`${relative}:${specifier}`);
+        fail(`remote import forbidden: ${relative}:${specifier}`);
+      }
     }
   }
 
-  if (/\brequestAnimationFrame\s*\(/.test(source)) {
-    results.rawAnimationFrameCalls.push(relative);
-    fail(`M2 raw requestAnimationFrame forbidden: ${relative}`);
+  if (/requestAnimationFrame\s*\(/.test(source)) {
+    result.rawAnimationFrameCalls.push(relative);
+    fail(`raw requestAnimationFrame forbidden: ${relative}`);
   }
 
-  for (const token of ["GameClock", "ArsSimulationTime", "localStorage", "ArsSaveService", "ArsGameState"]) {
+  for (const token of forbiddenTokens) {
     if (source.includes(token)) {
-      results.forbiddenReferences.push(`${relative}:${token}`);
+      result.forbiddenReferences.push(`${relative}:${token}`);
       fail(`forbidden reference: ${relative}:${token}`);
     }
   }
 }
 
-const runtimeSource = fs.existsSync(path.join(root, "m2/M2_BattleRuntime.js"))
-  ? fs.readFileSync(path.join(root, "m2/M2_BattleRuntime.js"), "utf8")
-  : "";
-if (!runtimeSource.includes("setAnimationLoop(this.#boundFrame)")) fail("M2BattleRuntime animation owner start contract missing");
-if (!runtimeSource.includes("setAnimationLoop(null)")) fail("M2BattleRuntime dispose animation contract missing");
-for (const absolute of m2Files) {
+const runtimePath = path.join(root, "m2/M2_BattleRuntime.js");
+const runtimeSource = fs.existsSync(runtimePath) ? fs.readFileSync(runtimePath, "utf8") : "";
+if (!runtimeSource.includes("setAnimationLoop(this.#boundFrame)")) fail("animation owner start contract missing");
+if (!runtimeSource.includes("setAnimationLoop(null)")) fail("animation owner dispose contract missing");
+for (const absolute of moduleFiles) {
   const relative = path.relative(root, absolute).replaceAll(path.sep, "/");
-  if (relative !== "m2/M2_BattleRuntime.js" && relative !== "m2/M2_RendererThree.js") {
+  if (!["m2/M2_BattleRuntime.js", "m2/M2_RendererThree.js"].includes(relative)) {
     const source = fs.readFileSync(absolute, "utf8");
     if (source.includes("setAnimationLoop")) fail(`animation owner duplicate: ${relative}`);
   }
@@ -102,9 +109,13 @@ for (const absolute of m2Files) {
 const htmlPath = path.join(root, "m2_prototype.html");
 if (fs.existsSync(htmlPath)) {
   const html = fs.readFileSync(htmlPath, "utf8");
-  const scripts = [...html.matchAll(/<script\b([^>]*)\src=["']([^"']+)["'][^>]*><\/script>/gi)].map((match) => ({ attrs: match[1], src: match[2] }));
-  results.htmlModuleScripts = scripts.map((entry) => entry.src);
-  if (scripts.length !== 1 || scripts[0].src !== "m2/M2_Bootstrap.js" || !/type=["']module["']/i.test(scripts[0].attrs)) {
+  const tags = [...html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["'][^"']+["'][^>]*>\s*<\/script>/gi)].map((match) => match[0]);
+  const scripts = tags.map((tag) => ({
+    src: tag.match(/\bsrc\s*=\s*["']([^"']+)["']/i)?.[1] || null,
+    type: tag.match(/\btype\s*=\s*["']([^"']+)["']/i)?.[1] || null
+  }));
+  result.htmlModuleScripts = scripts.map((entry) => entry.src);
+  if (scripts.length !== 1 || scripts[0].src !== "m2/M2_Bootstrap.js" || scripts[0].type !== "module") {
     fail("m2_prototype.html must load exactly one M2_Bootstrap module");
   }
   for (const forbidden of ["GameClock.js", "SimTime.js", "Campaign.js", "main.js", "BattleEngine.js", "Renderer.js", "index.html"]) {
@@ -116,9 +127,9 @@ const bootstrapPath = path.join(root, "m2/M2_Bootstrap.js");
 if (fs.existsSync(bootstrapPath)) {
   const source = fs.readFileSync(bootstrapPath, "utf8");
   const apiNames = [...source.matchAll(/window\.(ArsM2[A-Za-z0-9_]*)\s*=/g)].map((match) => match[1]).sort();
-  results.publicApis = apiNames;
+  result.publicApis = apiNames;
   if (JSON.stringify(apiNames) !== JSON.stringify(["ArsM2Battle", "ArsM2Diagnostics"])) {
-    fail(`M2 public API mismatch: ${apiNames.join(",")}`);
+    fail(`public API mismatch: ${apiNames.join(",")}`);
   }
 }
 
@@ -130,21 +141,23 @@ if (fs.existsSync(manifestPath)) {
   }
   for (const record of manifest.files || []) {
     const absolute = path.join(root, "vendor/three/r184", record.path);
-    if (!fs.existsSync(absolute)) { fail(`vendor manifest file missing: ${record.path}`); continue; }
+    if (!fs.existsSync(absolute)) {
+      fail(`vendor manifest file missing: ${record.path}`);
+      continue;
+    }
     const bytes = fs.readFileSync(absolute);
     const digest = crypto.createHash("sha256").update(bytes).digest("hex");
     if (digest !== record.sha256 || bytes.length !== record.size) fail(`vendor hash/size mismatch: ${record.path}`);
-    else results.vendorHashPass += 1;
+    else result.vendorHashPass += 1;
   }
 }
 
 const summary = {
   status: failures.length === 0 ? "PASS" : "FAIL",
-  ...results,
+  ...result,
   failureCount: failures.length,
   failures
 };
-fs.writeFileSync(path.join(root, "m2_verification_result.json"), `${JSON.stringify(summary, null, 2)}
-`, "utf8");
+fs.writeFileSync(path.join(root, "m2_verification_result.json"), `${JSON.stringify(summary, null, 2)}\n`, "utf8");
 console.log(JSON.stringify(summary, null, 2));
 process.exit(failures.length === 0 ? 0 : 1);
