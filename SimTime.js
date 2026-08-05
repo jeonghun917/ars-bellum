@@ -11,9 +11,6 @@
 (function () {
     "use strict";
 
-    const STORAGE_KEY =
-        "ars_bellum_simulation_time_v1";
-
     const MODE_SCALES = {
         menu: [
             0
@@ -131,83 +128,50 @@
     // 저장 및 불러오기
     // ========================================================
 
-    function savePreferences() {
-        try {
-            localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify({
-                    worldScale:
-                        state.worldScale,
-
-                    battleScale:
-                        state.battleScale
-                })
-            );
-        } catch (error) {
-            console.warn(
-                "[Ars Bellum] 시뮬레이션 배속 저장 실패:",
-                error
-            );
-        }
+    function capturePreferences() {
+        return { version: 1, worldScale: state.worldScale, battleScale: state.battleScale };
     }
 
+    function validatePreferences(snapshot) {
+        const value = snapshot || {};
+        const errors = [];
+        const allowedKeys = ["version", "worldScale", "battleScale"];
+        if (!value || typeof value !== "object" || Array.isArray(value)) { errors.push("not_plain_object"); }
+        else {
+            Object.keys(value).sort().forEach(function (key) {
+                if (allowedKeys.indexOf(key) < 0) { errors.push("unexpected_persistent_field:" + key); }
+            });
+        }
+        if (value.version !== 1) { errors.push(value.version > 1 ? "future_version" : "invalid_version"); }
+        if ([1, 2, 4, 8].indexOf(value.worldScale) < 0) { errors.push("invalid_world_scale"); }
+        if ([0.25, 0.5, 1, 2].indexOf(value.battleScale) < 0) { errors.push("invalid_battle_scale"); }
+        const uniqueErrors = Array.from(new Set(errors)).sort();
+        return uniqueErrors.length ? { ok: false, error: "m18_save_invalid_preferences", errors: uniqueErrors } : { ok: true, snapshot: { version: 1, worldScale: value.worldScale, battleScale: value.battleScale } };
+    }
+
+    function applyPreferences(snapshot) {
+        const validation = validatePreferences(snapshot);
+        if (!validation.ok) { return validation; }
+        const preferences = validation.snapshot;
+        state.worldScale = preferences.worldScale;
+        state.battleScale = preferences.battleScale;
+        state.previousNonZeroScale.world = preferences.worldScale;
+        state.previousNonZeroScale.battle = preferences.battleScale;
+        state.mode = "menu";
+        state.scale = 0;
+        state.clockAccumulator = 0;
+        state.lastFrameTime = 0;
+        syncGameState();
+        syncGameManager();
+        return { ok: true, preferences: capturePreferences() };
+    }
+
+    function savePreferences() { return { ok: true, persisted: false }; }
+
     function loadPreferences() {
-        let raw = null;
-
-        try {
-            raw =
-                localStorage.getItem(
-                    STORAGE_KEY
-                );
-        } catch (error) {
-            return;
-        }
-
-        if (!raw) {
-            return;
-        }
-
-        try {
-            const saved =
-                JSON.parse(raw);
-
-            state.worldScale =
-                normalizeScale(
-                    "world",
-                    saved.worldScale,
-                    1
-                );
-
-            if (
-                state.worldScale === 0
-            ) {
-                state.worldScale = 1;
-            }
-
-            state.battleScale =
-                normalizeScale(
-                    "battle",
-                    saved.battleScale,
-                    1
-                );
-
-            if (
-                state.battleScale === 0
-            ) {
-                state.battleScale = 1;
-            }
-
-            state.previousNonZeroScale.world =
-                state.worldScale;
-
-            state.previousNonZeroScale.battle =
-                state.battleScale;
-        } catch (error) {
-            console.warn(
-                "[Ars Bellum] 저장된 배속 설정 무시:",
-                error
-            );
-        }
+        const bootstrap = window.ArsSaveService && typeof window.ArsSaveService.getBootstrapResult === "function" ? window.ArsSaveService.getBootstrapResult() : null;
+        const preferences = bootstrap && bootstrap.simulationPreferences ? bootstrap.simulationPreferences : { version: 1, worldScale: 1, battleScale: 1 };
+        return applyPreferences(preferences);
     }
 
     // ========================================================
@@ -1193,6 +1157,10 @@
 
         subscribe:
             subscribe,
+
+        capturePreferences: capturePreferences,
+        validatePreferences: validatePreferences,
+        applyPreferences: applyPreferences,
 
         debugPrint:
             debugPrint

@@ -212,16 +212,21 @@
  };
 
  window.saveEconomy = function() {
-     localStorage.setItem('ars_bellum_econ', JSON.stringify(window.playerEconomy));
+     if (!window.ArsSaveService) return {ok:false,error:'m18_save_service_unavailable'};
+     const saveReceipt = window.ArsSaveService.save(window.ArsSaveService.getCurrentRevision());
+     if (saveReceipt.ok && window.ArsGameState && window.ArsM1Compat) {
+         window.ArsGameState.refreshDerivedPlayerMirror(window.ArsM1Compat.getBindingSnapshot());
+     }
      window.updateEconUI();
+     return saveReceipt.ok ? {ok:true,saveReceipt} : saveReceipt;
  };
 
  window.loadEconomy = function() {
-     let saved = localStorage.getItem('ars_bellum_econ');
-     if (saved) {
-         window.playerEconomy = JSON.parse(saved);
+     if (window.ArsGameState && window.ArsM1Compat && window.ArsM1Compat.isInstalled()) {
+         window.ArsGameState.refreshDerivedPlayerMirror(window.ArsM1Compat.getBindingSnapshot());
      }
      window.updateEconUI();
+     return {ok:true,economy:typeof window.playerEconomy?.toJSON==='function'?window.playerEconomy.toJSON():window.playerEconomy};
  };
 
  window.onload = function() {
@@ -558,18 +563,12 @@
  const enemySnapshot=squads=>(squads||[]).filter(s=>s.team==='enemy').map(s=>({ref:s,state:s.state,aiRole:s.aiRole}));
  const restoreEnemies=states=>{for(const x of states){x.ref.state=x.state;x.ref.aiRole=x.aiRole;}};
  const economySnapshot=()=>clone(typeof window.playerEconomy?.toJSON==='function'?window.playerEconomy.toJSON():window.playerEconomy||{});
- const storageSnapshot=()=>localStorage.getItem('ars_bellum_econ');
- const storageEconomy=()=>{const raw=localStorage.getItem('ars_bellum_econ');return raw===null?null:JSON.parse(raw);};
- const economyMatches=(gold,food)=>{const stored=storageEconomy();return Number(window.playerEconomy.gold)===gold&&Number(window.playerEconomy.food)===food&&stored&&Number(stored.gold)===gold&&Number(stored.food)===food;};
- const restoreEconomy=(plain,storedRaw)=>{
-     for(const key of ['gold','food','manpower','territory'])if(plain[key]!==undefined)window.playerEconomy[key]=plain[key];
-     if(storedRaw===null)localStorage.removeItem('ars_bellum_econ');else localStorage.setItem('ars_bellum_econ',storedRaw);
-     const current=economySnapshot();const stored=localStorage.getItem('ars_bellum_econ');
-     return Number(current.gold)===Number(plain.gold)&&Number(current.food)===Number(plain.food)&&stored===storedRaw;
- };
+ const storageSnapshot=()=>window.ArsSaveService?.getFinalRawFingerprint?.()||{ok:false,present:false,fingerprint:null,revision:null};
+ const economyMatches=(gold,food)=>Number(window.playerEconomy.gold)===gold&&Number(window.playerEconomy.food)===food;
+ const restoreEconomy=()=>false;
  const rollbackVerified=(session,before,enemies)=>{
      let ok=true;try{restoreEnemies(enemies);}catch(_){ok=false;}
-     try{if(!restoreEconomy(before.economy,before.storage))ok=false;}catch(_){ok=false;}
+     try{if(!economyMatches(before.economy.gold,before.economy.food)&&session.terminalState!=='final')ok=false;}catch(_){ok=false;}
      try{session.terminalState=before.terminalState;session.terminalResult=before.terminalResult;session.lastAppliedTransactionId=before.lastAppliedTransactionId;}catch(_){ok=false;}
      try{if(enemies.some(x=>x.ref.state!==x.state||x.ref.aiRole!==x.aiRole))ok=false;}catch(_){ok=false;}
      if(session.terminalState!==before.terminalState||session.terminalResult!==before.terminalResult||session.lastAppliedTransactionId!==before.lastAppliedTransactionId)ok=false;
@@ -586,9 +585,8 @@
          if(decision.action==='negotiated_retreat'){
              const nextGold=Number(before.economy.gold)-decision.offer.gold,nextFood=Number(before.economy.food)-decision.offer.food;
              if(![nextGold,nextFood].every(v=>Number.isFinite(v)&&v>=0))throw new Error('invalid_or_insufficient_resources');
-             const next=clone(before.economy);next.gold=nextGold;next.food=nextFood;
-             window.playerEconomy.gold=nextGold;window.playerEconomy.food=nextFood;
-             localStorage.setItem('ars_bellum_econ',JSON.stringify(next));
+             const transaction=window.ArsSaveService.runEconomyTransaction({kind:'diplomacy',goldDelta:-decision.offer.gold,foodDelta:-decision.offer.food,expectedSaveRevision:window.ArsSaveService.getCurrentRevision(),sessionRollback:{terminalState:before.terminalState,terminalResult:before.terminalResult}});
+             if(!transaction.ok)throw new Error(transaction.error||'diplomacy_save_failed');
              if(!economyMatches(nextGold,nextFood))throw new Error('actual_gamestate_economy_persistence_mismatch');
          }
          for(const x of enemies){x.ref.state='routing';}
@@ -686,11 +684,12 @@
      const prisoners=Math.floor(enemyFleeing*0.4),lordCaptured=Math.random()<Math.min(0.5,enemyFleeing/50),goldLoot=1500+Math.floor(Math.random()*1000),territoryGained=1;
      try{
          if(session){session.terminalState='pending';session.terminalResult=null;}window.isGameOver=true;if(window.gameManager)window.gameManager.setTimeScale(0);
-         window.playerEconomy.gold=Number(before.economy.gold)+goldLoot;window.playerEconomy.territory=Number(before.economy.territory||0)+territoryGained;window.playerEconomy.manpower=Number(before.economy.manpower||0)+prisoners;
-         window.saveEconomy();const stored=storageEconomy();if(!stored||Number(stored.gold)!==Number(window.playerEconomy.gold)||Number(stored.territory)!==Number(window.playerEconomy.territory)||Number(stored.manpower)!==Number(window.playerEconomy.manpower))throw new Error('combat_victory_save_verification_failed');
+         const transaction=window.ArsSaveService.runEconomyTransaction({kind:'battle_victory',goldDelta:goldLoot,manpowerDelta:prisoners,territoryDelta:territoryGained,expectedSaveRevision:window.ArsSaveService.getCurrentRevision(),sessionRollback:{isGameOver:before.isGameOver,terminalState:before.terminalState,terminalResult:before.terminalResult}});
+         if(!transaction.ok)throw new Error(transaction.error||'combat_victory_save_failed');
+         if(Number(window.playerEconomy.gold)!==Number(before.economy.gold)+goldLoot||Number(window.playerEconomy.territory)!==Number(before.economy.territory||0)+territoryGained||Number(window.playerEconomy.manpower)!==Number(before.economy.manpower||0)+prisoners)throw new Error('combat_victory_save_verification_failed');
          if(session){session.terminalResult='combat_victory';session.terminalState='final';if(!terminalPairValid(session))throw new Error('terminal_result_invalid');}
          return{ok:true,prisoners,lordCaptured,goldLoot,territoryGained};
-     }catch(error){let restored=true;try{if(!restoreEconomy(before.economy,before.storage))restored=false;}catch(_){restored=false;}window.isGameOver=before.isGameOver;if(session){session.terminalState=before.terminalState;session.terminalResult=before.terminalResult;}if(!restored&&session)session.fatalLock=true;return{ok:false,error:String(error.message||error),fatalLock:!restored};}
+     }catch(error){window.isGameOver=before.isGameOver;if(session){session.terminalState=before.terminalState;session.terminalResult=before.terminalResult;}return{ok:false,error:String(error.message||error),fatalLock:Boolean(window.ArsSaveService?.getRuntimeStatus?.().transactionFatalLock)};}
  };
  window.checkBattleEnd=function(){
      const session=getSession();if(session&&lockInvalidTerminal(session))return;if(session&&session.fatalLock)return;if(session&&session.terminalState==='pending')return;
@@ -742,6 +741,7 @@
 <script src="M1_Memories.js"></script>
 <script src="M1_CharActivity.js"></script>
 <script src="M1_Followups.js"></script>
+<script src="M1_Migration.js"></script>
 <script src="M1_Compat.js"></script>
 <script src="S_LaborTypes.js"></script>
 <script src="S_Buildings.js"></script>
@@ -772,6 +772,7 @@
 
 <script src="GameManager.js"></script>
 <script src="SimTime.js"></script>
+<script src="M1_Diagnostics.js"></script>
 
 <script src="InputHandler.js"></script>
 <script src="TerrainTypes.js"></script>
