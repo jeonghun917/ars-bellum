@@ -17,7 +17,7 @@
         ["succession_resolved", "m17.followup.succession_resolved"],
         ["player_control_changed", "m17.followup.player_control_changed"]
     ]);
-    const runtime = { initialized: false, coordinatorPairs: [], clockUnsubscribe: null, blockingError: null };
+    const runtime = { initialized: false, coordinatorPairs: [], clockUnsubscribe: null, blockingError: null, drainActive: false };
     const M17_FOLLOWUP_FAILURE_INJECTION = {
         memoryAfterFirstEffect: false,
         activityAfterProfileBeforeCursor: false,
@@ -44,6 +44,12 @@
         return { lastOrchestratedDay: 0, catchUpTargetDay: null, cursorDay: null, cursorPhase: null, followupCursorKey: null, activityProcessedCharacterIds: [] };
     }
     function emptyRoot() { return { version: VERSION, revision: 0, maxRecords: 8192, records: {}, orchestration: defaultOrchestration() }; }
+    function createDefaultRoot() { return clone(emptyRoot()); }
+    function validateDetached(value, options) {
+        const verifyDigests = !options || options.verifyDigests !== false;
+        if (!validateRoot(value, verifyDigests)) { return fail("m18_save_invalid_followup_ledger"); }
+        return success({ followupRoot: clone(value) });
+    }
     function recordKey(sourceEventId, handlerId) { return sourceEventId + "::" + handlerId; }
     function cursorKey(record) { return canonical([record.nextAttemptDay, record.sourceEventId, record.handlerId]); }
     function parseCursorKey(value) {
@@ -112,7 +118,10 @@
     }
     function ready() {
         if (runtime.blockingError) { return fail(runtime.blockingError, { blocking: true }); }
-        return initializationError ? fail(initializationError) : success();
+        if (initializationError) { return fail(initializationError); }
+        const current = root();
+        if (!current || !validateRoot(current, false)) { return fail("m17_followup_unknown_root"); }
+        return success();
     }
 
     function get(sourceEventId, handlerId) {
@@ -718,8 +727,12 @@
     function drain(cursorDay) {
         const r = ready(); if (!r.ok) { return r; }
         if (!Number.isInteger(cursorDay) || cursorDay < 0) { return fail("m17_followup_invalid_input"); }
-        const started = startOrExtend(cursorDay); if (!started.ok) { return started; }
-        return runOrchestration();
+        if (runtime.drainActive) { return fail("m17_followup_orchestration_busy"); }
+        runtime.drainActive = true;
+        try {
+            const started = startOrExtend(cursorDay); if (!started.ok) { return started; }
+            return runOrchestration();
+        } finally { runtime.drainActive = false; }
     }
 
     function listener(event) {
@@ -759,6 +772,7 @@
     }
     function initialize() {
         if (runtime.initialized) { return success({ initialized: true, coordinatorListeners: runtime.coordinatorPairs.length, gameClockListeners: runtime.clockUnsubscribe ? 1 : 0, newlyRegistered: 0 }); }
+        const ensured = ensureRoot(); if (!ensured.ok) { return ensured; }
         const missing = dependencyError(); if (missing) { return fail("m17_followup_dependency_missing", missing); }
         const registered = [];
         try {
@@ -780,28 +794,33 @@
             return fail("m17_followup_initialization_failed", String(error && error.message || error));
         }
     }
+    function getRuntimeStatus() {
+        return clone({ initialized: runtime.initialized, coordinatorListenerCount: runtime.coordinatorPairs.length, clockListenerCount: runtime.clockUnsubscribe ? 1 : 0, drainActive: runtime.drainActive, blockingError: runtime.blockingError });
+    }
     function diagnostics() {
         const issues = [];
         if (initializationError) { issues.push(initializationError); }
         if (runtime.blockingError) { issues.push(runtime.blockingError); }
-        if (!initializationError && !validateRoot(root(), true)) { issues.push("m17_followup_root_invariant_failed"); }
+        const currentRoot = root();
+        if (!initializationError && (!currentRoot || !validateRoot(currentRoot, true))) { issues.push("m17_followup_root_invariant_failed"); }
         return {
             ok: issues.length === 0,
             issues: issues,
-            recordCount: initializationError ? null : Object.keys(root().records).length,
+            recordCount: !currentRoot ? null : Object.keys(currentRoot.records || {}).length,
             initialized: runtime.initialized,
             coordinatorListenerCount: runtime.coordinatorPairs.length,
             gameClockListenerCount: runtime.clockUnsubscribe ? 1 : 0,
-            orchestration: initializationError ? null : clone(root().orchestration),
+            orchestration: !currentRoot ? null : clone(currentRoot.orchestration),
             constants: { FOLLOWUP_DAILY_BUDGET: FOLLOWUP_DAILY_BUDGET, NPC_DAILY_BUDGET: NPC_DAILY_BUDGET, CATCH_UP_DAY_LIMIT: CATCH_UP_DAY_LIMIT },
-            activeFailureInjectionCount: Object.keys(M17_FOLLOWUP_FAILURE_INJECTION).filter(function (key) { return Boolean(M17_FOLLOWUP_FAILURE_INJECTION[key]); }).length
+            activeFailureInjectionCount: Object.keys(M17_FOLLOWUP_FAILURE_INJECTION).filter(function (key) { return Boolean(M17_FOLLOWUP_FAILURE_INJECTION[key]); }).length,
+            drainActive: runtime.drainActive
         };
     }
 
-    ensureRoot();
-    window.ArsM1FollowupState = Object.freeze({ VERSION: VERSION, ensure: ensureRoot, get: get, getSnapshot: getSnapshot });
+    window.ArsM1FollowupState = Object.freeze({ VERSION: VERSION, createDefaultRoot: createDefaultRoot, validateDetached: validateDetached, ensure: ensureRoot, get: get, getSnapshot: getSnapshot });
     window.ArsM1FollowupSystem = Object.freeze({
         initialize: initialize,
+        getRuntimeStatus: getRuntimeStatus,
         normalizeFromEvent: normalizeFromEvent,
         enqueueNormalized: enqueueNormalized,
         collectDue: collectDue,
@@ -813,6 +832,4 @@
         _verifyCommitted: _verifyCommitted
     });
     window.ArsM1FollowupDiagnostics = Object.freeze({ run: diagnostics });
-    const initialization = initialize();
-    if (!initialization.ok) { throw new Error(initialization.error + ":" + String(initialization.detail || "")); }
 })();
