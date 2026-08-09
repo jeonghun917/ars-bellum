@@ -12,6 +12,9 @@ on:
       - m2_verify.mjs
       - package.json
       - .github/workflows/m2-verify.yml
+      - m2_ci_browser_verification_result.json
+      - m2_ci_m1_verification_result.json
+      - m2_ci_verification_result.json
   pull_request:
     branches: [main]
 
@@ -27,6 +30,23 @@ jobs:
         with:
           ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
+
+      - name: Guard artifact-only run evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          tracked_run_results="$(
+            git ls-files -- \
+              m2_ci_browser_verification_result.json \
+              m2_ci_m1_verification_result.json \
+              m2_ci_verification_result.json
+          )"
+
+          if [ -n "$tracked_run_results" ]; then
+            printf '%s\n' "Tracked run-result evidence is prohibited:" >&2
+            printf '%s\n' "$tracked_run_results" >&2
+            exit 1
+          fi
 
       - name: Initialize run-bound verification evidence
         shell: bash
