@@ -11,6 +11,7 @@
 - `SUPERSEDES_ARCH_DEV_RULES_SPEC_ROADMAP`: NO
 - `SUPERSEDES_LATEST_USER_DECREE`: NO
 - `SEARCH_ALIASES`: USER_BASIC_DECREE / CHIEF_OPERATING_DOCTRINE / RESEED / GENESIS_SEED / SELF_TRANSFER / HANDOFF / ACTIVE_CHIEF / SUCCESSOR_CHIEF
+- `SEARCH_ALIASES_KO`: 사용자 기본 칙령 / 수석 운영 원칙 / 진시드 / 재진시드 / 자아 이전 자문 / 인수인계 / 후임 수석
 
 ---
 
@@ -400,6 +401,12 @@ If the active Chief becomes unavailable and a new Chief or self-transfer advisor
    - `GENESIS_SEED`
    - `SELF_TRANSFER`
    - `SUCCESSOR_CHIEF`
+   - `사용자 기본 칙령`
+   - `수석 운영 원칙`
+   - `진시드`
+   - `재진시드`
+   - `자아 이전 자문`
+   - `후임 수석`
 2. Treat it as continuity reference, not current authority.
 3. Re-establish live baseline independently.
 4. Read latest user decree and authoritative contracts before adopting any old conclusion.
