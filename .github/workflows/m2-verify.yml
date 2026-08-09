@@ -99,6 +99,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -f m2_browser_probe_result.json
 
           cat > m2_browser_probe.html <<'HTML'
           <!DOCTYPE html>
@@ -148,6 +149,21 @@ jobs:
 
           const assert = (condition, message) => {
             if (!condition) throw new Error(message);
+          };
+
+          const publishResult = async (result) => {
+            output.textContent = JSON.stringify(result);
+            document.body.dataset.status = result.result;
+            document.title = result.result === 'PASS' ? 'M2_BROWSER_PASS' : 'M2_BROWSER_FAIL';
+            const response = await fetch('/__m2_result', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(result),
+              cache: 'no-store'
+            });
+            if (!response.ok) {
+              throw new Error(`browser_probe_publish_failed:${response.status}`);
+            }
           };
 
           const installFrameInstrumentation = (diagnostics) => {
@@ -260,9 +276,7 @@ jobs:
               asyncErrors,
               unhandledRejections
             };
-            output.textContent = JSON.stringify(result);
-            document.body.dataset.status = 'PASS';
-            document.title = 'M2_BROWSER_PASS';
+            await publishResult(result);
           } catch (error) {
             try {
               if (first && !first.runtime.getStatus().disposed) first.runtime.dispose();
@@ -283,25 +297,81 @@ jobs:
               asyncErrors,
               unhandledRejections
             };
-            output.textContent = JSON.stringify(result);
-            document.body.dataset.status = 'FAIL';
-            document.title = 'M2_BROWSER_FAIL';
+            try {
+              await publishResult(result);
+            } catch (publishError) {
+              output.textContent = JSON.stringify({
+                ...result,
+                publishError: String(publishError?.message || publishError)
+              });
+              document.body.dataset.status = 'FAIL';
+              document.title = 'M2_BROWSER_PUBLISH_FAILED';
+            }
           }
           </script></body></html>
           HTML
 
+          cat > m2_browser_result_server.py <<'PY'
+          import json
+          import os
+          from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+          from pathlib import Path
+
+          RESULT_PATH = Path("m2_browser_probe_result.json")
+
+          class Handler(SimpleHTTPRequestHandler):
+              def do_POST(self):
+                  if self.path != "/__m2_result":
+                      self.send_error(404)
+                      return
+
+                  try:
+                      length = int(self.headers.get("Content-Length", "0"))
+                  except ValueError:
+                      self.send_error(400, "invalid content length")
+                      return
+
+                  try:
+                      payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                  except Exception:
+                      self.send_error(400, "invalid JSON")
+                      return
+
+                  if not isinstance(payload, dict):
+                      self.send_error(400, "JSON object required")
+                      return
+
+                  temp_path = RESULT_PATH.with_suffix(".json.tmp")
+                  temp_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+                  os.replace(temp_path, RESULT_PATH)
+                  self.send_response(204)
+                  self.end_headers()
+
+          ThreadingHTTPServer(("127.0.0.1", 4173), Handler).serve_forever()
+          PY
+
           chrome_bin="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
-          chrome_exit=127
           chrome_executed=0
+          chrome_exit=127
+          chrome_terminated_after_result=0
+          transport_classification=""
+          server_pid=""
+          chrome_pid=""
 
-          if [ -n "$chrome_bin" ]; then
-            python3 -m http.server 4173 --bind 127.0.0.1 > m2_browser_server.log 2>&1 &
-            server_pid=$!
-            trap 'kill "$server_pid" 2>/dev/null || true' EXIT
-            sleep 1
+          : > m2_browser_chrome.log
+          python3 -u m2_browser_result_server.py > m2_browser_server.log 2>&1 &
+          server_pid=$!
+          trap 'if [ -n "${chrome_pid:-}" ]; then kill "$chrome_pid" 2>/dev/null || true; fi; if [ -n "${server_pid:-}" ]; then kill "$server_pid" 2>/dev/null || true; fi' EXIT
+          sleep 1
 
+          if ! kill -0 "$server_pid" 2>/dev/null; then
+            transport_classification="browser_result_receiver_unavailable"
+          elif [ -z "$chrome_bin" ]; then
+            transport_classification="chrome_binary_missing"
+            printf '%s\n' 'Chrome executable not found on runner.' > m2_browser_chrome.log
+          else
             set +e
-            timeout 35s "$chrome_bin" \
+            "$chrome_bin" \
               --headless=new \
               --no-sandbox \
               --disable-dev-shm-usage \
@@ -309,64 +379,89 @@ jobs:
               --enable-unsafe-swiftshader \
               --enable-webgl \
               --ignore-gpu-blocklist \
-              --dump-dom \
               http://127.0.0.1:4173/m2_browser_probe.html \
-              > m2_browser_probe_dom.html \
-              2> m2_browser_chrome.log
-            chrome_exit=$?
+              > /dev/null \
+              2> m2_browser_chrome.log &
+            chrome_pid=$!
             set -e
             chrome_executed=1
-          else
-            : > m2_browser_probe_dom.html
-            printf '%s\n' 'Chrome executable not found on runner.' > m2_browser_chrome.log
-            : > m2_browser_server.log
+
+            deadline=$((SECONDS + 35))
+            while true; do
+              if [ -s m2_browser_probe_result.json ]; then
+                chrome_terminated_after_result=1
+                kill "$chrome_pid" 2>/dev/null || true
+                set +e
+                wait "$chrome_pid"
+                chrome_exit=$?
+                set -e
+                break
+              fi
+
+              if ! kill -0 "$chrome_pid" 2>/dev/null; then
+                set +e
+                wait "$chrome_pid"
+                chrome_exit=$?
+                set -e
+                transport_classification="browser_process_exited_before_result"
+                break
+              fi
+
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                transport_classification="browser_probe_result_timeout"
+                kill "$chrome_pid" 2>/dev/null || true
+                set +e
+                wait "$chrome_pid"
+                chrome_exit=$?
+                set -e
+                break
+              fi
+
+              sleep 0.1
+            done
+          fi
+
+          if [ -n "$server_pid" ]; then
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
           fi
 
           export M2_BROWSER_CHROME_EXIT="$chrome_exit"
           export M2_BROWSER_CHROME_EXECUTED="$chrome_executed"
+          export M2_BROWSER_CHROME_TERMINATED_AFTER_RESULT="$chrome_terminated_after_result"
+          export M2_BROWSER_TRANSPORT_CLASSIFICATION="$transport_classification"
 
           python3 <<'PY'
           import datetime
-          import html
           import json
           import os
-          import re
           from pathlib import Path
 
           evidence_path = Path("m2_ci_browser_verification_result.json")
           evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-          dom_path = Path("m2_browser_probe_dom.html")
-          dom = dom_path.read_text(encoding="utf-8") if dom_path.exists() else ""
-          chrome_exit = int(os.environ["M2_BROWSER_CHROME_EXIT"])
-          chrome_executed = os.environ["M2_BROWSER_CHROME_EXECUTED"] == "1"
+          result_path = Path("m2_browser_probe_result.json")
+          transport_classification = os.environ.get("M2_BROWSER_TRANSPORT_CLASSIFICATION", "")
 
-          probe = None
-          match = re.search(r'<pre id="result">(.*?)</pre>', dom, re.S)
-          if match:
+          if result_path.exists() and result_path.stat().st_size > 0:
               try:
-                  probe = json.loads(html.unescape(match.group(1)))
+                  probe = json.loads(result_path.read_text(encoding="utf-8"))
               except Exception as exc:
                   evidence["result"] = "NOT_TESTED"
-                  evidence["errorClassification"] = "browser_result_parse_failed"
+                  evidence["errorClassification"] = "browser_probe_result_invalid"
                   evidence["error"] = str(exc)
-
-          if probe is not None:
-              evidence.update(probe)
-              if probe.get("result") not in {"PASS", "FAIL"}:
-                  evidence["result"] = "NOT_TESTED"
-                  evidence["errorClassification"] = "browser_result_invalid"
-              elif chrome_exit != 0:
-                  evidence["result"] = "NOT_TESTED"
-                  evidence["errorClassification"] = "chrome_exit_nonzero"
-                  evidence["probeResultBeforeChromeExitCheck"] = probe.get("result")
-          elif "errorClassification" not in evidence:
+              else:
+                  if not isinstance(probe, dict) or probe.get("result") not in {"PASS", "FAIL"}:
+                      evidence["result"] = "NOT_TESTED"
+                      evidence["errorClassification"] = "browser_probe_result_invalid"
+                  else:
+                      evidence.update(probe)
+          else:
               evidence["result"] = "NOT_TESTED"
-              evidence["errorClassification"] = (
-                  "chrome_binary_missing" if not chrome_executed else "browser_result_unavailable"
-              )
+              evidence["errorClassification"] = transport_classification or "browser_probe_result_timeout"
 
-          evidence["chromeExecuted"] = chrome_executed
-          evidence["chromeExitCode"] = chrome_exit
+          evidence["chromeExecuted"] = os.environ["M2_BROWSER_CHROME_EXECUTED"] == "1"
+          evidence["chromeExitCode"] = int(os.environ["M2_BROWSER_CHROME_EXIT"])
+          evidence["chromeTerminatedAfterResult"] = os.environ["M2_BROWSER_CHROME_TERMINATED_AFTER_RESULT"] == "1"
           evidence["browser"] = "GitHub-hosted Ubuntu headless Chrome with SwiftShader"
           evidence["generatedAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -383,7 +478,8 @@ jobs:
             m2_ci_m1_verification_result.json
             m2_ci_verification_result.json
             m2_ci_browser_verification_result.json
-            m2_browser_probe_dom.html
+            m2_browser_probe_result.json
+            m2_browser_probe.html
             m2_browser_chrome.log
             m2_browser_server.log
           if-no-files-found: warn
