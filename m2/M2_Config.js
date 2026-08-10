@@ -1,6 +1,6 @@
 export const M2_CONFIG = Object.freeze({
   schemaVersion: 1,
-  phase: "M2-1/01",
+  phase: "M2-1/02",
   fixedTickHz: 20,
   fixedTickMs: 50,
   maxFrameDeltaMs: 250,
@@ -16,6 +16,8 @@ export const M2_CONFIG = Object.freeze({
   allyColor: 0x4f7fa4,
   enemyColor: 0xa4524c,
   playerMarkerColor: 0xd7b85b,
+  projectileAllyColor: 0xe8d58b,
+  projectileEnemyColor: 0xe29b8f,
   camera: Object.freeze({ fov: 48, near: 0.1, far: 250, x: 11, y: 9, z: 15 }),
   baseTree: "57fbd34c729ddf2ee16506270a272f415f94fb1e"
 });

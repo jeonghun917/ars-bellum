@@ -7,7 +7,6 @@ function createHumanoid(material, markerMaterial, geometries) {
   body.position.y = 1.22;
   const head = new THREE.Mesh(geometries.head, material);
   head.position.y = 1.92;
-
   const leftArm = new THREE.Mesh(geometries.arm, material);
   const rightArm = new THREE.Mesh(geometries.arm, material);
   const leftLeg = new THREE.Mesh(geometries.leg, material);
@@ -16,7 +15,6 @@ function createHumanoid(material, markerMaterial, geometries) {
   rightArm.position.set(0.4, 1.25, 0);
   leftLeg.position.set(-0.17, 0.48, 0);
   rightLeg.position.set(0.17, 0.48, 0);
-
   group.add(body, head, leftArm, rightArm, leftLeg, rightLeg);
   if (markerMaterial) {
     const marker = new THREE.Mesh(geometries.marker, markerMaterial);
@@ -34,9 +32,13 @@ export class M2RendererThree {
   #scene;
   #camera;
   #units = new Map();
+  #projectiles = new Map();
+  #formationMarkers = new Map();
   #geometries;
   #materials;
   #resizeHandler;
+  #raycaster = new THREE.Raycaster();
+  #groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   #disposed = false;
 
   constructor(canvas) {
@@ -44,7 +46,6 @@ export class M2RendererThree {
     this.#canvas = canvas;
     const context = canvas.getContext("webgl2", { antialias: true, alpha: false, powerPreference: "high-performance" });
     if (!context) throw new Error("m2_render_webgl2_unavailable");
-
     this.#renderer = new THREE.WebGLRenderer({ canvas, context, antialias: true, alpha: false });
     this.#renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.#renderer.setClearColor(M2_CONFIG.backgroundColor, 1);
@@ -52,12 +53,7 @@ export class M2RendererThree {
 
     this.#scene = new THREE.Scene();
     this.#scene.fog = new THREE.Fog(M2_CONFIG.backgroundColor, 24, 65);
-    this.#camera = new THREE.PerspectiveCamera(
-      M2_CONFIG.camera.fov,
-      1,
-      M2_CONFIG.camera.near,
-      M2_CONFIG.camera.far
-    );
+    this.#camera = new THREE.PerspectiveCamera(M2_CONFIG.camera.fov, 1, M2_CONFIG.camera.near, M2_CONFIG.camera.far);
     this.#camera.position.set(M2_CONFIG.camera.x, M2_CONFIG.camera.y, M2_CONFIG.camera.z);
     this.#camera.lookAt(0, 0.9, 0);
 
@@ -72,20 +68,23 @@ export class M2RendererThree {
       arm: new THREE.BoxGeometry(0.16, 0.72, 0.16),
       leg: new THREE.BoxGeometry(0.18, 0.78, 0.2),
       marker: new THREE.RingGeometry(0.48, 0.62, 24),
+      projectile: new THREE.SphereGeometry(0.09, 8, 6),
+      formation: new THREE.RingGeometry(0.72, 0.82, 24),
       ground: new THREE.PlaneGeometry(42, 42)
     });
-
     this.#materials = Object.freeze({
       ground: new THREE.MeshLambertMaterial({ color: M2_CONFIG.groundColor }),
       ally: new THREE.MeshLambertMaterial({ color: M2_CONFIG.allyColor }),
       enemy: new THREE.MeshLambertMaterial({ color: M2_CONFIG.enemyColor }),
-      marker: new THREE.MeshBasicMaterial({ color: M2_CONFIG.playerMarkerColor, side: THREE.DoubleSide })
+      marker: new THREE.MeshBasicMaterial({ color: M2_CONFIG.playerMarkerColor, side: THREE.DoubleSide }),
+      projectileAlly: new THREE.MeshBasicMaterial({ color: M2_CONFIG.projectileAllyColor }),
+      projectileEnemy: new THREE.MeshBasicMaterial({ color: M2_CONFIG.projectileEnemyColor }),
+      formation: new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.55 })
     });
 
     const ground = new THREE.Mesh(this.#geometries.ground, this.#materials.ground);
     ground.rotation.x = -Math.PI / 2;
     this.#scene.add(ground);
-
     const grid = new THREE.GridHelper(42, 42, 0x73806a, 0x596153);
     grid.position.y = 0.012;
     this.#scene.add(grid);
@@ -99,19 +98,13 @@ export class M2RendererThree {
     if (this.#disposed) throw new Error("m2_runtime_disposed");
     for (const entry of this.#units.values()) this.#scene.remove(entry.group);
     this.#units.clear();
-
     for (const unit of renderSnapshot.units) {
       const material = unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy;
       const group = createHumanoid(material, unit.isPlayer ? this.#materials.marker : null, this.#geometries);
-      group.position.set(unit.position.x, unit.position.y, unit.position.z);
-      group.rotation.y = unit.heading;
       const profile = combatProfiles.get(unit.combatProfileId);
       group.scale.setScalar(0.9 + ((profile?.stats?.vitality || 0) / 100) * 0.18);
       this.#scene.add(group);
-      this.#units.set(unit.unitId, {
-        group,
-        phaseOffset: this.#units.size * 0.73
-      });
+      this.#units.set(unit.unitId, { group, phaseOffset: this.#units.size * 0.73 });
     }
   }
 
@@ -120,10 +113,78 @@ export class M2RendererThree {
     this.#renderer.setAnimationLoop(callback);
   }
 
-  render(renderSnapshot, interpolationAlpha, elapsedSeconds) {
-    if (this.#disposed) return;
-    const alpha = Math.max(0, Math.min(1, Number(interpolationAlpha) || 0));
+  applyCameraPose(pose) {
+    if (this.#disposed || !pose) return;
+    this.#camera.position.set(pose.position.x, Math.max(0.1, pose.position.y), pose.position.z);
+    this.#camera.lookAt(pose.target.x, Math.max(0, pose.target.y), pose.target.z);
+  }
 
+  screenPointToGround(clientX, clientY) {
+    if (this.#disposed) return null;
+    const rect = this.#canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const ndc = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -(((clientY - rect.top) / rect.height) * 2 - 1)
+    );
+    this.#raycaster.setFromCamera(ndc, this.#camera);
+    const hit = new THREE.Vector3();
+    if (!this.#raycaster.ray.intersectPlane(this.#groundPlane, hit)) return null;
+    return { x: hit.x, z: hit.z };
+  }
+
+  #syncProjectiles(renderSnapshot, alpha) {
+    const current = new Set();
+    for (const projectile of renderSnapshot.projectiles) {
+      current.add(projectile.projectileId);
+      let mesh = this.#projectiles.get(projectile.projectileId);
+      if (!mesh) {
+        const material = projectile.sideId === "ally" ? this.#materials.projectileAlly : this.#materials.projectileEnemy;
+        mesh = new THREE.Mesh(this.#geometries.projectile, material);
+        this.#scene.add(mesh);
+        this.#projectiles.set(projectile.projectileId, mesh);
+      }
+      mesh.position.set(
+        projectile.previousPosition.x + (projectile.position.x - projectile.previousPosition.x) * alpha,
+        projectile.previousPosition.y + (projectile.position.y - projectile.previousPosition.y) * alpha,
+        projectile.previousPosition.z + (projectile.position.z - projectile.previousPosition.z) * alpha
+      );
+    }
+    for (const [id, mesh] of this.#projectiles) {
+      if (!current.has(id)) {
+        this.#scene.remove(mesh);
+        this.#projectiles.delete(id);
+      }
+    }
+  }
+
+  #syncFormationMarkers(renderSnapshot) {
+    const current = new Set();
+    for (const formation of renderSnapshot.formations) {
+      if (!formation.selected) continue;
+      current.add(formation.formationId);
+      let marker = this.#formationMarkers.get(formation.formationId);
+      if (!marker) {
+        marker = new THREE.Mesh(this.#geometries.formation, this.#materials.formation);
+        marker.rotation.x = -Math.PI / 2;
+        marker.position.y = 0.03;
+        this.#scene.add(marker);
+        this.#formationMarkers.set(formation.formationId, marker);
+      }
+      marker.position.x = formation.anchor.x;
+      marker.position.z = formation.anchor.z;
+    }
+    for (const [id, marker] of this.#formationMarkers) {
+      if (!current.has(id)) {
+        this.#scene.remove(marker);
+        this.#formationMarkers.delete(id);
+      }
+    }
+  }
+
+  render(renderSnapshot, interpolationAlpha, elapsedSeconds) {
+    if (this.#disposed || !renderSnapshot) return;
+    const alpha = Math.max(0, Math.min(1, Number(interpolationAlpha) || 0));
     for (const unit of renderSnapshot.units) {
       const actor = this.#units.get(unit.unitId);
       if (!actor) continue;
@@ -134,22 +195,25 @@ export class M2RendererThree {
         unit.previousPosition.z + (unit.position.z - unit.previousPosition.z) * alpha
       );
       group.rotation.y = unit.heading;
-
+      group.visible = unit.state !== "dead";
+      const parts = group.userData.parts;
       const movementWeight = unit.state === "moving" ? 1 : 0;
       const swing = Math.sin(elapsedSeconds * 6 + actor.phaseOffset) * 0.18 * movementWeight;
-      const parts = group.userData.parts;
       parts.body.position.y = 1.22 + Math.abs(swing) * 0.05;
-      parts.leftArm.rotation.x = swing;
-      parts.rightArm.rotation.x = -swing;
+      parts.leftArm.rotation.x = unit.blocking ? -0.9 : swing;
+      parts.rightArm.rotation.x = unit.blocking ? -0.9 : -swing;
       parts.leftLeg.rotation.x = -swing * 0.7;
       parts.rightLeg.rotation.x = swing * 0.7;
+      group.scale.y = unit.state === "incapacitated" ? 0.25 : 1;
     }
+    this.#syncProjectiles(renderSnapshot, alpha);
+    this.#syncFormationMarkers(renderSnapshot);
     this.#renderer.render(this.#scene, this.#camera);
   }
 
   getInfo() {
     const info = this.#renderer.info.render;
-    return { drawCalls: info.calls, triangles: info.triangles, renderedUnits: this.#units.size };
+    return { drawCalls: info.calls, triangles: info.triangles, renderedUnits: this.#units.size, renderedProjectiles: this.#projectiles.size };
   }
 
   resize() {
@@ -169,6 +233,8 @@ export class M2RendererThree {
     for (const material of Object.values(this.#materials)) material.dispose();
     this.#renderer.dispose();
     this.#units.clear();
+    this.#projectiles.clear();
+    this.#formationMarkers.clear();
     this.#disposed = true;
   }
 }

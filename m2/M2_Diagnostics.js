@@ -9,6 +9,7 @@ export class M2Diagnostics {
   #frames = [];
   #status = "created";
   #fixedTickCount = 0;
+  #logicalTick = 0;
   #droppedTicks = 0;
   #lastFrameMs = 0;
   #drawCalls = 0;
@@ -16,12 +17,39 @@ export class M2Diagnostics {
   #activeCharacters = 0;
   #renderedUnits = 0;
   #lastError = null;
+  #cameraMode = "third_person";
+  #inputContextRevision = 0;
+  #activePointerCount = 0;
+  #inputListenerCount = 0;
+  #staleInputCommandsDropped = 0;
+  #projectileLaunchCount = 0;
+  #activeProjectileCount = 0;
+  #projectileHitCount = 0;
+  #projectileOverflowCount = 0;
 
   markStatus(status) { this.#status = status; }
   markError(error) { this.#lastError = String(error?.message || error); this.#status = "error"; }
-  markTick() { this.#fixedTickCount += 1; }
+  markTick(logicalTick = this.#fixedTickCount + 1) {
+    this.#fixedTickCount += 1;
+    this.#logicalTick = logicalTick;
+  }
   markDroppedTicks(count) { this.#droppedTicks += Math.max(0, count | 0); }
+  markStaleInputCommandsDropped(count) { this.#staleInputCommandsDropped += Math.max(0, count | 0); }
   setActiveCharacters(count) { this.#activeCharacters = Math.max(0, count | 0); }
+
+  setControlObservation(observation = {}) {
+    if (["third_person", "tactical", "disposed"].includes(observation.cameraMode)) this.#cameraMode = observation.cameraMode;
+    if (Number.isSafeInteger(observation.inputContextRevision) && observation.inputContextRevision >= 0) this.#inputContextRevision = observation.inputContextRevision;
+    if (Number.isSafeInteger(observation.activePointerCount) && observation.activePointerCount >= 0) this.#activePointerCount = observation.activePointerCount;
+    if (Number.isSafeInteger(observation.inputListenerCount) && observation.inputListenerCount >= 0) this.#inputListenerCount = observation.inputListenerCount;
+  }
+
+  setCombatObservation(observation = {}) {
+    this.#projectileLaunchCount = Math.max(0, observation.projectileLaunchCount | 0);
+    this.#activeProjectileCount = Math.max(0, observation.activeProjectileCount | 0);
+    this.#projectileHitCount = Math.max(0, observation.projectileHitCount | 0);
+    this.#projectileOverflowCount = Math.max(0, observation.projectileOverflowCount | 0);
+  }
 
   sampleFrame(frameMs, rendererInfo = {}) {
     this.#lastFrameMs = frameMs;
@@ -33,15 +61,14 @@ export class M2Diagnostics {
   }
 
   getSnapshot() {
-    const averageFrameMs = this.#frames.length
-      ? this.#frames.reduce((sum, value) => sum + value, 0) / this.#frames.length
-      : 0;
+    const averageFrameMs = this.#frames.length ? this.#frames.reduce((sum, value) => sum + value, 0) / this.#frames.length : 0;
     return Object.freeze({
       phase: M2_CONFIG.phase,
       status: this.#status,
       fps: averageFrameMs > 0 ? round(1000 / averageFrameMs, 1) : 0,
       frameMs: round(this.#lastFrameMs, 2),
       fixedTickCount: this.#fixedTickCount,
+      logicalTick: this.#logicalTick,
       droppedTicks: this.#droppedTicks,
       drawCalls: this.#drawCalls,
       triangles: this.#triangles,
@@ -50,6 +77,15 @@ export class M2Diagnostics {
       animationOwner: "M2BattleRuntime",
       runtimeNetworkImport: false,
       persistenceAccess: false,
+      cameraMode: this.#cameraMode,
+      inputContextRevision: this.#inputContextRevision,
+      activePointerCount: this.#activePointerCount,
+      inputListenerCount: this.#inputListenerCount,
+      staleInputCommandsDropped: this.#staleInputCommandsDropped,
+      projectileLaunchCount: this.#projectileLaunchCount,
+      activeProjectileCount: this.#activeProjectileCount,
+      projectileHitCount: this.#projectileHitCount,
+      projectileOverflowCount: this.#projectileOverflowCount,
       lastError: this.#lastError
     });
   }

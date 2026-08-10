@@ -5,27 +5,61 @@ function freezeDeep(value) {
   return value;
 }
 
-export function createRenderSnapshot(battleState) {
+export function createRenderSnapshot(battleState, { tick = battleState.tick, selectedFormationId = null } = {}) {
   const units = battleState.getUnitIdsStable().map((unitId) => {
     const unit = battleState.getUnit(unitId);
     return {
       unitId: unit.unitId,
       sideId: unit.sideId,
+      formationId: unit.formationId,
       combatProfileId: unit.combatProfileId,
       isPlayer: unit.isPlayer,
-      position: { x: unit.position.x, y: unit.position.y, z: unit.position.z },
-      previousPosition: { x: unit.previousPosition.x, y: unit.previousPosition.y, z: unit.previousPosition.z },
+      position: { ...unit.position },
+      previousPosition: { ...unit.previousPosition },
       heading: unit.heading,
+      hp: unit.hp,
+      maxHp: unit.maxHp,
+      hpRatio: unit.maxHp > 0 ? unit.hp / unit.maxHp : 0,
+      blocking: unit.blocking,
       state: unit.state
     };
   });
 
+  const formations = battleState.getFormationIdsStable().map((formationId) => {
+    const formation = battleState.getFormation(formationId);
+    return {
+      formationId: formation.formationId,
+      sideId: formation.sideId,
+      anchor: { ...formation.anchor },
+      formationTypeId: formation.formationTypeId,
+      order: { type: formation.order.type, targetFormationId: formation.order.targetFormationId || null },
+      selected: formation.formationId === selectedFormationId
+    };
+  });
+
+  const projectiles = battleState.getProjectileIdsStable().map((projectileId) => {
+    const projectile = battleState.getProjectile(projectileId);
+    return {
+      projectileId: projectile.projectileId,
+      projectileTypeId: projectile.projectileTypeId,
+      sideId: projectile.sideId,
+      position: { ...projectile.position },
+      previousPosition: { ...projectile.previousPosition }
+    };
+  });
+
+  const player = battleState.getUnit(battleState.playerCharacterId);
   return freezeDeep({
     schema: "ARS_BELLUM_M2_RENDER_SNAPSHOT_V1",
-    phase: "M2-1/01",
+    phase: "M2-1/02",
     battleId: battleState.battleId,
-    tick: battleState.tick,
-    activeUnits: units.length,
-    units
+    tick,
+    activeUnits: units.filter((unit) => unit.hp > 0 && unit.state !== "incapacitated" && unit.state !== "dead").length,
+    units,
+    formations,
+    projectiles,
+    playerUnitId: battleState.playerCharacterId,
+    playerPosition: player ? { ...player.position } : null,
+    selectedFormationId
   });
 }

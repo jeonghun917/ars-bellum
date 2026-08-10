@@ -3,38 +3,69 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ARS BELLUM M2-0 3D Runtime</title>
+  <title>ARS BELLUM M2-1/02 Functional Slice</title>
   <link rel="stylesheet" href="m2_prototype.css">
 </head>
 <body>
   <main id="m2App" class="m2-app">
-    <canvas id="m2Canvas" aria-label="M2 3D 기술 프로토타입"></canvas>
+    <canvas id="m2Canvas" aria-label="M2-1/02 20v20 전투 기술 슬라이스"></canvas>
 
     <section class="m2-header" aria-live="polite">
       <div>
-        <div class="m2-kicker">M2-0 · TECHNICAL RUNTIME</div>
+        <div class="m2-kicker">M2-1/02 · PLAYER COMBAT / CAMERA / INPUT</div>
         <h1>ARS BELLUM</h1>
-        <p>독립 3D 렌더러·단일 루프·전투 프로필 연결점 검증</p>
+        <p>20v20 · fixed 20 Hz · M2_TEST_ONLY technical combat</p>
       </div>
       <div id="m2Status" class="m2-status">초기화 중</div>
     </section>
 
-    <section class="m2-controls" aria-label="M2 런타임 제어">
+    <section class="m2-controls m2-runtime-controls" aria-label="런타임 제어">
       <button id="m2Start" type="button">시작</button>
       <button id="m2Pause" type="button">일시정지</button>
       <button id="m2Restart" type="button">재시작</button>
       <button id="m2Dispose" type="button">해제</button>
     </section>
 
-    <section class="m2-legend" aria-label="프로토타입 범례">
+    <section class="m2-combat-controls" aria-label="플레이어 전투 제어">
+      <button id="m2Attack" type="button">ATTACK · J</button>
+      <button id="m2Block" type="button">BLOCK · K</button>
+      <button id="m2Bow" type="button">BOW · L</button>
+      <button id="m2Tactical" type="button">전술 · TAB</button>
+    </section>
+
+    <section class="m2-tactical-panel" aria-label="전술 명령">
+      <label>아군
+        <select id="m2FriendlyFormation"></select>
+      </label>
+      <label>적군
+        <select id="m2EnemyFormation"></select>
+      </label>
+      <button id="m2AttackOrder" type="button">ATTACK TARGET</button>
+      <div class="m2-button-row">
+        <button id="m2Line" type="button">LINE · 1</button>
+        <button id="m2Column" type="button">COLUMN · 2</button>
+        <button id="m2Loose" type="button">LOOSE · 3</button>
+      </div>
+      <div class="m2-button-row">
+        <button id="m2Time0" type="button">0</button>
+        <button id="m2Time025" type="button">.25</button>
+        <button id="m2Time05" type="button">.5</button>
+        <button id="m2Time1" type="button">1</button>
+      </div>
+    </section>
+
+    <section id="m2VirtualStick" class="m2-virtual-stick" aria-label="가상 이동 스틱">
+      <span></span>
+    </section>
+
+    <section class="m2-legend" aria-label="범례">
       <span><i class="ally"></i>아군 fixture</span>
       <span><i class="enemy"></i>적군 fixture</span>
-      <span><i class="player"></i>플레이어 표시</span>
-      <span>M2_TEST_ONLY · 정식 밸런스 아님</span>
+      <span><i class="player"></i>플레이어</span>
+      <span>M2_TEST_ONLY · canonical balance 아님</span>
     </section>
 
     <pre id="m2Diagnostics" class="m2-diagnostics">진단 준비 중</pre>
-
     <noscript>이 프로토타입은 JavaScript가 필요합니다.</noscript>
   </main>
 

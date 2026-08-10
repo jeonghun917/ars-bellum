@@ -5,6 +5,7 @@ import { M2CommandQueue } from "./M2_CommandQueue.js";
 import { M2SpatialGrid } from "./M2_SpatialGrid.js";
 import { M2FormationSystem } from "./M2_FormationSystem.js";
 import { M2MovementSystem } from "./M2_MovementSystem.js";
+import { M2CombatSystem } from "./M2_CombatSystem.js";
 import { createRenderSnapshot } from "./M2_RenderSnapshot.js";
 import { M2RendererThree } from "./M2_RendererThree.js";
 
@@ -21,7 +22,10 @@ export class M2BattleRuntime {
     maxSpeed: M2_CONFIG.unitMaxSpeed,
     arrivalEpsilon: M2_CONFIG.arrivalEpsilon
   });
+  #combatSystem = new M2CombatSystem();
   #renderSnapshot = null;
+  #cameraController = null;
+  #inputController = null;
   #status = "created";
   #timeScale = M2_CONFIG.defaultTimeScale;
   #lastFrameTime = null;
@@ -44,21 +48,31 @@ export class M2BattleRuntime {
     document.addEventListener("visibilitychange", this.#visibilityHandler);
   }
 
+  attachControllers({ cameraController = null, inputController = null } = {}) {
+    this.#cameraController = cameraController;
+    this.#inputController = inputController;
+  }
+
   loadSnapshot(snapshot) {
     if (this.#disposed) return m2Receipt(false, { error: "m2_runtime_disposed" });
     const validation = validateBattleLaunchSnapshot(snapshot, this.#combatProfiles);
     if (!validation.ok) return m2Receipt(false, validation);
 
+    // Atomic replacement occurs only after validation succeeds.
+    const candidateState = new M2BattleState(validation.snapshot, this.#combatProfiles);
+    this.#formationSystem.updateSlots(candidateState);
+    this.#spatialGrid.rebuild(candidateState);
+    const candidateRenderSnapshot = createRenderSnapshot(candidateState);
+
     this.#launchSnapshot = validation.snapshot;
-    this.#battleState = new M2BattleState(this.#launchSnapshot, this.#combatProfiles);
-    this.#commandQueue.clear();
-    this.#formationSystem.updateSlots(this.#battleState);
-    this.#spatialGrid.rebuild(this.#battleState);
-    this.#renderSnapshot = createRenderSnapshot(this.#battleState);
+    this.#battleState = candidateState;
+    this.#commandQueue.beginBattleEpoch();
+    this.#renderSnapshot = candidateRenderSnapshot;
     this.#renderer.loadRenderSnapshot(this.#renderSnapshot, this.#combatProfiles);
     this.#diagnostics.setActiveCharacters(this.#battleState.unitCount);
     this.#accumulatorMs = 0;
     this.#elapsedSeconds = 0;
+    this.#diagnostics.setCombatObservation(this.#combatSystem.getObservation(this.#battleState));
 
     return m2Receipt(true, {
       battleId: this.#battleState.battleId,
@@ -101,6 +115,10 @@ export class M2BattleRuntime {
     return this.#commandQueue.enqueue(command, this.#battleState);
   }
 
+  screenPointToGround(clientX, clientY) {
+    return this.#renderer.screenPointToGround(clientX, clientY);
+  }
+
   getSnapshot() {
     return this.#battleState ? this.#battleState.getSnapshot() : null;
   }
@@ -117,14 +135,65 @@ export class M2BattleRuntime {
   }
 
   #fixedTick() {
-    const commands = this.#commandQueue.drain();
-    for (const command of commands) this.#formationSystem.applyCommand(this.#battleState, command);
+    if (!this.#battleState) return;
+    const processingTick = this.#battleState.tick + 1;
+    const activeRevision = this.#inputController?.inputContextRevision ?? null;
+
+    // 1. queue drain + stale discard
+    const drained = this.#commandQueue.drain(activeRevision);
+    if (drained.staleDropped > 0) this.#diagnostics.markStaleInputCommandsDropped(drained.staleDropped);
+    const commands = drained.commands;
+
+    // 2. formation commands + attack goal + active slots
+    for (const command of commands) {
+      if (command.type.startsWith("formation_")) this.#formationSystem.applyCommand(this.#battleState, command);
+    }
+    this.#formationSystem.updateAttackGoals(this.#battleState);
     this.#formationSystem.updateSlots(this.#battleState);
+
+    // 3. direct player movement command + slot movement
+    for (const command of commands) {
+      if (command.type === "player_move") this.#movementSystem.applyCommand(this.#battleState, command);
+    }
     this.#movementSystem.step(this.#battleState, M2_CONFIG.fixedTickMs / 1000);
+
+    // 4. spatial grid rebuild
     this.#spatialGrid.rebuild(this.#battleState);
-    this.#battleState.markTick();
-    this.#renderSnapshot = createRenderSnapshot(this.#battleState);
-    this.#diagnostics.markTick();
+
+    // 5. cooldown decrement exactly once + stable contact/attack candidate collection
+    const candidatePlan = this.#combatSystem.prepareTick(
+      this.#battleState,
+      this.#spatialGrid,
+      commands,
+      M2_CONFIG.fixedTickMs / 1000
+    );
+
+    // 6. consume phase-5 candidate facts: block → player melee → bow → non-player melee → projectiles
+    const damageEvents = [];
+    this.#combatSystem.applyBlockCommands(this.#battleState, commands);
+    this.#combatSystem.resolvePlayerMelee(this.#battleState, commands, candidatePlan, damageEvents);
+    this.#combatSystem.resolveBowLaunch(this.#battleState, commands, processingTick);
+    this.#combatSystem.resolveNonPlayerContactMelee(this.#battleState, candidatePlan, damageEvents, processingTick);
+    this.#combatSystem.progressProjectiles(this.#battleState, candidatePlan, damageEvents);
+
+    // 7. lexical stable damage apply
+    this.#combatSystem.applyDamageEvents(this.#battleState, damageEvents);
+
+    // 8 morale / routing NO-OP
+    // 9 result NO-OP
+
+    // 10. render snapshot is stamped with processingTick before BattleState commits it.
+    this.#renderSnapshot = createRenderSnapshot(this.#battleState, {
+      tick: processingTick,
+      selectedFormationId: this.#inputController?.selectedFormationId ?? null
+    });
+
+    // 11. diagnostics uses the same logical processing tick.
+    this.#diagnostics.setCombatObservation(this.#combatSystem.getObservation(this.#battleState));
+    this.#diagnostics.markTick(processingTick);
+
+    // 12. battle tick boundary record.
+    this.#battleState.markTick(processingTick);
   }
 
   #frame(timeMs) {
@@ -150,10 +219,22 @@ export class M2BattleRuntime {
       }
     }
 
-    const interpolationAlpha = M2_CONFIG.fixedTickMs > 0
-      ? this.#accumulatorMs / M2_CONFIG.fixedTickMs
-      : 0;
-    this.#renderer.render(this.#renderSnapshot, interpolationAlpha, this.#elapsedSeconds + this.#accumulatorMs / 1000);
+    const interpolationAlpha = M2_CONFIG.fixedTickMs > 0 ? this.#accumulatorMs / M2_CONFIG.fixedTickMs : 0;
+    const cameraPose = this.#cameraController?.getPose(this.#renderSnapshot, interpolationAlpha) || null;
+    if (cameraPose) this.#renderer.applyCameraPose(cameraPose);
+    if (this.#cameraController || this.#inputController) {
+      this.#diagnostics.setControlObservation({
+        cameraMode: this.#cameraController?.mode || "third_person",
+        inputContextRevision: this.#inputController?.inputContextRevision ?? 0,
+        activePointerCount: this.#inputController?.activePointerCount ?? 0,
+        inputListenerCount: this.#inputController?.inputListenerCount ?? 0
+      });
+    }
+    this.#renderer.render(
+      this.#renderSnapshot,
+      interpolationAlpha,
+      this.#elapsedSeconds + this.#accumulatorMs / 1000
+    );
     this.#diagnostics.sampleFrame(frameDelta, this.#renderer.getInfo());
   }
 
@@ -165,7 +246,9 @@ export class M2BattleRuntime {
     this.#launchSnapshot = null;
     this.#battleState = null;
     this.#renderSnapshot = null;
-    this.#commandQueue.clear();
+    this.#commandQueue.dispose();
+    this.#cameraController = null;
+    this.#inputController = null;
     this.#status = "disposed";
     this.#timeScale = 0;
     this.#disposed = true;

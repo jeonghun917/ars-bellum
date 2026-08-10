@@ -9,12 +9,18 @@ function freezeDeep(value) {
   return value;
 }
 
+export function isM2UnitActive(unit) {
+  return Boolean(unit) && unit.hp > 0 && unit.state !== "incapacitated" && unit.state !== "dead";
+}
+
 export class M2BattleState {
   #battleId;
   #seed;
   #playerCharacterId;
   #units = new Map();
   #formations = new Map();
+  #projectiles = new Map();
+  #appliedDamageEventIds = new Set();
   #tick = 0;
 
   constructor(snapshot, combatProfiles) {
@@ -24,6 +30,7 @@ export class M2BattleState {
 
     for (const character of snapshot.characters) {
       const profile = combatProfiles.get(character.combatProfileId);
+      const maxHp = profile?.stats?.vitality ?? 0;
       this.#units.set(character.characterId, {
         unitId: character.characterId,
         sideId: character.sideId,
@@ -35,8 +42,11 @@ export class M2BattleState {
         previousPosition: { x: character.spawn.x, y: 0, z: character.spawn.z },
         heading: character.spawn.heading,
         velocity: { x: 0, z: 0 },
-        hp: profile?.stats?.vitality ?? 0,
+        hp: maxHp,
+        maxHp,
         morale: profile?.stats?.morale ?? 0,
+        blocking: false,
+        directMoveIntent: { x: 0, z: 0 },
         state: "idle",
         attackCooldownTicks: 0,
         targetUnitId: null,
@@ -58,6 +68,7 @@ export class M2BattleState {
         order: {
           type: source.order || "hold",
           target: source.order === "move" && source.target ? { x: source.target.x, z: source.target.z } : null,
+          targetFormationId: null,
           commandId: null
         },
         revision: 0
@@ -71,17 +82,22 @@ export class M2BattleState {
   get tick() { return this.#tick; }
   get unitCount() { return this.#units.size; }
   get formationCount() { return this.#formations.size; }
+  get projectileCount() { return this.#projectiles.size; }
+  get appliedDamageEventCount() { return this.#appliedDamageEventIds.size; }
 
   hasFormation(formationId) { return this.#formations.has(formationId); }
   getFormation(formationId) { return this.#formations.get(formationId) || null; }
   getUnit(unitId) { return this.#units.get(unitId) || null; }
+  getProjectile(projectileId) { return this.#projectiles.get(projectileId) || null; }
 
-  getUnitIdsStable() {
-    return [...this.#units.keys()].sort();
-  }
+  getUnitIdsStable() { return [...this.#units.keys()].sort(); }
+  getFormationIdsStable() { return [...this.#formations.keys()].sort(); }
+  getProjectileIdsStable() { return [...this.#projectiles.keys()].sort(); }
 
-  getFormationIdsStable() {
-    return [...this.#formations.keys()].sort();
+  getActiveFormationMemberIds(formation) {
+    return [...formation.memberUnitIds]
+      .filter((unitId) => isM2UnitActive(this.#units.get(unitId)))
+      .sort();
   }
 
   forEachUnitStable(callback) {
@@ -92,8 +108,53 @@ export class M2BattleState {
     for (const formationId of this.getFormationIdsStable()) callback(this.#formations.get(formationId));
   }
 
-  markTick() {
-    this.#tick += 1;
+  forEachProjectileStable(callback) {
+    for (const projectileId of this.getProjectileIdsStable()) callback(this.#projectiles.get(projectileId));
+  }
+
+  addProjectile(projectile) {
+    if (this.#projectiles.has(projectile.projectileId)) return false;
+    this.#projectiles.set(projectile.projectileId, projectile);
+    return true;
+  }
+
+  removeProjectile(projectileId) {
+    return this.#projectiles.delete(projectileId);
+  }
+
+  applyDamageEvent(event) {
+    if (!event || typeof event.damageEventId !== "string") return { applied: false, error: "m2_damage_event_invalid" };
+    if (this.#appliedDamageEventIds.has(event.damageEventId)) {
+      return { applied: false, idempotent: true, damage: 0 };
+    }
+    this.#appliedDamageEventIds.add(event.damageEventId);
+    const target = this.#units.get(event.targetUnitId);
+    if (!isM2UnitActive(target)) return { applied: false, idempotent: false, damage: 0 };
+    const damage = Math.max(0, Math.round(Number(event.damage) || 0));
+    const before = target.hp;
+    target.hp = Math.max(0, Math.min(target.maxHp, target.hp - damage));
+    const applied = before - target.hp;
+    if (target.hp <= 0) {
+      target.hp = 0;
+      target.state = "incapacitated";
+      target.blocking = false;
+      target.directMoveIntent = { x: 0, z: 0 };
+      target.velocity.x = 0;
+      target.velocity.z = 0;
+    }
+    target.revision += applied > 0 ? 1 : 0;
+    return { applied: applied > 0, idempotent: false, damage: applied };
+  }
+
+  hasAppliedDamageEvent(damageEventId) {
+    return this.#appliedDamageEventIds.has(damageEventId);
+  }
+
+  markTick(processingTick = this.#tick + 1) {
+    if (!Number.isSafeInteger(processingTick) || processingTick !== this.#tick + 1) {
+      throw new Error("m2_tick_sequence_invalid");
+    }
+    this.#tick = processingTick;
   }
 
   getSnapshot() {
@@ -103,12 +164,17 @@ export class M2BattleState {
         unitId: unit.unitId,
         sideId: unit.sideId,
         formationId: unit.formationId,
+        isPlayer: unit.isPlayer,
         position: clone(unit.position),
         previousPosition: clone(unit.previousPosition),
         heading: unit.heading,
         velocity: clone(unit.velocity),
         hp: unit.hp,
+        maxHp: unit.maxHp,
+        hpRatio: unit.maxHp > 0 ? unit.hp / unit.maxHp : 0,
         morale: unit.morale,
+        blocking: unit.blocking,
+        directMoveIntent: clone(unit.directMoveIntent),
         state: unit.state,
         attackCooldownTicks: unit.attackCooldownTicks,
         targetUnitId: unit.targetUnitId,
@@ -123,6 +189,7 @@ export class M2BattleState {
         sideId: formation.sideId,
         commanderUnitId: formation.commanderUnitId,
         memberUnitIds: [...formation.memberUnitIds],
+        activeMemberUnitIds: this.getActiveFormationMemberIds(formation),
         anchor: clone(formation.anchor),
         facing: formation.facing,
         formationTypeId: formation.formationTypeId,
@@ -132,17 +199,26 @@ export class M2BattleState {
       };
     });
 
+    const projectiles = this.getProjectileIdsStable().map((projectileId) => {
+      const projectile = this.#projectiles.get(projectileId);
+      return clone(projectile);
+    });
+
     return freezeDeep({
-      schema: "ARS_BELLUM_M2_1_01_RUNTIME_STATE_V1",
-      phase: "M2-1/01",
+      schema: "ARS_BELLUM_M2_1_02_RUNTIME_STATE_V1",
+      phase: "M2-1/02",
       battleId: this.#battleId,
       seed: this.#seed,
       playerCharacterId: this.#playerCharacterId,
       tick: this.#tick,
-      activeUnits: units.length,
+      activeUnits: units.filter((unit) => unit.hp > 0 && unit.state !== "incapacitated" && unit.state !== "dead").length,
+      totalUnits: units.length,
       formationCount: formations.length,
+      activeProjectileCount: projectiles.length,
+      appliedDamageEventCount: this.#appliedDamageEventIds.size,
       units,
-      formations
+      formations,
+      projectiles
     });
   }
 }
