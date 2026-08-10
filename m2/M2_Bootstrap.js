@@ -24,9 +24,13 @@ function setStatus(text) {
 
 function updateHud() {
   if (!diagnostics || !elements.diagnostics) return;
+  const runtimeSnapshot = runtime?.getSnapshot();
   const snapshot = diagnostics.getSnapshot();
   elements.diagnostics.textContent = JSON.stringify({
     ...snapshot,
+    runtimeUnits: runtimeSnapshot?.activeUnits || 0,
+    formations: runtimeSnapshot?.formationCount || 0,
+    simulationTick: runtimeSnapshot?.tick || 0,
     combatProfileScope: profileCatalog.sourceScope,
     combatProfiles: profileCatalog.size,
     canonicalCharacterRules: false,
@@ -39,13 +43,13 @@ function createRuntime() {
   runtime = new M2BattleRuntime({ canvas: elements.canvas, diagnostics, combatProfiles: profileCatalog });
   const loaded = runtime.loadSnapshot(M2_TECHNICAL_SNAPSHOT);
   if (!loaded.ok) throw new Error(`${loaded.error}:${(loaded.issues || []).join("|")}`);
-  setStatus("준비됨 · M2_TEST_ONLY");
+  setStatus("준비됨 · M2-1/01 · 20v20");
   updateHud();
 }
 
 function start() {
   const receipt = runtime.start();
-  setStatus(receipt.ok ? "실행 중 · single owner" : receipt.error);
+  setStatus(receipt.ok ? "실행 중 · 20v20 simulation core" : receipt.error);
   return receipt;
 }
 
@@ -106,7 +110,7 @@ try {
   }, { once: true });
   start();
 } catch (error) {
-  console.error("[ARS BELLUM M2-0] bootstrap failed", error);
+  console.error("[ARS BELLUM M2-1/01] bootstrap failed", error);
   if (diagnostics) diagnostics.markError(error);
   setStatus(`초기화 실패: ${String(error.message || error)}`);
   updateHud();

@@ -1,23 +1,17 @@
 import * as THREE from "../vendor/three/r184/three.module.min.js";
 import { M2_CONFIG } from "./M2_Config.js";
 
-function createMaterial(color) {
-  return new THREE.MeshLambertMaterial({ color });
-}
-
-function createHumanoid(material, markerMaterial = null) {
+function createHumanoid(material, markerMaterial, geometries) {
   const group = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.82, 0.34), material);
+  const body = new THREE.Mesh(geometries.body, material);
   body.position.y = 1.22;
-  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.24, 1), material);
+  const head = new THREE.Mesh(geometries.head, material);
   head.position.y = 1.92;
 
-  const armGeometry = new THREE.BoxGeometry(0.16, 0.72, 0.16);
-  const legGeometry = new THREE.BoxGeometry(0.18, 0.78, 0.2);
-  const leftArm = new THREE.Mesh(armGeometry, material);
-  const rightArm = new THREE.Mesh(armGeometry, material);
-  const leftLeg = new THREE.Mesh(legGeometry, material);
-  const rightLeg = new THREE.Mesh(legGeometry, material);
+  const leftArm = new THREE.Mesh(geometries.arm, material);
+  const rightArm = new THREE.Mesh(geometries.arm, material);
+  const leftLeg = new THREE.Mesh(geometries.leg, material);
+  const rightLeg = new THREE.Mesh(geometries.leg, material);
   leftArm.position.set(-0.4, 1.25, 0);
   rightArm.position.set(0.4, 1.25, 0);
   leftLeg.position.set(-0.17, 0.48, 0);
@@ -25,7 +19,7 @@ function createHumanoid(material, markerMaterial = null) {
 
   group.add(body, head, leftArm, rightArm, leftLeg, rightLeg);
   if (markerMaterial) {
-    const marker = new THREE.Mesh(new THREE.RingGeometry(0.48, 0.62, 24), markerMaterial);
+    const marker = new THREE.Mesh(geometries.marker, markerMaterial);
     marker.rotation.x = -Math.PI / 2;
     marker.position.y = 0.02;
     group.add(marker);
@@ -39,9 +33,9 @@ export class M2RendererThree {
   #renderer;
   #scene;
   #camera;
-  #units = [];
-  #sharedGeometries = new Set();
-  #materials = [];
+  #units = new Map();
+  #geometries;
+  #materials;
   #resizeHandler;
   #disposed = false;
 
@@ -72,13 +66,25 @@ export class M2RendererThree {
     sun.position.set(8, 14, 6);
     this.#scene.add(hemisphere, sun);
 
-    const groundMaterial = new THREE.MeshLambertMaterial({ color: M2_CONFIG.groundColor });
-    const groundGeometry = new THREE.PlaneGeometry(42, 42);
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    this.#geometries = Object.freeze({
+      body: new THREE.BoxGeometry(0.55, 0.82, 0.34),
+      head: new THREE.IcosahedronGeometry(0.24, 1),
+      arm: new THREE.BoxGeometry(0.16, 0.72, 0.16),
+      leg: new THREE.BoxGeometry(0.18, 0.78, 0.2),
+      marker: new THREE.RingGeometry(0.48, 0.62, 24),
+      ground: new THREE.PlaneGeometry(42, 42)
+    });
+
+    this.#materials = Object.freeze({
+      ground: new THREE.MeshLambertMaterial({ color: M2_CONFIG.groundColor }),
+      ally: new THREE.MeshLambertMaterial({ color: M2_CONFIG.allyColor }),
+      enemy: new THREE.MeshLambertMaterial({ color: M2_CONFIG.enemyColor }),
+      marker: new THREE.MeshBasicMaterial({ color: M2_CONFIG.playerMarkerColor, side: THREE.DoubleSide })
+    });
+
+    const ground = new THREE.Mesh(this.#geometries.ground, this.#materials.ground);
     ground.rotation.x = -Math.PI / 2;
     this.#scene.add(ground);
-    this.#sharedGeometries.add(groundGeometry);
-    this.#materials.push(groundMaterial);
 
     const grid = new THREE.GridHelper(42, 42, 0x73806a, 0x596153);
     grid.position.y = 0.012;
@@ -89,27 +95,22 @@ export class M2RendererThree {
     this.resize();
   }
 
-  loadSnapshot(snapshot, combatProfiles) {
+  loadRenderSnapshot(renderSnapshot, combatProfiles) {
     if (this.#disposed) throw new Error("m2_runtime_disposed");
-    for (const unit of this.#units) this.#scene.remove(unit.group);
-    this.#units.length = 0;
+    for (const entry of this.#units.values()) this.#scene.remove(entry.group);
+    this.#units.clear();
 
-    const allyMaterial = createMaterial(M2_CONFIG.allyColor);
-    const enemyMaterial = createMaterial(M2_CONFIG.enemyColor);
-    const markerMaterial = new THREE.MeshBasicMaterial({ color: M2_CONFIG.playerMarkerColor, side: THREE.DoubleSide });
-    this.#materials.push(allyMaterial, enemyMaterial, markerMaterial);
-
-    for (const character of snapshot.characters) {
-      const material = character.sideId === "ally" ? allyMaterial : enemyMaterial;
-      const group = createHumanoid(material, character.characterId === snapshot.playerCharacterId ? markerMaterial : null);
-      group.position.set(character.spawn.x, 0, character.spawn.z);
-      group.rotation.y = character.spawn.heading;
-      const profile = combatProfiles.get(character.combatProfileId);
-      group.scale.setScalar(0.9 + (profile.stats.vitality / 100) * 0.18);
+    for (const unit of renderSnapshot.units) {
+      const material = unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy;
+      const group = createHumanoid(material, unit.isPlayer ? this.#materials.marker : null, this.#geometries);
+      group.position.set(unit.position.x, unit.position.y, unit.position.z);
+      group.rotation.y = unit.heading;
+      const profile = combatProfiles.get(unit.combatProfileId);
+      group.scale.setScalar(0.9 + ((profile?.stats?.vitality || 0) / 100) * 0.18);
       this.#scene.add(group);
-      this.#units.push({ group, character, profile, phaseOffset: this.#units.length * 0.73 });
-      group.traverse((object) => {
-        if (object.geometry) this.#sharedGeometries.add(object.geometry);
+      this.#units.set(unit.unitId, {
+        group,
+        phaseOffset: this.#units.size * 0.73
       });
     }
   }
@@ -119,11 +120,24 @@ export class M2RendererThree {
     this.#renderer.setAnimationLoop(callback);
   }
 
-  render(elapsedSeconds) {
+  render(renderSnapshot, interpolationAlpha, elapsedSeconds) {
     if (this.#disposed) return;
-    for (const unit of this.#units) {
-      const swing = Math.sin(elapsedSeconds * 2.2 + unit.phaseOffset) * 0.13;
-      const parts = unit.group.userData.parts;
+    const alpha = Math.max(0, Math.min(1, Number(interpolationAlpha) || 0));
+
+    for (const unit of renderSnapshot.units) {
+      const actor = this.#units.get(unit.unitId);
+      if (!actor) continue;
+      const group = actor.group;
+      group.position.set(
+        unit.previousPosition.x + (unit.position.x - unit.previousPosition.x) * alpha,
+        unit.previousPosition.y + (unit.position.y - unit.previousPosition.y) * alpha,
+        unit.previousPosition.z + (unit.position.z - unit.previousPosition.z) * alpha
+      );
+      group.rotation.y = unit.heading;
+
+      const movementWeight = unit.state === "moving" ? 1 : 0;
+      const swing = Math.sin(elapsedSeconds * 6 + actor.phaseOffset) * 0.18 * movementWeight;
+      const parts = group.userData.parts;
       parts.body.position.y = 1.22 + Math.abs(swing) * 0.05;
       parts.leftArm.rotation.x = swing;
       parts.rightArm.rotation.x = -swing;
@@ -135,7 +149,7 @@ export class M2RendererThree {
 
   getInfo() {
     const info = this.#renderer.info.render;
-    return { drawCalls: info.calls, triangles: info.triangles };
+    return { drawCalls: info.calls, triangles: info.triangles, renderedUnits: this.#units.size };
   }
 
   resize() {
@@ -151,10 +165,10 @@ export class M2RendererThree {
     if (this.#disposed) return;
     this.#renderer.setAnimationLoop(null);
     window.removeEventListener("resize", this.#resizeHandler);
-    for (const geometry of this.#sharedGeometries) geometry.dispose();
-    for (const material of this.#materials) material.dispose();
+    for (const geometry of Object.values(this.#geometries)) geometry.dispose();
+    for (const material of Object.values(this.#materials)) material.dispose();
     this.#renderer.dispose();
-    this.#units.length = 0;
+    this.#units.clear();
     this.#disposed = true;
   }
 }

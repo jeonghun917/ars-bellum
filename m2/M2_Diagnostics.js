@@ -1,3 +1,5 @@
+import { M2_CONFIG } from "./M2_Config.js";
+
 function round(value, digits = 2) {
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
@@ -12,6 +14,7 @@ export class M2Diagnostics {
   #drawCalls = 0;
   #triangles = 0;
   #activeCharacters = 0;
+  #renderedUnits = 0;
   #lastError = null;
 
   markStatus(status) { this.#status = status; }
@@ -26,6 +29,7 @@ export class M2Diagnostics {
     if (this.#frames.length > 120) this.#frames.shift();
     this.#drawCalls = Number(rendererInfo.drawCalls || 0);
     this.#triangles = Number(rendererInfo.triangles || 0);
+    this.#renderedUnits = Number(rendererInfo.renderedUnits || 0);
   }
 
   getSnapshot() {
@@ -33,7 +37,7 @@ export class M2Diagnostics {
       ? this.#frames.reduce((sum, value) => sum + value, 0) / this.#frames.length
       : 0;
     return Object.freeze({
-      phase: "M2-0",
+      phase: M2_CONFIG.phase,
       status: this.#status,
       fps: averageFrameMs > 0 ? round(1000 / averageFrameMs, 1) : 0,
       frameMs: round(this.#lastFrameMs, 2),
@@ -42,6 +46,7 @@ export class M2Diagnostics {
       drawCalls: this.#drawCalls,
       triangles: this.#triangles,
       activeCharacters: this.#activeCharacters,
+      renderedUnits: this.#renderedUnits,
       animationOwner: "M2BattleRuntime",
       runtimeNetworkImport: false,
       persistenceAccess: false,

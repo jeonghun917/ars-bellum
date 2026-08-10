@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - m2/3d-tech-prototype-v1
+      - m2/20v20-vertical-slice-v1
     paths:
       - m2_prototype.html
       - m2_prototype.css
@@ -72,7 +73,7 @@ jobs:
               "testedHead": os.environ["TESTED_HEAD"],
               "workflowRunId": os.environ["GITHUB_RUN_ID"],
               "workflowRunAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
-              "scope": "M2_0_ACTUAL_CHROME_WEBGL2",
+              "scope": "M2_1_01_ACTUAL_CHROME_WEBGL2",
               "result": "NOT_TESTED",
               "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
           }
@@ -181,9 +182,7 @@ jobs:
               body: JSON.stringify(result),
               cache: 'no-store'
             });
-            if (!response.ok) {
-              throw new Error(`browser_probe_publish_failed:${response.status}`);
-            }
+            if (!response.ok) throw new Error(`browser_probe_publish_failed:${response.status}`);
           };
 
           const installFrameInstrumentation = (diagnostics) => {
@@ -209,6 +208,9 @@ jobs:
             const runtime = new M2BattleRuntime({ canvas, diagnostics, combatProfiles });
             const loaded = runtime.loadSnapshot(M2_TECHNICAL_SNAPSHOT);
             assert(loaded.ok, loaded.error || 'load_failed');
+            const runtimeSnapshot = runtime.getSnapshot();
+            assert(runtimeSnapshot.activeUnits === 40, 'runtime_unit_count_not_40');
+            assert(runtimeSnapshot.formationCount >= 4, 'runtime_formation_count_below_4');
             return { runtime, diagnostics, combatProfiles, frameMetrics };
           };
 
@@ -219,11 +221,22 @@ jobs:
               runtimeFrameCount: entry.frameMetrics.runtimeFrameCount,
               firstRuntimeFrameAt: entry.frameMetrics.firstRuntimeFrameAt,
               sumRuntimeFrameDeltaMs: entry.frameMetrics.sumRuntimeFrameDeltaMs,
-              fixedTickCount: snapshot.fixedTickCount
+              fixedTickCount: snapshot.fixedTickCount,
+              renderedUnits: snapshot.renderedUnits
             };
           };
 
-          const waitForRuntimeEvidence = async (phase, entry, timeoutMs = 5000) => {
+          const unitPosition = (runtime, unitId) => {
+            const unit = runtime.getSnapshot()?.units?.find((entry) => entry.unitId === unitId);
+            return unit ? { x: unit.position.x, z: unit.position.z } : null;
+          };
+
+          const movedFrom = (position, initialPosition) => (
+            position &&
+            Math.hypot(position.x - initialPosition.x, position.z - initialPosition.z) > 0.001
+          );
+
+          const waitForRuntimeEvidence = async (phase, entry, predicate = () => true, timeoutMs = 7000) => {
             const pageRafStart = pageFrames.pageRafCount;
             const deadline = performance.now() + timeoutMs;
 
@@ -232,7 +245,9 @@ jobs:
               if (
                 pageFrames.pageRafCount > pageRafStart &&
                 entry.frameMetrics.runtimeFrameCount > 0 &&
-                snapshot.fixedTickCount > 0
+                snapshot.fixedTickCount > 0 &&
+                snapshot.renderedUnits === 40 &&
+                predicate()
               ) {
                 return snapshot;
               }
@@ -249,44 +264,90 @@ jobs:
             if (snapshot.fixedTickCount <= 0) {
               throw new EvidenceError(`${phase}_tick_missing`, `${phase}_tick_missing`);
             }
+            if (snapshot.renderedUnits !== 40) {
+              throw new EvidenceError(`${phase}_render_unit_count_mismatch`, `${phase}_render_unit_count_mismatch`);
+            }
+            if (!predicate()) {
+              throw new EvidenceError(`${phase}_movement_missing`, `${phase}_movement_missing`);
+            }
             throw new EvidenceError(`${phase}_watchdog_timeout`, `${phase}_watchdog_timeout`);
           };
 
           let first = null;
           let second = null;
+          let movementEvidence = null;
+          let commandReceipt = null;
+          let duplicateReceipt = null;
 
           try {
             first = makeRuntime();
             assert(first.combatProfiles.sourceScope === 'M2_TEST_ONLY', 'profile_scope_mismatch');
+            const initialState = first.runtime.getSnapshot();
+            const observedUnitId = [...initialState.formations.find((formation) => formation.formationId === 'ally_line').memberUnitIds].sort()[0];
+            const initialPosition = unitPosition(first.runtime, observedUnitId);
+
+            commandReceipt = first.runtime.issueCommand({
+              commandId: 'cmd_browser_001',
+              type: 'formation_move',
+              formationId: 'ally_line',
+              target: { x: 6, z: -2 }
+            });
+            duplicateReceipt = first.runtime.issueCommand({
+              commandId: 'cmd_browser_001',
+              type: 'formation_move',
+              formationId: 'ally_line',
+              target: { x: 6, z: -2 }
+            });
+            assert(commandReceipt.ok && commandReceipt.queued === true, 'command_queue_receipt_failed');
+            assert(duplicateReceipt.ok && duplicateReceipt.idempotent === true && duplicateReceipt.queued === false, 'command_idempotency_failed');
+            assert(first.runtime.getSnapshot().formations.find((formation) => formation.formationId === 'ally_line').order.type === 'hold', 'command_applied_before_tick');
+
             assert(first.runtime.start().ok, 'first_start_failed');
-            const firstSnapshot = await waitForRuntimeEvidence('first_runtime', first);
-            assert(firstSnapshot.animationOwner === 'M2BattleRuntime', 'owner_mismatch');
-            assert(firstSnapshot.persistenceAccess === false, 'persistence_boundary_broken');
+            const firstDiagnostics = await waitForRuntimeEvidence(
+              'first_runtime',
+              first,
+              () => movedFrom(unitPosition(first.runtime, observedUnitId), initialPosition)
+            );
+            const movedPosition = unitPosition(first.runtime, observedUnitId);
+            const firstState = first.runtime.getSnapshot();
+            assert(firstState.activeUnits === 40, 'first_runtime_unit_count_not_40');
+            assert(firstState.formations.find((formation) => formation.formationId === 'ally_line').order.type === 'move', 'command_not_applied_at_tick');
+            assert(firstDiagnostics.animationOwner === 'M2BattleRuntime', 'owner_mismatch');
+            assert(firstDiagnostics.persistenceAccess === false, 'persistence_boundary_broken');
             assert(first.runtime.pause().ok, 'pause_failed');
             assert(first.runtime.dispose().ok, 'first_dispose_failed');
             assert(first.runtime.issueCommand({}).error === 'm2_runtime_disposed', 'disposed_guard_missing');
 
+            movementEvidence = {
+              observedUnitId,
+              initialPosition,
+              movedPosition,
+              changed: movedFrom(movedPosition, initialPosition)
+            };
+
             second = makeRuntime();
             assert(second.runtime.start().ok, 'second_start_failed');
-            const secondSnapshot = await waitForRuntimeEvidence('second_runtime', second);
+            const secondDiagnostics = await waitForRuntimeEvidence('second_runtime', second);
+            assert(second.runtime.getSnapshot().activeUnits === 40, 'second_runtime_unit_count_not_40');
+            assert(secondDiagnostics.renderedUnits === 40, 'second_render_unit_count_not_40');
             assert(second.runtime.dispose().ok, 'second_dispose_failed');
 
-            if (asyncErrors.length > 0) {
-              throw new EvidenceError('browser_async_error', 'browser_async_error');
-            }
-            if (unhandledRejections.length > 0) {
-              throw new EvidenceError('browser_unhandled_rejection', 'browser_unhandled_rejection');
-            }
+            if (asyncErrors.length > 0) throw new EvidenceError('browser_async_error', 'browser_async_error');
+            if (unhandledRejections.length > 0) throw new EvidenceError('browser_unhandled_rejection', 'browser_unhandled_rejection');
 
             const result = {
               result: 'PASS',
-              scope: 'M2_0_ACTUAL_CHROME_WEBGL2',
+              scope: 'M2_1_01_ACTUAL_CHROME_WEBGL2',
               actualWebGL2: true,
               profileCount: first.combatProfiles.size,
               profileScope: first.combatProfiles.sourceScope,
-              activeCharacters: firstSnapshot.activeCharacters,
-              animationOwner: firstSnapshot.animationOwner,
-              persistenceAccess: firstSnapshot.persistenceAccess,
+              unitCount: firstState.activeUnits,
+              formationCount: firstState.formationCount,
+              animationOwner: firstDiagnostics.animationOwner,
+              persistenceAccess: firstDiagnostics.persistenceAccess,
+              commandIdempotency: 'PASS',
+              fixedTickCommandApplication: 'PASS',
+              formationMoveAuthoritativePositionChange: movementEvidence,
               startPauseDispose: 'PASS',
               restartOnSameCanvas: 'PASS',
               pageRafCount: pageFrames.pageRafCount,
@@ -307,9 +368,12 @@ jobs:
 
             const result = {
               result: 'FAIL',
-              scope: 'M2_0_ACTUAL_CHROME_WEBGL2',
+              scope: 'M2_1_01_ACTUAL_CHROME_WEBGL2',
               error: String(error?.message || error),
               errorClassification: String(error?.classification || 'browser_probe_error'),
+              commandReceipt,
+              duplicateReceipt,
+              movementEvidence,
               pageRafCount: pageFrames.pageRafCount,
               firstPageRafAt: pageFrames.firstPageRafAt,
               firstRuntime: frameEvidence(first),
@@ -406,7 +470,7 @@ jobs:
             set -e
             chrome_executed=1
 
-            deadline=$((SECONDS + 35))
+            deadline=$((SECONDS + 40))
             while true; do
               if [ -s m2_browser_probe_result.json ]; then
                 chrome_terminated_after_result=1
