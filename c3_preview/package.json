@@ -1,0 +1,10 @@
+{
+  "name": "c3-r2-preview-transport",
+  "private": true,
+  "scripts": {
+    "build": "node build.cjs"
+  },
+  "dependencies": {
+    "adm-zip": "0.5.16"
+  }
+}
