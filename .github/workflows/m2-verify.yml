@@ -169,6 +169,9 @@ jobs:
             dispatchPointer(element, "pointerdown", init);
             dispatchPointer(element, "pointerup", init);
           };
+          const waitRenderCommit = () => new Promise(resolve => {
+            w.requestAnimationFrame(() => w.requestAnimationFrame(resolve));
+          });
           const waitTicks = async (count = 1) => {
             const start = w.ArsM2Diagnostics.getSnapshot().fixedTickCount;
             for (let i = 0; i < 240 && w.ArsM2Diagnostics.getSnapshot().fixedTickCount < start + count; i += 1) await sleep(25);
@@ -391,6 +394,7 @@ jobs:
             dispatchPointer(canvas, "pointerdown", { clientX: canvasRect.left + 500, clientY: canvasRect.top + 300, pointerId: 803, pointerType: "touch", button: 0, buttons: 1 });
             dispatchPointer(canvas, "pointermove", { clientX: canvasRect.left + 620, clientY: canvasRect.top + 300, pointerId: 803, pointerType: "touch", button: 0, buttons: 1 });
             dispatchPointer(canvas, "pointerup", { clientX: canvasRect.left + 620, clientY: canvasRect.top + 300, pointerId: 803, pointerType: "touch", button: 0, buttons: 0 });
+            await waitRenderCommit();
             tapPointer(canvas, { ...probePoint, pointerId: 804 });
             await waitTicks(1);
             const rayTargetAfterDrag = clone(formation(mobileFormationId).order.target);
@@ -401,6 +405,7 @@ jobs:
             dispatchPointer(canvas, "pointermove", { clientX: canvasRect.left + 575, clientY: canvasRect.top + 330, pointerId: 806, pointerType: "touch" });
             dispatchPointer(canvas, "pointerup", { clientX: canvasRect.left + 430, clientY: canvasRect.top + 330, pointerId: 805, pointerType: "touch", buttons: 0 });
             dispatchPointer(canvas, "pointerup", { clientX: canvasRect.left + 575, clientY: canvasRect.top + 330, pointerId: 806, pointerType: "touch", buttons: 0 });
+            await waitRenderCommit();
             tapPointer(canvas, { ...probePoint, pointerId: 807 });
             await waitTicks(1);
             const rayTargetAfterPinch = clone(formation(mobileFormationId).order.target);
