@@ -401,10 +401,10 @@ jobs:
           
             dispatchPointer(canvas, "pointerdown", { clientX: canvasRect.left + 450, clientY: canvasRect.top + 330, pointerId: 805, pointerType: "touch" });
             dispatchPointer(canvas, "pointerdown", { clientX: canvasRect.left + 550, clientY: canvasRect.top + 330, pointerId: 806, pointerType: "touch" });
-            dispatchPointer(canvas, "pointermove", { clientX: canvasRect.left + 430, clientY: canvasRect.top + 330, pointerId: 805, pointerType: "touch" });
-            dispatchPointer(canvas, "pointermove", { clientX: canvasRect.left + 575, clientY: canvasRect.top + 330, pointerId: 806, pointerType: "touch" });
-            dispatchPointer(canvas, "pointerup", { clientX: canvasRect.left + 430, clientY: canvasRect.top + 330, pointerId: 805, pointerType: "touch", buttons: 0 });
-            dispatchPointer(canvas, "pointerup", { clientX: canvasRect.left + 575, clientY: canvasRect.top + 330, pointerId: 806, pointerType: "touch", buttons: 0 });
+            dispatchPointer(canvas, "pointermove", { clientX: canvasRect.left + 470, clientY: canvasRect.top + 330, pointerId: 805, pointerType: "touch" });
+            dispatchPointer(canvas, "pointermove", { clientX: canvasRect.left + 530, clientY: canvasRect.top + 330, pointerId: 806, pointerType: "touch" });
+            dispatchPointer(canvas, "pointerup", { clientX: canvasRect.left + 470, clientY: canvasRect.top + 330, pointerId: 805, pointerType: "touch", buttons: 0 });
+            dispatchPointer(canvas, "pointerup", { clientX: canvasRect.left + 530, clientY: canvasRect.top + 330, pointerId: 806, pointerType: "touch", buttons: 0 });
             await waitRenderCommit();
             tapPointer(canvas, { ...probePoint, pointerId: 807 });
             await waitTicks(1);
