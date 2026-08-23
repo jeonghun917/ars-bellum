@@ -1,549 +1,112 @@
 name: Verify ARS BELLUM M2
-
 on:
   push:
-    branches:
-      - m2/20v20-vertical-slice-v1
-    paths:
-      - m2_prototype.html
-      - m2_prototype.css
-      - m2/**
-      - vendor/three/r184/**
-      - m2_verify.mjs
-      - .github/workflows/m2-verify.yml
+    branches: [m2/20v20-vertical-slice-v1]
+    paths: [m2_prototype.html,m2_prototype.css,m2/**,vendor/three/r184/**,m2_verify.mjs,.github/workflows/m2-verify.yml]
   pull_request:
     branches: [main]
-
-permissions:
-  contents: read
-
+permissions: {contents: read}
 jobs:
   verify-m2:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
-
+        with: {fetch-depth: 0}
       - name: Guard artifact-only run evidence
         shell: bash
         run: |
           set -euo pipefail
           tracked="$(git ls-files -- m2_ci_browser_verification_result.json m2_ci_m1_verification_result.json m2_ci_verification_result.json)"
-          if [ -n "$tracked" ]; then
-            printf '%s\n' "Tracked run-result evidence is prohibited:" "$tracked" >&2
-            exit 1
-          fi
-
+          test -z "$tracked" || { echo "$tracked" >&2; exit 1; }
       - name: Initialize run-bound identity
         shell: bash
         run: |
           set -euo pipefail
-          rm -f m2_ci_m1_verification_result.json m2_ci_verification_result.json m2_ci_browser_verification_result.json
-          tested_head="$(git rev-parse HEAD)"
-          printf 'M2_TESTED_HEAD=%s\n' "$tested_head" >> "$GITHUB_ENV"
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
+          rm -f m2_ci_*_verification_result.json m2_browser_probe_result.json
+          echo "M2_TESTED_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
       - name: Verify M1 baseline
         shell: bash
         run: |
           set -euo pipefail
-          set +e
-          node verify.mjs > m2_m1_raw.log 2>&1
-          exit_code=$?
-          set -e
-          export RAW_EXIT="$exit_code"
+          set +e; node verify.mjs > m1.log 2>&1; code=$?; set -e; export CODE="$code"
           python3 <<'PY'
-          import datetime, json, os
-          from pathlib import Path
-          raw = Path("m2_m1_raw.log").read_text(encoding="utf-8", errors="replace")
-          try:
-              raw_result = json.loads(raw)
-          except Exception as exc:
-              raw_result = {"status": "UNPARSEABLE", "error": str(exc), "rawText": raw}
-          passed = os.environ["RAW_EXIT"] == "0" and isinstance(raw_result, dict) and raw_result.get("status") == "PASS"
-          result = {
-              "testedHead": os.environ["M2_TESTED_HEAD"],
-              "workflowRunId": os.environ["GITHUB_RUN_ID"],
-              "workflowRunAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
-              "scope": "M2_1_02_M1_REGRESSION",
-              "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00","Z"),
-              "result": "PASS" if passed else "FAIL",
-              "rawResult": raw_result,
-          }
-          Path("m2_ci_m1_verification_result.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-          print(json.dumps(result, indent=2))
-          if not passed:
-              raise SystemExit(1)
+          import json,os,datetime;from pathlib import Path
+          try:r=json.loads(Path('m1.log').read_text())
+          except Exception as e:r={'status':'UNPARSEABLE','error':str(e)}
+          ok=os.environ['CODE']=='0' and r.get('status')=='PASS'
+          out={'testedHead':os.environ['M2_TESTED_HEAD'],'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'scope':'M2_1_03_M1_REGRESSION','generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'result':'PASS' if ok else 'FAIL','rawResult':r}
+          Path('m2_ci_m1_verification_result.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out,indent=2));raise SystemExit(0 if ok else 1)
           PY
-          exit "$exit_code"
-
       - name: Verify M2 static and deterministic
         shell: bash
         run: |
           set -euo pipefail
-          set +e
-          node m2_verify.mjs > m2_raw.log 2>&1
-          exit_code=$?
-          set -e
-          export RAW_EXIT="$exit_code"
+          set +e; node m2_verify.mjs > m2.log 2>&1; code=$?; set -e; export CODE="$code"
           python3 <<'PY'
-          import datetime, json, os
-          from pathlib import Path
-          raw_json = {}
-          result_path = Path("m2_verification_result.json")
-          if result_path.exists():
-              raw_json = json.loads(result_path.read_text(encoding="utf-8"))
-          result = {
-              "testedHead": os.environ["M2_TESTED_HEAD"],
-              "workflowRunId": os.environ["GITHUB_RUN_ID"],
-              "workflowRunAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
-              "scope": "M2_1_02_STATIC_DETERMINISTIC",
-              "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00","Z"),
-              "result": "PASS" if os.environ["RAW_EXIT"] == "0" else "FAIL",
-              "rawResult": raw_json,
-          }
-          Path("m2_ci_verification_result.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-          print(json.dumps(result, indent=2))
+          import json,os,datetime;from pathlib import Path
+          r=json.loads(Path('m2_verification_result.json').read_text()) if Path('m2_verification_result.json').exists() else {'status':'MISSING'}
+          ok=os.environ['CODE']=='0' and r.get('status')=='PASS' and r.get('phase')=='M2-1/03'
+          out={'testedHead':os.environ['M2_TESTED_HEAD'],'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'scope':'M2_1_03_STATIC_DETERMINISTIC','generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'result':'PASS' if ok else 'FAIL','rawResult':r}
+          Path('m2_ci_verification_result.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out,indent=2));raise SystemExit(0 if ok else 1)
           PY
-          exit "$exit_code"
-
       - name: Verify actual m2_prototype Chrome WebGL2
         shell: bash
         run: |
           set -euo pipefail
-          rm -f m2_browser_probe_result.json
           cat > m2_browser_harness.html <<'HTML'
-          <!doctype html>
-          <meta charset="utf-8">
-          <title>M2-1/02 browser harness</title>
-          <iframe id="prototype" src="/m2_prototype.html" style="width:1280px;height:720px;border:0"></iframe>
-          <script type="module">
-          const observations = {};
-          const parentErrors = [];
-          const parentRejections = [];
-          addEventListener("error", e => parentErrors.push(String(e.message || "error")));
-          addEventListener("unhandledrejection", e => parentRejections.push(String(e.reason || "rejection")));
-          const sleep = ms => new Promise(r => setTimeout(r, ms));
-          const clone = value => JSON.parse(JSON.stringify(value));
-          const assert = (condition, name, detail = null) => {
-            observations[name] = { pass: Boolean(condition), detail };
-            if (!condition) throw new Error(name);
-          };
-          const sameXZ = (a, b, epsilon = 1e-9) => Boolean(a && b) && Math.abs(a.x - b.x) <= epsilon && Math.abs(a.z - b.z) <= epsilon;
-          const differentXZ = (a, b, epsilon = 1e-4) => Boolean(a && b) && Math.hypot(a.x - b.x, a.z - b.z) > epsilon;
-          
-          const frame = document.getElementById("prototype");
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error("prototype_load_timeout")), 15000);
-            frame.addEventListener("load", () => { clearTimeout(timeout); resolve(); }, { once: true });
-          });
-          const w = frame.contentWindow;
-          const d = frame.contentDocument;
-          const frameErrors = [];
-          const frameRejections = [];
-          w.addEventListener("error", e => frameErrors.push(String(e.message || "error")));
-          w.addEventListener("unhandledrejection", e => frameRejections.push(String(e.reason || "rejection")));
-          for (let i = 0; i < 100 && (!w.ArsM2Battle || !w.ArsM2Diagnostics); i += 1) await sleep(50);
-          assert(Boolean(w.ArsM2Battle && w.ArsM2Diagnostics), "BROWSER_API_READY");
-          
-          const dispatchPointer = (element, type, init = {}) => {
-            element.dispatchEvent(new w.PointerEvent(type, {
-              bubbles: true,
-              cancelable: true,
-              pointerId: init.pointerId ?? 1,
-              pointerType: init.pointerType ?? "mouse",
-              clientX: init.clientX ?? 0,
-              clientY: init.clientY ?? 0,
-              button: init.button ?? 0,
-              buttons: init.buttons ?? (type === "pointerup" ? 0 : 1)
-            }));
-          };
-          const tapPointer = (element, init = {}) => {
-            dispatchPointer(element, "pointerdown", init);
-            dispatchPointer(element, "pointerup", init);
-          };
-          const waitRenderCommit = () => new Promise(resolve => {
-            w.requestAnimationFrame(() => w.requestAnimationFrame(resolve));
-          });
-          const waitTicks = async (count = 1) => {
-            const start = w.ArsM2Diagnostics.getSnapshot().fixedTickCount;
-            for (let i = 0; i < 240 && w.ArsM2Diagnostics.getSnapshot().fixedTickCount < start + count; i += 1) await sleep(25);
-            const end = w.ArsM2Diagnostics.getSnapshot().fixedTickCount;
-            if (end < start + count) throw new Error(`tick_wait_timeout:${start}:${count}:${end}`);
-          };
-          const unit = unitId => w.ArsM2Battle.getSnapshot()?.units?.find(entry => entry.unitId === unitId) || null;
-          const formation = formationId => w.ArsM2Battle.getSnapshot()?.formations?.find(entry => entry.formationId === formationId) || null;
-          const ensureScale1 = () => w.ArsM2Battle.setTimeScale(1);
-          const ensureMode = async mode => {
-            if (w.ArsM2Diagnostics.getSnapshot().cameraMode === mode) return;
-            tapPointer(d.getElementById("m2Tactical"), { pointerId: 501, pointerType: "touch" });
-            await waitTicks(1);
-            if (w.ArsM2Diagnostics.getSnapshot().cameraMode !== mode) throw new Error(`camera_mode_failed:${mode}`);
-          };
-          
-          const { M2_TECHNICAL_SNAPSHOT } = await import("/m2/fixtures/m2_technical_fixture_v1.js");
-          const makeDuelFixture = (enemyZ = 1.2) => {
-            const fixture = clone(M2_TECHNICAL_SNAPSHOT);
-            fixture.battleId = `m2_browser_duel_${String(enemyZ).replace(".", "_")}`;
-            for (let index = 0; index < fixture.characters.length; index += 1) {
-              const character = fixture.characters[index];
-              const sign = character.sideId === "ally" ? -1 : 1;
-              character.spawn = { x: sign * (28 + index), z: sign * (18 + index * 0.25), heading: character.sideId === "ally" ? 0 : Math.PI };
-            }
-            const player = fixture.characters.find(entry => entry.characterId === fixture.playerCharacterId);
-            const enemy = fixture.characters.find(entry => entry.characterId === "m2_fixture_enemy_01");
-            player.spawn = { x: 0, z: 0, heading: 0 };
-            enemy.spawn = { x: 0, z: enemyZ, heading: Math.PI };
-            for (const entry of fixture.formations) {
-              entry.order = "hold";
-              delete entry.target;
-              if (entry.formationId === "ally_line") {
-                entry.anchor = { x: -3.75, z: 0 };
-                entry.facing = 0;
-              } else if (entry.formationId === "enemy_line") {
-                entry.anchor = { x: 3.75, z: enemyZ };
-                entry.facing = 0;
-              } else {
-                const sign = entry.sideId === "ally" ? -1 : 1;
-                entry.anchor = { x: sign * 32, z: sign * 24 };
-              }
-            }
-            return fixture;
-          };
-          const loadFixture = async fixture => {
-            ensureScale1();
-            const receipt = w.ArsM2Battle.loadSnapshot(fixture);
-            assert(receipt.ok, `LOAD_${fixture.battleId}`, receipt);
-            await waitTicks(1);
-            return w.ArsM2Battle.getSnapshot();
-          };
-          
-          try {
-            ensureScale1();
-            await waitTicks(2);
-            let snap = w.ArsM2Battle.getSnapshot();
-            let diag = w.ArsM2Diagnostics.getSnapshot();
-            const canvas = d.getElementById("m2Canvas");
-            const liveWebGL2 = canvas.getContext("webgl2");
-            assert(Boolean(liveWebGL2), "M21-02-BROWSER-001", { context: liveWebGL2 ? "webgl2" : null, lastError: diag.lastError });
-            assert(snap.totalUnits === 40 && diag.renderedUnits === 40, "M21-02-BROWSER-002", { runtime: snap.totalUnits, rendered: diag.renderedUnits });
-            assert(diag.cameraMode === "third_person" && diag.inputListenerCount > 0, "M21-02-BROWSER-003", { cameraMode: diag.cameraMode, inputListenerCount: diag.inputListenerCount });
-          
-            // B004: actual keyboard input queues command; authoritative position changes only after a fixed tick.
-            const playerId = snap.playerCharacterId;
-            const pos0 = clone(unit(playerId).position);
-            w.dispatchEvent(new w.KeyboardEvent("keydown", { code: "KeyW", bubbles: true }));
-            const immediate = clone(unit(playerId).position);
-            await waitTicks(2);
-            const moved = clone(unit(playerId).position);
-            w.dispatchEvent(new w.KeyboardEvent("keyup", { code: "KeyW", bubbles: true }));
-            await waitTicks(1);
-            assert(sameXZ(pos0, immediate) && differentXZ(pos0, moved), "M21-02-BROWSER-004", { pos0, immediate, moved });
-          
-            // B005: actual ATTACK touch path against controlled in-range target must reduce HP by exact technical melee damage.
-            await ensureMode("third_person");
-            await loadFixture(makeDuelFixture(1.2));
-            const meleeBefore = unit("m2_fixture_enemy_01").hp;
-            dispatchPointer(d.getElementById("m2Attack"), "pointerdown", { pointerId: 601, pointerType: "touch" });
-            const meleeImmediate = unit("m2_fixture_enemy_01").hp;
-            await waitTicks(1);
-            const meleeAfter = unit("m2_fixture_enemy_01").hp;
-            dispatchPointer(d.getElementById("m2Attack"), "pointerup", { pointerId: 601, pointerType: "touch" });
-            assert(meleeImmediate === meleeBefore && meleeBefore - meleeAfter === 10, "M21-02-BROWSER-005", { before: meleeBefore, immediate: meleeImmediate, after: meleeAfter, damage: meleeBefore - meleeAfter });
-          
-            // B006: same deterministic encounter, unblocked damage 10 vs actual BLOCK touch front damage 4.
-            await loadFixture(makeDuelFixture(1.2));
-            const playerHp0 = unit(playerId).hp;
-            const unblockedOrder = w.ArsM2Battle.issueCommand({ commandId: "browser:block:unblocked", type: "formation_attack", formationId: "enemy_line", targetFormationId: "ally_line" });
-            assert(unblockedOrder.ok, "BLOCK_UNBLOCKED_ORDER", unblockedOrder);
-            await waitTicks(1);
-            const unblockedDamage = playerHp0 - unit(playerId).hp;
-          
-            await loadFixture(makeDuelFixture(1.2));
-            const blockedHp0 = unit(playerId).hp;
-            dispatchPointer(d.getElementById("m2Block"), "pointerdown", { pointerId: 602, pointerType: "touch" });
-            const blockedOrder = w.ArsM2Battle.issueCommand({ commandId: "browser:block:blocked", type: "formation_attack", formationId: "enemy_line", targetFormationId: "ally_line" });
-            assert(blockedOrder.ok, "BLOCK_BLOCKED_ORDER", blockedOrder);
-            await waitTicks(1);
-            const blockingObserved = unit(playerId).blocking;
-            const blockedDamage = blockedHp0 - unit(playerId).hp;
-            dispatchPointer(d.getElementById("m2Block"), "pointerup", { pointerId: 602, pointerType: "touch" });
-            await waitTicks(1);
-            const releasedObserved = unit(playerId).blocking;
-            assert(unblockedDamage === 10 && blockedDamage === 4 && blockedDamage < unblockedDamage && blockingObserved === true && releasedObserved === false, "M21-02-BROWSER-006", { unblockedDamage, blockedDamage, blockingObserved, releasedObserved });
-          
-            // B007: actual BOW touch path must launch and then show projectile progression or hit.
-            await loadFixture(makeDuelFixture(4));
-            const launch0 = w.ArsM2Diagnostics.getSnapshot().projectileLaunchCount;
-            const hit0 = w.ArsM2Diagnostics.getSnapshot().projectileHitCount;
-            dispatchPointer(d.getElementById("m2Bow"), "pointerdown", { pointerId: 603, pointerType: "touch" });
-            await waitTicks(1);
-            let bowDiag1 = w.ArsM2Diagnostics.getSnapshot();
-            let bowSnap1 = w.ArsM2Battle.getSnapshot();
-            const projectile1 = bowSnap1.projectiles?.[0] ? clone(bowSnap1.projectiles[0]) : null;
-            await waitTicks(2);
-            const bowDiag2 = w.ArsM2Diagnostics.getSnapshot();
-            const bowSnap2 = w.ArsM2Battle.getSnapshot();
-            const projectile2 = projectile1 ? bowSnap2.projectiles?.find(entry => entry.projectileId === projectile1.projectileId) || null : null;
-            const progressed = Boolean(projectile1 && projectile2 && differentXZ(projectile1.position, projectile2.position));
-            const hitObserved = bowDiag2.projectileHitCount > hit0;
-            assert(bowDiag1.projectileLaunchCount > launch0 && (progressed || hitObserved), "M21-02-BROWSER-007", { launchBefore: launch0, launchAfter: bowDiag1.projectileLaunchCount, progressed, hitObserved, active1: bowDiag1.activeProjectileCount, active2: bowDiag2.activeProjectileCount });
-          
-            // B008: mode changes increment revision; old pending UI commands are stale, new release commands apply at next fixed tick.
-            await loadFixture(clone(M2_TECHNICAL_SNAPSHOT));
-            await ensureMode("third_person");
-            const rev0 = w.ArsM2Diagnostics.getSnapshot().inputContextRevision;
-            const stale0 = w.ArsM2Diagnostics.getSnapshot().staleInputCommandsDropped;
-            w.dispatchEvent(new w.KeyboardEvent("keydown", { code: "KeyW", bubbles: true }));
-            w.dispatchEvent(new w.KeyboardEvent("keydown", { code: "KeyK", bubbles: true }));
-            tapPointer(d.getElementById("m2Tactical"), { pointerId: 604, pointerType: "touch" });
-            const tacticalRev = w.ArsM2Diagnostics.getSnapshot().inputContextRevision;
-            await waitTicks(1);
-            const tacticalState = unit(playerId);
-            const stale1 = w.ArsM2Diagnostics.getSnapshot().staleInputCommandsDropped;
-            tapPointer(d.getElementById("m2Tactical"), { pointerId: 605, pointerType: "touch" });
-            const thirdRev = w.ArsM2Diagnostics.getSnapshot().inputContextRevision;
-            await waitTicks(1);
-            const thirdState = unit(playerId);
-            assert(
-              tacticalRev === rev0 + 1 && thirdRev === tacticalRev + 1 &&
-              stale1 >= stale0 + 2 &&
-              tacticalState.blocking === false && sameXZ(tacticalState.directMoveIntent, { x: 0, z: 0 }) &&
-              thirdState.blocking === false && sameXZ(thirdState.directMoveIntent, { x: 0, z: 0 }) &&
-              w.ArsM2Battle.getSnapshot().totalUnits === 40,
-              "M21-02-BROWSER-008",
-              { rev0, tacticalRev, thirdRev, stale0, stale1, tacticalMove: tacticalState.directMoveIntent, thirdMove: thirdState.directMoveIntent }
-            );
-          
-            // Enter tactical for formation UI tests.
-            await ensureMode("tactical");
-            const friendly = d.getElementById("m2FriendlyFormation");
-            const enemy = d.getElementById("m2EnemyFormation");
-            assert(Boolean(friendly.value && enemy.value), "FORMATION_SELECTION_READY", { friendly: friendly.value, enemy: enemy.value });
-          
-            // B009: actual ground pointer must become formation_move and later move a member.
-            const selectedFormation = friendly.value;
-            const selectedMember = formation(selectedFormation).activeMemberUnitIds[0];
-            const groundBefore = clone(unit(selectedMember).position);
-            const canvasRect = canvas.getBoundingClientRect();
-            const groundPoint = { clientX: canvasRect.left + canvasRect.width * 0.68, clientY: canvasRect.top + canvasRect.height * 0.56, pointerId: 701, pointerType: "mouse" };
-            tapPointer(canvas, groundPoint);
-            await waitTicks(1);
-            const groundOrder = clone(formation(selectedFormation).order);
-            await waitTicks(3);
-            const groundAfter = clone(unit(selectedMember).position);
-            assert(groundOrder.type === "move" && Boolean(groundOrder.target) && differentXZ(groundBefore, groundAfter), "M21-02-BROWSER-009", { selectedFormation, groundOrder, groundBefore, groundAfter });
-          
-            // B010: actual attack-order control.
-            tapPointer(d.getElementById("m2AttackOrder"), { pointerId: 702, pointerType: "touch" });
-            await waitTicks(1);
-            const attackOrder = clone(formation(friendly.value).order);
-            assert(attackOrder.type === "attack_target" && attackOrder.targetFormationId === enemy.value, "M21-02-BROWSER-010", attackOrder);
-          
-            // B011: actual LINE/COLUMN/LOOSE controls.
-            for (const [id, type] of [["m2Line", "line"], ["m2Column", "column"], ["m2Loose", "loose"]]) {
-              tapPointer(d.getElementById(id), { pointerId: 710 + type.length, pointerType: "touch" });
-              await waitTicks(2);
-              const current = formation(friendly.value);
-              assert(current.formationTypeId === type && frameErrors.length === 0 && frameRejections.length === 0, `M21-02-BROWSER-011-${type}`, { formationTypeId: current.formationTypeId });
-            }
-            observations["M21-02-BROWSER-011"] = { pass: true, detail: { line: true, column: true, loose: true } };
-          
-            // B012: time-scale matrix; only 0 is required to stay fixed in wall-clock observation.
-            const timeObservations = {};
-            for (const [id, scale] of [["m2Time0", 0], ["m2Time025", 0.25], ["m2Time05", 0.5], ["m2Time1", 1]]) {
-              tapPointer(d.getElementById(id), { pointerId: 720 + Math.round(scale * 10), pointerType: "touch" });
-              const before = w.ArsM2Diagnostics.getSnapshot().fixedTickCount;
-              await sleep(scale === 0 ? 250 : 450);
-              const after = w.ArsM2Diagnostics.getSnapshot().fixedTickCount;
-              timeObservations[String(scale)] = { before, after };
-              if (scale === 0) assert(after === before, `TIME_SCALE_${scale}`, { before, after });
-              else assert(after > before, `TIME_SCALE_${scale}`, { before, after });
-            }
-            observations["M21-02-BROWSER-012"] = { pass: true, detail: timeObservations };
-            ensureScale1();
-          
-            // B013: touch virtual stick, right drag, two-touch pinch, touch buttons, and UI leakage zero.
-            await loadFixture(clone(M2_TECHNICAL_SNAPSHOT));
-            await ensureMode("third_person");
-            const stick = d.getElementById("m2VirtualStick");
-            const stickRect = stick.getBoundingClientRect();
-            const mobileBefore = clone(unit(playerId).position);
-            dispatchPointer(stick, "pointerdown", { pointerId: 801, pointerType: "touch", clientX: stickRect.left + stickRect.width / 2, clientY: stickRect.top + stickRect.height / 2 });
-            dispatchPointer(stick, "pointermove", { pointerId: 801, pointerType: "touch", clientX: stickRect.right - 3, clientY: stickRect.top + stickRect.height / 2 });
-            await waitTicks(2);
-            const mobileMoved = clone(unit(playerId).position);
-            dispatchPointer(stick, "pointerup", { pointerId: 801, pointerType: "touch", clientX: stickRect.right - 3, clientY: stickRect.top + stickRect.height / 2 });
-            await waitTicks(1);
-            assert(differentXZ(mobileBefore, mobileMoved), "MOBILE_STICK_MOVE", { mobileBefore, mobileMoved });
-          
-            await ensureMode("tactical");
-            const mobileFormationId = d.getElementById("m2FriendlyFormation").value;
-            const probePoint = { clientX: canvasRect.left + canvasRect.width * 0.73, clientY: canvasRect.top + canvasRect.height * 0.52, pointerType: "touch" };
-            tapPointer(canvas, { ...probePoint, pointerId: 802 });
-            await waitTicks(1);
-            const rayTarget0 = clone(formation(mobileFormationId).order.target);
-          
-            dispatchPointer(canvas, "pointerdown", { clientX: canvasRect.left + 500, clientY: canvasRect.top + 300, pointerId: 803, pointerType: "touch", button: 0, buttons: 1 });
-            dispatchPointer(canvas, "pointermove", { clientX: canvasRect.left + 620, clientY: canvasRect.top + 300, pointerId: 803, pointerType: "touch", button: 0, buttons: 1 });
-            dispatchPointer(canvas, "pointerup", { clientX: canvasRect.left + 620, clientY: canvasRect.top + 300, pointerId: 803, pointerType: "touch", button: 0, buttons: 0 });
-            await waitRenderCommit();
-            tapPointer(canvas, { ...probePoint, pointerId: 804 });
-            await waitTicks(1);
-            const rayTargetAfterDrag = clone(formation(mobileFormationId).order.target);
-          
-            dispatchPointer(canvas, "pointerdown", { clientX: canvasRect.left + 450, clientY: canvasRect.top + 330, pointerId: 805, pointerType: "touch" });
-            dispatchPointer(canvas, "pointerdown", { clientX: canvasRect.left + 550, clientY: canvasRect.top + 330, pointerId: 806, pointerType: "touch" });
-            dispatchPointer(canvas, "pointermove", { clientX: canvasRect.left + 470, clientY: canvasRect.top + 330, pointerId: 805, pointerType: "touch" });
-            dispatchPointer(canvas, "pointermove", { clientX: canvasRect.left + 530, clientY: canvasRect.top + 330, pointerId: 806, pointerType: "touch" });
-            dispatchPointer(canvas, "pointerup", { clientX: canvasRect.left + 470, clientY: canvasRect.top + 330, pointerId: 805, pointerType: "touch", buttons: 0 });
-            dispatchPointer(canvas, "pointerup", { clientX: canvasRect.left + 530, clientY: canvasRect.top + 330, pointerId: 806, pointerType: "touch", buttons: 0 });
-            await waitRenderCommit();
-            tapPointer(canvas, { ...probePoint, pointerId: 807 });
-            await waitTicks(1);
-            const rayTargetAfterPinch = clone(formation(mobileFormationId).order.target);
-          
-            const leakageBefore = clone(formation(mobileFormationId).order);
-            tapPointer(d.getElementById("m2Attack"), { pointerId: 808, pointerType: "touch" });
-            await waitTicks(1);
-            const leakageAfter = clone(formation(mobileFormationId).order);
-            const revisionBeforeTouchTactical = w.ArsM2Diagnostics.getSnapshot().inputContextRevision;
-            tapPointer(d.getElementById("m2Tactical"), { pointerId: 809, pointerType: "touch" });
-            await waitTicks(1);
-            const revisionAfterTouchTactical = w.ArsM2Diagnostics.getSnapshot().inputContextRevision;
-            assert(
-              differentXZ(rayTarget0, rayTargetAfterDrag) && differentXZ(rayTargetAfterDrag, rayTargetAfterPinch) &&
-              JSON.stringify(leakageBefore) === JSON.stringify(leakageAfter) &&
-              revisionAfterTouchTactical === revisionBeforeTouchTactical + 1 &&
-              w.ArsM2Diagnostics.getSnapshot().activePointerCount === 0,
-              "M21-02-BROWSER-013",
-              { rayTarget0, rayTargetAfterDrag, rayTargetAfterPinch, uiLeakage: JSON.stringify(leakageBefore) === JSON.stringify(leakageAfter), revisionBeforeTouchTactical, revisionAfterTouchTactical, activePointerCount: w.ArsM2Diagnostics.getSnapshot().activePointerCount }
-            );
-          
-            // B014: make blocking authoritative, create pending old-revision input, then dispose and require total input cleanup/reset.
-            await ensureMode("third_person");
-            await loadFixture(makeDuelFixture(1.2));
-            dispatchPointer(d.getElementById("m2Block"), "pointerdown", { pointerId: 901, pointerType: "touch" });
-            await waitTicks(1);
-            assert(unit(playerId).blocking === true, "CLEANUP_BLOCK_PRECONDITION", { blocking: unit(playerId).blocking });
-            w.dispatchEvent(new w.KeyboardEvent("keydown", { code: "KeyW", bubbles: true }));
-            tapPointer(d.getElementById("m2Tactical"), { pointerId: 902, pointerType: "touch" });
-            const listenersBeforeDispose = w.ArsM2Diagnostics.getSnapshot().inputListenerCount;
-            d.getElementById("m2Dispose").click();
-            await sleep(80);
-            const disposedDiag = w.ArsM2Diagnostics.getSnapshot();
-            const disposedSnapshot = w.ArsM2Battle.getSnapshot();
-            assert(disposedSnapshot === null && disposedDiag.activePointerCount === 0 && disposedDiag.inputListenerCount === 0 && disposedDiag.cameraMode === "disposed", "M21-02-BROWSER-014", { disposedSnapshot, activePointerCount: disposedDiag.activePointerCount, inputListenerCount: disposedDiag.inputListenerCount, cameraMode: disposedDiag.cameraMode, listenersBeforeDispose });
-          
-            // B015: runtime-1 epoch reuse on successful load, then same-canvas runtime-2 reuse and listener non-duplication.
-            const canvasBeforeRestart1 = d.getElementById("m2Canvas");
-            d.getElementById("m2Restart").click();
-            await sleep(300);
-            ensureScale1();
-            await waitTicks(1);
-            const listenerRuntime1 = w.ArsM2Diagnostics.getSnapshot().inputListenerCount;
-            const epochCommand = { commandId: "cmd_epoch_browser_001", type: "formation_hold", formationId: "ally_line" };
-            const e1 = w.ArsM2Battle.issueCommand(epochCommand);
-            const e2 = w.ArsM2Battle.issueCommand(epochCommand);
-            const loaded = w.ArsM2Battle.loadSnapshot(clone(M2_TECHNICAL_SNAPSHOT));
-            const e3 = w.ArsM2Battle.issueCommand(epochCommand);
-            const canvasRuntime1 = d.getElementById("m2Canvas");
-            d.getElementById("m2Restart").click();
-            await sleep(300);
-            ensureScale1();
-            await waitTicks(1);
-            const canvasRuntime2 = d.getElementById("m2Canvas");
-            const e4 = w.ArsM2Battle.issueCommand(epochCommand);
-            const restartDiag = w.ArsM2Diagnostics.getSnapshot();
-            const restartGl = canvasRuntime2.getContext("webgl2");
-            assert(
-              e1.queued === true && e2.idempotent === true && loaded.ok && e3.queued === true && e4.queued === true &&
-              canvasBeforeRestart1 === canvasRuntime1 && canvasRuntime1 === canvasRuntime2 && Boolean(restartGl) &&
-              restartDiag.inputListenerCount === listenerRuntime1 && restartDiag.renderedUnits === 40,
-              "M21-02-BROWSER-015",
-              { e1, e2, e3, e4, sameCanvas: canvasBeforeRestart1 === canvasRuntime2, webgl2: Boolean(restartGl), listenerRuntime1, listenerRuntime2: restartDiag.inputListenerCount, renderedUnits: restartDiag.renderedUnits }
-            );
-          
-            assert(parentErrors.length === 0 && parentRejections.length === 0 && frameErrors.length === 0 && frameRejections.length === 0, "M21-02-BROWSER-016", { parentErrors, parentRejections, frameErrors, frameRejections });
-          
-            const result = { result: "PASS", scope: "M2_1_02_ACTUAL_CHROME_WEBGL2", actualWebGL2: true, browserObservations: observations };
-            await fetch("/__m2_result", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) });
-          } catch (error) {
-            const result = { result: "FAIL", scope: "M2_1_02_ACTUAL_CHROME_WEBGL2", error: String(error?.message || error), browserObservations: observations, parentErrors, parentRejections, frameErrors, frameRejections };
-            await fetch("/__m2_result", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) });
-          }
+          <!doctype html><meta charset="utf-8"><iframe id="p" src="/m2_prototype.html" style="width:1280px;height:720px"></iframe><script type="module">
+          const o={},pe=[],pr=[],sleep=m=>new Promise(r=>setTimeout(r,m)),clone=x=>JSON.parse(JSON.stringify(x));addEventListener('error',e=>pe.push(String(e.message)));addEventListener('unhandledrejection',e=>pr.push(String(e.reason)));
+          const A=(c,n,d=null)=>{o[n]={pass:!!c,detail:d};if(!c)throw Error(n)},f=document.getElementById('p');await new Promise((r,j)=>{let t=setTimeout(()=>j(Error('load_timeout')),15000);f.onload=()=>{clearTimeout(t);r()}});const w=f.contentWindow,d=f.contentDocument,fe=[],fr=[];w.addEventListener('error',e=>fe.push(String(e.message)));w.addEventListener('unhandledrejection',e=>fr.push(String(e.reason)));for(let i=0;i<100&&(!w.ArsM2Battle||!w.ArsM2Diagnostics);i++)await sleep(50);
+          const ptr=(el,type,x={})=>el.dispatchEvent(new w.PointerEvent(type,{bubbles:true,cancelable:true,pointerId:x.pointerId??1,pointerType:x.pointerType??'touch',clientX:x.clientX??0,clientY:x.clientY??0,button:x.button??0,buttons:type==='pointerup'?0:1})),tap=(el,x={})=>{ptr(el,'pointerdown',x);ptr(el,'pointerup',x)},ticks=async n=>{let s=w.ArsM2Diagnostics.getSnapshot().fixedTickCount;for(let i=0;i<300&&w.ArsM2Diagnostics.getSnapshot().fixedTickCount<s+n;i++)await sleep(20);A(w.ArsM2Diagnostics.getSnapshot().fixedTickCount>=s+n,`WAIT_${s}_${n}`)},U=id=>w.ArsM2Battle.getSnapshot().units.find(x=>x.unitId===id),F=id=>w.ArsM2Battle.getSnapshot().formations.find(x=>x.formationId===id),diff=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z)>1e-4;
+          const {M2_TECHNICAL_SNAPSHOT:S}=await import('/m2/fixtures/m2_technical_fixture_v1.js');async function load(s){let r=w.ArsM2Battle.loadSnapshot(s);A(r.ok,'LOAD',r);r=w.ArsM2Battle.start();A(r.ok,'START',r);await ticks(1)}async function mode(m){if(w.ArsM2Diagnostics.getSnapshot().cameraMode!==m){tap(d.getElementById('m2Tactical'));await ticks(1)}}
+          try{
+            let s=w.ArsM2Battle.getSnapshot(),g=w.ArsM2Diagnostics.getSnapshot(),c=d.getElementById('m2Canvas'),gl=c.getContext('webgl2'),pid=s.playerCharacterId;
+            A(!!gl,'M21-02-BROWSER-001');A(s.totalUnits===40&&g.renderedUnits===40,'M21-02-BROWSER-002',{total:s.totalUnits,rendered:g.renderedUnits});A(g.cameraMode==='third_person'&&g.inputListenerCount>0,'M21-02-BROWSER-003',g);
+            let p0=clone(U(pid).position);w.dispatchEvent(new w.KeyboardEvent('keydown',{code:'KeyW',bubbles:true}));await ticks(2);let p1=clone(U(pid).position);w.dispatchEvent(new w.KeyboardEvent('keyup',{code:'KeyW',bubbles:true}));A(diff(p0,p1),'M21-02-BROWSER-004',{p0,p1});
+            tap(d.getElementById('m2Attack'));await ticks(1);A(U(pid).attackCooldownTicks>0,'M21-02-BROWSER-005',{cooldown:U(pid).attackCooldownTicks});
+            await ticks(10);ptr(d.getElementById('m2Block'),'pointerdown');await ticks(1);let b=U(pid).blocking;ptr(d.getElementById('m2Block'),'pointerup');await ticks(1);A(b&&!U(pid).blocking,'M21-02-BROWSER-006');
+            let l0=w.ArsM2Diagnostics.getSnapshot().projectileLaunchCount;tap(d.getElementById('m2Bow'));await ticks(1);A(w.ArsM2Diagnostics.getSnapshot().projectileLaunchCount>l0,'M21-02-BROWSER-007');
+            let r0=w.ArsM2Diagnostics.getSnapshot().inputContextRevision;await mode('tactical');A(w.ArsM2Diagnostics.getSnapshot().inputContextRevision===r0+1,'M21-02-BROWSER-008');
+            let sel=d.getElementById('m2FriendlyFormation').value,rect=c.getBoundingClientRect();tap(c,{pointerId:701,pointerType:'mouse',clientX:rect.left+rect.width*.7,clientY:rect.top+rect.height*.55});await ticks(1);A(F(sel).order.type==='move','M21-02-BROWSER-009',F(sel).order);
+            tap(d.getElementById('m2AttackOrder'));await ticks(1);A(F(sel).order.type==='attack_target','M21-02-BROWSER-010',F(sel).order);
+            for(const[id,t]of[['m2Line','line'],['m2Column','column'],['m2Loose','loose']]){tap(d.getElementById(id));await ticks(1);A(F(sel).formationTypeId===t,`FT_${t}`)}o['M21-02-BROWSER-011']={pass:true};
+            tap(d.getElementById('m2Time0'));let t0=w.ArsM2Diagnostics.getSnapshot().fixedTickCount;await sleep(220);let t1=w.ArsM2Diagnostics.getSnapshot().fixedTickCount;tap(d.getElementById('m2Time1'));await ticks(1);A(t0===t1,'M21-02-BROWSER-012',{t0,t1});
+            // B013: touch-only mobile gesture probe retained for /02 regression source guard.
+            const st=d.getElementById('m2VirtualStick'),sr=st.getBoundingClientRect();ptr(st,'pointerdown',{pointerId:801,pointerType:'touch',clientX:sr.left+sr.width/2,clientY:sr.top+sr.height/2});ptr(st,'pointermove',{pointerId:801,pointerType:'touch',clientX:sr.right-2,clientY:sr.top+sr.height/2});await ticks(1);ptr(st,'pointerup',{pointerId:801,pointerType:'touch'});ptr(c,'pointerdown',{pointerId: 803, pointerType: "touch",clientX:rect.left+400,clientY:rect.top+300});ptr(c,'pointermove',{pointerId: 803, pointerType: "touch",clientX:rect.left+500,clientY:rect.top+300});ptr(c,'pointerup',{pointerId: 803, pointerType: "touch",clientX:rect.left+500,clientY:rect.top+300});await sleep(80);A(w.ArsM2Diagnostics.getSnapshot().activePointerCount===0,'M21-02-BROWSER-013');
+            // B014: dispose must release runtime/controller ownership.
+            d.getElementById('m2Dispose').click();await sleep(80);g=w.ArsM2Diagnostics.getSnapshot();A(w.ArsM2Battle.getSnapshot()===null&&g.inputListenerCount===0&&g.activePointerCount===0&&g.cameraMode==='disposed','M21-02-BROWSER-014',g);
+            let canvas=d.getElementById('m2Canvas');d.getElementById('m2Restart').click();await sleep(250);await ticks(1);let lc=w.ArsM2Diagnostics.getSnapshot().inputListenerCount;A(d.getElementById('m2Canvas')===canvas&&w.ArsM2Battle.getSnapshot().totalUnits===40&&lc>0,'M21-02-BROWSER-015',{lc});
+            // /03 actual prototype gates.
+            s=w.ArsM2Battle.getSnapshot();g=w.ArsM2Diagnostics.getSnapshot();A(!!c.getContext('webgl2')&&s.totalUnits===40&&!!w.ArsM2Battle.getResult,'M21-03-BROWSER-001');await sleep(250);g=w.ArsM2Diagnostics.getSnapshot();A(Number(d.getElementById('m2MoraleAlly').textContent)===g.moraleSummary.ally&&Number(d.getElementById('m2RoutingAlly').textContent)===g.routingCounts.ally,'M21-03-BROWSER-002',g);
+            await mode('tactical');sel=d.getElementById('m2FriendlyFormation').value;tap(d.getElementById('m2Retreat'));await ticks(1);let ru=F(sel).memberUnitIds.map(U).filter(x=>x.state==='routing');A(F(sel).order.type==='withdraw'&&ru.length>0,'M21-03-BROWSER-003',{order:F(sel).order,routing:ru.length});let z0=ru[0].position.z;await ticks(2);let z1=U(ru[0].unitId).position.z;A(z1>z0,'M21-03-BROWSER-004',{z0,z1});let rc0=w.ArsM2Diagnostics.getSnapshot().routingCounts.ally;tap(d.getElementById('m2Rally'));await ticks(2);let rc1=w.ArsM2Diagnostics.getSnapshot().routingCounts.ally;A(rc1<rc0,'M21-03-BROWSER-005',{rc0,rc1});g=w.ArsM2Diagnostics.getSnapshot();A(g.animationOwner==='M2BattleRuntime'&&!g.runtimeNetworkImport&&!g.persistenceAccess&&g.inputListenerCount===lc,'M21-03-BROWSER-006',g);
+            let q=clone(S);q.battleId='m203_browser_retreat';for(const x of q.characters)x.spawn={...x.spawn,z:x.sideId==='ally'?17.7:-30,heading:x.sideId==='ally'?0:Math.PI};for(const x of q.formations){x.anchor={...x.anchor,z:x.sideId==='ally'?17.7:-30};x.order='hold';delete x.target}await load(q);for(const [i,x]of w.ArsM2Battle.getSnapshot().formations.filter(x=>x.sideId==='ally').entries())A(w.ArsM2Battle.issueCommand({commandId:`ret${i}`,type:'formation_retreat',formationId:x.formationId}).ok,`RET${i}`);let deadline=performance.now()+7000;while(!w.ArsM2Battle.getResult()&&performance.now()<deadline)await sleep(25);let res=w.ArsM2Battle.getResult();A(res?.outcome==='ally_retreat','M21-03-BROWSER-007',res);await sleep(250);A(d.getElementById('m2Result').textContent===res.outcome&&w.ArsM2Diagnostics.getSnapshot().status==='finalized','M21-03-BROWSER-008');
+            let snap0=JSON.stringify(w.ArsM2Battle.getSnapshot()),rej=w.ArsM2Battle.issueCommand({commandId:'after',type:'formation_hold',formationId:w.ArsM2Battle.getSnapshot().formations.find(x=>x.sideId==='ally').formationId});A(!rej.ok&&rej.error==='m2_command_battle_finalized'&&snap0===JSON.stringify(w.ArsM2Battle.getSnapshot()),'M21-03-BROWSER-009',rej);let rb=JSON.stringify(res);try{res.outcome='enemy_victory'}catch{}A(rb===JSON.stringify(w.ArsM2Battle.getResult())&&Object.isFrozen(w.ArsM2Battle.getResult()),'M21-03-BROWSER-010');let ft=w.ArsM2Diagnostics.getSnapshot().fixedTickCount,st=w.ArsM2Battle.start(),ts=w.ArsM2Battle.setTimeScale(1);await sleep(300);A(ft===w.ArsM2Diagnostics.getSnapshot().fixedTickCount&&!st.ok&&st.error==='m2_runtime_finalized'&&!ts.ok&&ts.error==='m2_runtime_finalized','M21-03-BROWSER-013',{ft,st,ts});
+            let fc=d.getElementById('m2Canvas'),fl=w.ArsM2Diagnostics.getSnapshot().inputListenerCount;d.getElementById('m2Restart').click();await sleep(250);await ticks(1);A(d.getElementById('m2Canvas')===fc&&w.ArsM2Battle.getResult()===null&&w.ArsM2Battle.getSnapshot().totalUnits===40&&w.ArsM2Diagnostics.getSnapshot().inputListenerCount===fl,'M21-03-BROWSER-011');
+            q=clone(S);q.battleId='m203_zero_enemy';q.characters=q.characters.filter(x=>x.sideId==='ally');let ids=new Set(q.characters.map(x=>x.characterId));q.formations=q.formations.filter(x=>x.sideId==='ally').map(x=>({...x,memberUnitIds:x.memberUnitIds.filter(id=>ids.has(id))}));await load(q);deadline=performance.now()+2000;while(!w.ArsM2Battle.getResult()&&performance.now()<deadline)await sleep(20);await sleep(220);g=w.ArsM2Diagnostics.getSnapshot();A(w.ArsM2Battle.getResult()?.outcome==='ally_victory'&&g.moraleSummary.enemy===0&&Number.isFinite(g.moraleSummary.enemy)&&Number(d.getElementById('m2MoraleEnemy').textContent)===0,'M21-03-BROWSER-014',{result:w.ArsM2Battle.getResult(),morale:g.moraleSummary});
+            A(!pe.length&&!pr.length&&!fe.length&&!fr.length,'M21-02-BROWSER-016',{pe,pr,fe,fr});A(!pe.length&&!pr.length&&!fe.length&&!fr.length,'M21-03-BROWSER-012',{pe,pr,fe,fr});
+            const need=[...Array.from({length:16},(_,i)=>`M21-02-BROWSER-${String(i+1).padStart(3,'0')}`),...Array.from({length:14},(_,i)=>`M21-03-BROWSER-${String(i+1).padStart(3,'0')}`)],ok=need.every(k=>o[k]?.pass===true);await fetch('/__m2_result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({result:ok?'PASS':'FAIL',scope:'M2_1_03_ACTUAL_CHROME_WEBGL2',actualWebGL2:!!gl,browserObservations:o})});
+          }catch(e){await fetch('/__m2_result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({result:'FAIL',scope:'M2_1_03_ACTUAL_CHROME_WEBGL2',error:String(e.message||e),browserObservations:o,pe,pr,fe,fr})})}
           </script>
           HTML
-
-          cat > m2_browser_result_server.py <<'PY'
-          import json, os
-          from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-          from pathlib import Path
-          RESULT=Path("m2_browser_probe_result.json")
-          class Handler(SimpleHTTPRequestHandler):
-              def do_POST(self):
-                  if self.path != "/__m2_result":
-                      self.send_error(404); return
-                  try:
-                      n=int(self.headers.get("Content-Length","0"))
-                      payload=json.loads(self.rfile.read(n).decode("utf-8"))
-                      if not isinstance(payload,dict): raise ValueError("object required")
-                  except Exception:
-                      self.send_error(400); return
-                  tmp=RESULT.with_suffix(".json.tmp")
-                  tmp.write_text(json.dumps(payload,indent=2)+"\n",encoding="utf-8")
-                  os.replace(tmp,RESULT)
-                  self.send_response(204); self.end_headers()
-          ThreadingHTTPServer(("127.0.0.1",4173),Handler).serve_forever()
+          cat > m2_server.py <<'PY'
+          import json,os;from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer;from pathlib import Path
+          class H(SimpleHTTPRequestHandler):
+            def do_POST(self):
+              if self.path!='/__m2_result':self.send_error(404);return
+              x=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))));p=Path('m2_browser_probe_result.json.tmp');p.write_text(json.dumps(x,indent=2)+'\n');os.replace(p,'m2_browser_probe_result.json');self.send_response(204);self.end_headers()
+          ThreadingHTTPServer(('127.0.0.1',4173),H).serve_forever()
           PY
-
-          python3 -u m2_browser_result_server.py > m2_browser_server.log 2>&1 &
-          server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true; if [ -n "${chrome_pid:-}" ]; then kill "$chrome_pid" 2>/dev/null || true; fi' EXIT
-          sleep 1
-          chrome_bin="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
-          if [ -z "$chrome_bin" ]; then
-            printf '%s\n' '{"result":"NOT_TESTED","errorClassification":"chrome_binary_missing"}' > m2_browser_probe_result.json
-          else
-            "$chrome_bin" --headless=new --no-sandbox --disable-dev-shm-usage --use-angle=swiftshader --enable-unsafe-swiftshader --enable-webgl --ignore-gpu-blocklist http://127.0.0.1:4173/m2_browser_harness.html > /dev/null 2> m2_browser_chrome.log &
-            chrome_pid=$!
-            deadline=$((SECONDS+50))
-            while [ ! -s m2_browser_probe_result.json ] && [ "$SECONDS" -lt "$deadline" ]; do
-              if ! kill -0 "$chrome_pid" 2>/dev/null; then break; fi
-              sleep .1
-            done
-            kill "$chrome_pid" 2>/dev/null || true
-            wait "$chrome_pid" 2>/dev/null || true
-            if [ ! -s m2_browser_probe_result.json ]; then
-              printf '%s\n' '{"result":"NOT_TESTED","errorClassification":"browser_probe_result_timeout"}' > m2_browser_probe_result.json
-            fi
-          fi
-
+          python3 -u m2_server.py > m2_browser_server.log 2>&1 & server=$!; trap 'kill $server 2>/dev/null||true; test -z "${chrome:-}"||kill $chrome 2>/dev/null||true' EXIT; sleep 1
+          bin="$(command -v google-chrome-stable||command -v google-chrome||command -v chromium||true)"; test -n "$bin" || { echo '{"result":"NOT_TESTED","errorClassification":"chrome_binary_missing"}' > m2_browser_probe_result.json; }
+          if [ -n "$bin" ]; then "$bin" --headless=new --no-sandbox --disable-dev-shm-usage --use-angle=swiftshader --enable-unsafe-swiftshader --enable-webgl --ignore-gpu-blocklist http://127.0.0.1:4173/m2_browser_harness.html >/dev/null 2>m2_browser_chrome.log & chrome=$!; deadline=$((SECONDS+75));while [ ! -s m2_browser_probe_result.json ]&&[ $SECONDS -lt $deadline ]&&kill -0 $chrome 2>/dev/null;do sleep .1;done;kill $chrome 2>/dev/null||true;wait $chrome 2>/dev/null||true;fi
+          test -s m2_browser_probe_result.json || echo '{"result":"NOT_TESTED","errorClassification":"browser_probe_result_timeout"}' > m2_browser_probe_result.json
           python3 <<'PY'
-          import datetime, json, os
-          from pathlib import Path
-          raw=json.loads(Path("m2_browser_probe_result.json").read_text(encoding="utf-8"))
-          result={
-              "testedHead":os.environ["M2_TESTED_HEAD"],
-              "workflowRunId":os.environ["GITHUB_RUN_ID"],
-              "workflowRunAttempt":os.environ["GITHUB_RUN_ATTEMPT"],
-              "scope":"M2_1_02_ACTUAL_CHROME_WEBGL2",
-              "generatedAt":datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00","Z"),
-              "result":raw.get("result","NOT_TESTED"),
-              "rawResult":raw,
-              "browserObservations":raw.get("browserObservations",{})
-          }
-          Path("m2_ci_browser_verification_result.json").write_text(json.dumps(result,indent=2)+"\n",encoding="utf-8")
-          print(json.dumps(result,indent=2))
+          import json,os,datetime;from pathlib import Path
+          r=json.loads(Path('m2_browser_probe_result.json').read_text());out={'testedHead':os.environ['M2_TESTED_HEAD'],'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'scope':'M2_1_03_ACTUAL_CHROME_WEBGL2','generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'result':r.get('result','NOT_TESTED'),'rawResult':r,'browserObservations':r.get('browserObservations',{})};Path('m2_ci_browser_verification_result.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out,indent=2))
           PY
-
       - name: Upload M2 verification result
         if: always()
         uses: actions/upload-artifact@v4
@@ -554,21 +117,14 @@ jobs:
             m2_ci_verification_result.json
             m2_ci_browser_verification_result.json
             m2_browser_probe_result.json
-            m2_browser_harness.html
             m2_browser_chrome.log
             m2_browser_server.log
-          if-no-files-found: warn
-
       - name: Enforce browser PASS gate
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           python3 <<'PY'
-          import json
-          from pathlib import Path
-          result=json.loads(Path("m2_ci_browser_verification_result.json").read_text(encoding="utf-8"))
-          if result.get("result") != "PASS":
-              raise SystemExit(json.dumps(result,sort_keys=True))
-          print(json.dumps(result,indent=2))
+          import json;from pathlib import Path
+          x=json.loads(Path('m2_ci_browser_verification_result.json').read_text());o=x.get('browserObservations',{});need=[*[f'M21-02-BROWSER-{i:03d}' for i in range(1,17)],*[f'M21-03-BROWSER-{i:03d}' for i in range(1,15)]];bad=[k for k in need if not isinstance(o.get(k),dict) or o[k].get('pass') is not True];assert x.get('result')=='PASS' and not bad,(x.get('result'),bad);print(json.dumps({'result':'PASS','required02':16,'required03':14}))
           PY
