@@ -1,6 +1,6 @@
 export const M2_CONFIG = Object.freeze({
   schemaVersion: 1,
-  phase: "M2-1/02",
+  phase: "M2-1/03",
   fixedTickHz: 20,
   fixedTickMs: 50,
   maxFrameDeltaMs: 250,

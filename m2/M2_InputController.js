@@ -260,6 +260,12 @@ export class M2InputController {
         this.#issue("formation_attack", { formationId: this.#selectedFormationId, targetFormationId: this.#selectedEnemyFormationId });
       }
     });
+    control(this.#elements.rally, "pointerdown", () => {
+      if (this.#selectedFormationId) this.#issue("formation_rally", { formationId: this.#selectedFormationId });
+    });
+    control(this.#elements.retreat, "pointerdown", () => {
+      if (this.#selectedFormationId) this.#issue("formation_retreat", { formationId: this.#selectedFormationId });
+    });
 
     for (const [element, formationTypeId] of [
       [this.#elements.line, "line"], [this.#elements.column, "column"], [this.#elements.loose, "loose"]

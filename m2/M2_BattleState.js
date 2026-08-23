@@ -9,8 +9,16 @@ function freezeDeep(value) {
   return value;
 }
 
-export function isM2UnitActive(unit) {
+function round2(value) {
+  return Math.round(Number(value) * 100) / 100;
+}
+
+export function isM2UnitAlive(unit) {
   return Boolean(unit) && unit.hp > 0 && unit.state !== "incapacitated" && unit.state !== "dead";
+}
+
+export function isM2UnitActive(unit) {
+  return isM2UnitAlive(unit) && unit.state !== "routing";
 }
 
 export class M2BattleState {
@@ -21,6 +29,7 @@ export class M2BattleState {
   #formations = new Map();
   #projectiles = new Map();
   #appliedDamageEventIds = new Set();
+  #finalResult = null;
   #tick = 0;
 
   constructor(snapshot, combatProfiles) {
@@ -31,6 +40,7 @@ export class M2BattleState {
     for (const character of snapshot.characters) {
       const profile = combatProfiles.get(character.combatProfileId);
       const maxHp = profile?.stats?.vitality ?? 0;
+      const initialMorale = Number(profile?.stats?.morale ?? 0);
       this.#units.set(character.characterId, {
         unitId: character.characterId,
         sideId: character.sideId,
@@ -44,18 +54,28 @@ export class M2BattleState {
         velocity: { x: 0, z: 0 },
         hp: maxHp,
         maxHp,
-        morale: profile?.stats?.morale ?? 0,
+        initialMorale,
+        morale: initialMorale,
         blocking: false,
         directMoveIntent: { x: 0, z: 0 },
         state: "idle",
         attackCooldownTicks: 0,
         targetUnitId: null,
+        routeReasonId: null,
+        routeTarget: null,
         revision: 0,
         slotTarget: { x: character.spawn.x, z: character.spawn.z }
       });
     }
 
     for (const source of snapshot.formations) {
+      const livingMorales = source.memberUnitIds
+        .map((unitId) => this.#units.get(unitId))
+        .filter((unit) => isM2UnitAlive(unit))
+        .map((unit) => unit.morale);
+      const morale = livingMorales.length
+        ? round2(livingMorales.reduce((sum, value) => sum + value, 0) / livingMorales.length)
+        : 0;
       this.#formations.set(source.formationId, {
         formationId: source.formationId,
         sideId: source.sideId,
@@ -71,6 +91,8 @@ export class M2BattleState {
           targetFormationId: null,
           commandId: null
         },
+        cohesion: 100,
+        morale,
         revision: 0
       });
     }
@@ -89,6 +111,7 @@ export class M2BattleState {
   getFormation(formationId) { return this.#formations.get(formationId) || null; }
   getUnit(unitId) { return this.#units.get(unitId) || null; }
   getProjectile(projectileId) { return this.#projectiles.get(projectileId) || null; }
+  getResult() { return this.#finalResult; }
 
   getUnitIdsStable() { return [...this.#units.keys()].sort(); }
   getFormationIdsStable() { return [...this.#formations.keys()].sort(); }
@@ -150,6 +173,14 @@ export class M2BattleState {
     return this.#appliedDamageEventIds.has(damageEventId);
   }
 
+  commitFinalResult(validatedResult) {
+    if (this.#finalResult !== null) {
+      return Object.freeze({ applied: false, idempotent: true, finalized: true, result: this.#finalResult });
+    }
+    this.#finalResult = freezeDeep(clone(validatedResult));
+    return Object.freeze({ applied: true, idempotent: false, finalized: true, result: this.#finalResult });
+  }
+
   markTick(processingTick = this.#tick + 1) {
     if (!Number.isSafeInteger(processingTick) || processingTick !== this.#tick + 1) {
       throw new Error("m2_tick_sequence_invalid");
@@ -172,12 +203,15 @@ export class M2BattleState {
         hp: unit.hp,
         maxHp: unit.maxHp,
         hpRatio: unit.maxHp > 0 ? unit.hp / unit.maxHp : 0,
+        initialMorale: unit.initialMorale,
         morale: unit.morale,
         blocking: unit.blocking,
         directMoveIntent: clone(unit.directMoveIntent),
         state: unit.state,
         attackCooldownTicks: unit.attackCooldownTicks,
         targetUnitId: unit.targetUnitId,
+        routeReasonId: unit.routeReasonId,
+        routeTarget: unit.routeTarget ? clone(unit.routeTarget) : null,
         revision: unit.revision
       };
     });
@@ -195,27 +229,32 @@ export class M2BattleState {
         formationTypeId: formation.formationTypeId,
         spacing: formation.spacing,
         order: clone(formation.order),
+        cohesion: formation.cohesion,
+        morale: formation.morale,
         revision: formation.revision
       };
     });
 
-    const projectiles = this.getProjectileIdsStable().map((projectileId) => {
-      const projectile = this.#projectiles.get(projectileId);
-      return clone(projectile);
-    });
+    const projectiles = this.getProjectileIdsStable().map((projectileId) => clone(this.#projectiles.get(projectileId)));
+    const activeUnits = units.filter((unit) => unit.hp > 0 && unit.state !== "incapacitated" && unit.state !== "dead").length;
+    const combatActiveUnits = units.filter((unit) => unit.hp > 0 && unit.state !== "incapacitated" && unit.state !== "dead" && unit.state !== "routing").length;
+    const routingUnits = units.filter((unit) => unit.hp > 0 && unit.state === "routing").length;
 
     return freezeDeep({
-      schema: "ARS_BELLUM_M2_1_02_RUNTIME_STATE_V1",
-      phase: "M2-1/02",
+      schema: "ARS_BELLUM_M2_1_03_RUNTIME_STATE_V1",
+      phase: "M2-1/03",
       battleId: this.#battleId,
       seed: this.#seed,
       playerCharacterId: this.#playerCharacterId,
       tick: this.#tick,
-      activeUnits: units.filter((unit) => unit.hp > 0 && unit.state !== "incapacitated" && unit.state !== "dead").length,
+      activeUnits,
+      combatActiveUnits,
+      routingUnits,
       totalUnits: units.length,
       formationCount: formations.length,
       activeProjectileCount: projectiles.length,
       appliedDamageEventCount: this.#appliedDamageEventIds.size,
+      battleResultOutcome: this.#finalResult?.outcome || null,
       units,
       formations,
       projectiles

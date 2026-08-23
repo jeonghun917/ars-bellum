@@ -1,4 +1,4 @@
-import { isM2UnitActive } from "./M2_BattleState.js";
+import { isM2UnitActive, isM2UnitAlive } from "./M2_BattleState.js";
 
 export class M2MovementSystem {
   #maxSpeed;
@@ -26,6 +26,43 @@ export class M2MovementSystem {
       unit.previousPosition.x = unit.position.x;
       unit.previousPosition.y = unit.position.y;
       unit.previousPosition.z = unit.position.z;
+
+      if (!isM2UnitAlive(unit)) {
+        unit.velocity.x = 0;
+        unit.velocity.z = 0;
+        return;
+      }
+
+      if (unit.state === "routing") {
+        const target = unit.routeTarget;
+        if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.z)) {
+          unit.velocity.x = 0;
+          unit.velocity.z = 0;
+          return;
+        }
+        const dx = target.x - unit.position.x;
+        const dz = target.z - unit.position.z;
+        const distance = Math.hypot(dx, dz);
+        if (distance <= this.#arrivalEpsilon) {
+          unit.position.x = target.x;
+          unit.position.z = target.z;
+          unit.velocity.x = 0;
+          unit.velocity.z = 0;
+          return;
+        }
+        const nx = dx / distance;
+        const nz = dz / distance;
+        const travel = Math.min(distance, this.#maxSpeed * deltaSeconds);
+        const moveX = nx * travel;
+        const moveZ = nz * travel;
+        unit.position.x += moveX;
+        unit.position.z += moveZ;
+        unit.velocity.x = moveX / deltaSeconds;
+        unit.velocity.z = moveZ / deltaSeconds;
+        unit.heading = Math.atan2(nx, nz);
+        unit.revision += 1;
+        return;
+      }
 
       if (!isM2UnitActive(unit)) {
         unit.velocity.x = 0;

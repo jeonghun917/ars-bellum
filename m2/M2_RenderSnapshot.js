@@ -1,65 +1,14 @@
-function freezeDeep(value) {
-  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
-  Object.freeze(value);
-  for (const child of Object.values(value)) freezeDeep(child);
-  return value;
-}
-
+import { isM2UnitAlive } from "./M2_BattleState.js";
+function freezeDeep(value) { if (!value || typeof value !== "object" || Object.isFrozen(value)) return value; Object.freeze(value); for (const child of Object.values(value)) freezeDeep(child); return value; }
+function round2(value) { return Math.round(value * 100) / 100; }
 export function createRenderSnapshot(battleState, { tick = battleState.tick, selectedFormationId = null } = {}) {
-  const units = battleState.getUnitIdsStable().map((unitId) => {
-    const unit = battleState.getUnit(unitId);
-    return {
-      unitId: unit.unitId,
-      sideId: unit.sideId,
-      formationId: unit.formationId,
-      combatProfileId: unit.combatProfileId,
-      isPlayer: unit.isPlayer,
-      position: { ...unit.position },
-      previousPosition: { ...unit.previousPosition },
-      heading: unit.heading,
-      hp: unit.hp,
-      maxHp: unit.maxHp,
-      hpRatio: unit.maxHp > 0 ? unit.hp / unit.maxHp : 0,
-      blocking: unit.blocking,
-      state: unit.state
-    };
-  });
-
-  const formations = battleState.getFormationIdsStable().map((formationId) => {
-    const formation = battleState.getFormation(formationId);
-    return {
-      formationId: formation.formationId,
-      sideId: formation.sideId,
-      anchor: { ...formation.anchor },
-      formationTypeId: formation.formationTypeId,
-      order: { type: formation.order.type, targetFormationId: formation.order.targetFormationId || null },
-      selected: formation.formationId === selectedFormationId
-    };
-  });
-
-  const projectiles = battleState.getProjectileIdsStable().map((projectileId) => {
-    const projectile = battleState.getProjectile(projectileId);
-    return {
-      projectileId: projectile.projectileId,
-      projectileTypeId: projectile.projectileTypeId,
-      sideId: projectile.sideId,
-      position: { ...projectile.position },
-      previousPosition: { ...projectile.previousPosition }
-    };
-  });
-
+  const units = battleState.getUnitIdsStable().map((unitId) => { const unit = battleState.getUnit(unitId); return { unitId: unit.unitId, sideId: unit.sideId, formationId: unit.formationId, combatProfileId: unit.combatProfileId, isPlayer: unit.isPlayer, position: { ...unit.position }, previousPosition: { ...unit.previousPosition }, heading: unit.heading, hp: unit.hp, maxHp: unit.maxHp, hpRatio: unit.maxHp > 0 ? unit.hp / unit.maxHp : 0, morale: unit.morale, routeReasonId: unit.routeReasonId, blocking: unit.blocking, state: unit.state }; });
+  const formations = battleState.getFormationIdsStable().map((formationId) => { const formation = battleState.getFormation(formationId); return { formationId: formation.formationId, sideId: formation.sideId, anchor: { ...formation.anchor }, formationTypeId: formation.formationTypeId, order: { type: formation.order.type, targetFormationId: formation.order.targetFormationId || null }, cohesion: formation.cohesion, morale: formation.morale, selected: formation.formationId === selectedFormationId }; });
+  const projectiles = battleState.getProjectileIdsStable().map((projectileId) => { const projectile = battleState.getProjectile(projectileId); return { projectileId: projectile.projectileId, projectileTypeId: projectile.projectileTypeId, sideId: projectile.sideId, position: { ...projectile.position }, previousPosition: { ...projectile.previousPosition } }; });
+  const livingBySide = { ally: [], enemy: [] }; const routingCounts = { ally: 0, enemy: 0, total: 0 };
+  for (const unitId of battleState.getUnitIdsStable()) { const unit = battleState.getUnit(unitId); if (!isM2UnitAlive(unit)) continue; if (livingBySide[unit.sideId]) livingBySide[unit.sideId].push(unit.morale); if (unit.state === "routing") { routingCounts[unit.sideId] = (routingCounts[unit.sideId] || 0) + 1; routingCounts.total += 1; } }
+  const mean = (values) => values.length ? round2(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+  const moraleSummary = { ally: mean(livingBySide.ally), enemy: mean(livingBySide.enemy) };
   const player = battleState.getUnit(battleState.playerCharacterId);
-  return freezeDeep({
-    schema: "ARS_BELLUM_M2_RENDER_SNAPSHOT_V1",
-    phase: "M2-1/02",
-    battleId: battleState.battleId,
-    tick,
-    activeUnits: units.filter((unit) => unit.hp > 0 && unit.state !== "incapacitated" && unit.state !== "dead").length,
-    units,
-    formations,
-    projectiles,
-    playerUnitId: battleState.playerCharacterId,
-    playerPosition: player ? { ...player.position } : null,
-    selectedFormationId
-  });
+  return freezeDeep({ schema: "ARS_BELLUM_M2_RENDER_SNAPSHOT_V1", phase: "M2-1/03", battleId: battleState.battleId, tick, activeUnits: units.filter((unit) => unit.hp > 0 && unit.state !== "incapacitated" && unit.state !== "dead").length, moraleSummary, routingCounts, battleResultOutcome: battleState.getResult()?.outcome || null, units, formations, projectiles, playerUnitId: battleState.playerCharacterId, playerPosition: player ? { ...player.position } : null, selectedFormationId });
 }

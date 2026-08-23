@@ -26,24 +26,40 @@ function normalizeRevision(value) {
   return Number.isSafeInteger(value) && value >= 0 ? value : NaN;
 }
 
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function freezeDeep(value) {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const child of Object.values(value)) freezeDeep(child);
+  return value;
+}
+
 const ALLOWED_TYPES = new Set([
   "formation_move",
   "formation_hold",
   "formation_attack",
   "formation_set_type",
+  "formation_rally",
+  "formation_retreat",
   "player_move",
   "player_melee_attack",
   "player_block",
-  "player_bow_fire"
+  "player_bow_fire",
+  "battle_abort"
 ]);
 
 export class M2CommandQueue {
   #queue = [];
   #seenCommandIds = new Set();
+  #acceptedCommandLog = [];
 
   beginBattleEpoch() {
     this.#queue.length = 0;
     this.#seenCommandIds.clear();
+    this.#acceptedCommandLog.length = 0;
   }
 
   enqueue(command, battleState) {
@@ -54,7 +70,7 @@ export class M2CommandQueue {
       return m2Receipt(true, { commandId: command.commandId, queued: false, idempotent: true });
     }
     if (!ALLOWED_TYPES.has(command.type)) {
-      return m2Receipt(false, { error: "m2_command_not_available_m2_1_02", commandId: command.commandId });
+      return m2Receipt(false, { error: "m2_command_not_available_m2_1_03", commandId: command.commandId });
     }
 
     const inputContextRevision = normalizeRevision(command.inputContextRevision);
@@ -63,7 +79,12 @@ export class M2CommandQueue {
     }
 
     let normalized = null;
-    if (command.type.startsWith("formation_")) {
+    if (command.type === "battle_abort") {
+      if (inputContextRevision !== null) {
+        return m2Receipt(false, { error: "m2_command_invalid_input_revision", commandId: command.commandId });
+      }
+      normalized = { commandId: command.commandId, type: command.type, inputContextRevision: null };
+    } else if (command.type.startsWith("formation_")) {
       if (!validId(command.formationId) || !battleState.hasFormation(command.formationId)) {
         return m2Receipt(false, { error: "m2_command_unknown_formation", commandId: command.commandId });
       }
@@ -79,6 +100,17 @@ export class M2CommandQueue {
           return m2Receipt(false, { error: "m2_command_invalid_formation_type", commandId: command.commandId });
         }
         normalized = { commandId: command.commandId, type: command.type, inputContextRevision, formationId: command.formationId, formationTypeId: command.formationTypeId };
+      } else if (command.type === "formation_rally") {
+        const routingLiving = source.memberUnitIds.some((unitId) => {
+          const unit = battleState.getUnit(unitId);
+          return unit && unit.hp > 0 && unit.state === "routing";
+        });
+        if (!["withdraw", "rally"].includes(source.order.type) && !routingLiving) {
+          return m2Receipt(false, { error: "m2_command_rally_not_available", commandId: command.commandId });
+        }
+        normalized = { commandId: command.commandId, type: command.type, inputContextRevision, formationId: command.formationId };
+      } else if (command.type === "formation_retreat") {
+        normalized = { commandId: command.commandId, type: command.type, inputContextRevision, formationId: command.formationId };
       } else {
         if (!validId(command.targetFormationId) || !battleState.hasFormation(command.targetFormationId)) {
           return m2Receipt(false, { error: "m2_command_unknown_target_formation", commandId: command.commandId });
@@ -110,8 +142,10 @@ export class M2CommandQueue {
       }
     }
 
+    const accepted = freezeDeep(clone(normalized));
     this.#seenCommandIds.add(command.commandId);
-    this.#queue.push(Object.freeze(normalized));
+    this.#queue.push(accepted);
+    this.#acceptedCommandLog.push(accepted);
     return m2Receipt(true, { commandId: command.commandId, queued: true, idempotent: false });
   }
 
@@ -130,7 +164,11 @@ export class M2CommandQueue {
       }
     }
     this.#queue = [];
-    return Object.freeze({ commands, staleDropped });
+    return Object.freeze({ commands: Object.freeze(commands), staleDropped });
+  }
+
+  getAcceptedCommandLog() {
+    return freezeDeep(clone(this.#acceptedCommandLog));
   }
 
   clearPending() {
@@ -140,6 +178,7 @@ export class M2CommandQueue {
   dispose() {
     this.#queue.length = 0;
     this.#seenCommandIds.clear();
+    this.#acceptedCommandLog.length = 0;
   }
 
   get pendingCount() { return this.#queue.length; }

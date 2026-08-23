@@ -18,6 +18,8 @@ const elements = {
   bow: document.getElementById("m2Bow"),
   tactical: document.getElementById("m2Tactical"),
   attackOrder: document.getElementById("m2AttackOrder"),
+  rally: document.getElementById("m2Rally"),
+  retreat: document.getElementById("m2Retreat"),
   line: document.getElementById("m2Line"),
   column: document.getElementById("m2Column"),
   loose: document.getElementById("m2Loose"),
@@ -27,7 +29,12 @@ const elements = {
   time1: document.getElementById("m2Time1"),
   friendlyFormation: document.getElementById("m2FriendlyFormation"),
   enemyFormation: document.getElementById("m2EnemyFormation"),
-  virtualStick: document.getElementById("m2VirtualStick")
+  virtualStick: document.getElementById("m2VirtualStick"),
+  moraleAlly: document.getElementById("m2MoraleAlly"),
+  moraleEnemy: document.getElementById("m2MoraleEnemy"),
+  routingAlly: document.getElementById("m2RoutingAlly"),
+  routingEnemy: document.getElementById("m2RoutingEnemy"),
+  result: document.getElementById("m2Result")
 };
 
 const profileCatalog = createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES);
@@ -42,9 +49,19 @@ function setStatus(text) {
   if (elements.status) elements.status.textContent = text;
 }
 
+function setCommandControlsDisabled(disabled) {
+  for (const element of [
+    elements.attack, elements.block, elements.bow, elements.attackOrder,
+    elements.line, elements.column, elements.loose, elements.rally, elements.retreat
+  ]) {
+    if (element) element.disabled = Boolean(disabled);
+  }
+}
+
 function updateHud() {
   if (!diagnostics || !elements.diagnostics) return;
   const runtimeSnapshot = runtime?.getSnapshot();
+  const result = runtime?.getResult() || null;
   const observation = diagnostics.getSnapshot();
   elements.diagnostics.textContent = JSON.stringify({
     ...observation,
@@ -53,12 +70,20 @@ function updateHud() {
     formations: runtimeSnapshot?.formationCount || 0,
     projectiles: runtimeSnapshot?.activeProjectileCount || 0,
     simulationTick: runtimeSnapshot?.tick || 0,
+    battleResult: result,
     combatProfileScope: profileCatalog.sourceScope,
     combatProfiles: profileCatalog.size,
     canonicalCharacterRules: false,
+    canonicalMoraleBalance: false,
     m9BridgeRequired: true
   }, null, 2);
   if (elements.tactical) elements.tactical.textContent = observation.cameraMode === "tactical" ? "3인칭" : "전술";
+  if (elements.moraleAlly) elements.moraleAlly.textContent = String(observation.moraleSummary?.ally ?? 0);
+  if (elements.moraleEnemy) elements.moraleEnemy.textContent = String(observation.moraleSummary?.enemy ?? 0);
+  if (elements.routingAlly) elements.routingAlly.textContent = String(observation.routingCounts?.ally ?? 0);
+  if (elements.routingEnemy) elements.routingEnemy.textContent = String(observation.routingCounts?.enemy ?? 0);
+  if (elements.result) elements.result.textContent = result?.outcome || "—";
+  setCommandControlsDisabled(result !== null);
 }
 
 function destroyControllers() {
@@ -82,19 +107,21 @@ function createRuntime() {
     elements
   });
   runtime.attachControllers({ cameraController, inputController });
-  setStatus("준비됨 · M2-1/02 · PLAYER COMBAT / CAMERA / INPUT");
+  setStatus("준비됨 · M2-1/03 · MORALE / ROUTING / RESULT");
   updateHud();
 }
 
 function start() {
   const receipt = runtime.start();
-  setStatus(receipt.ok ? "실행 중 · M2-1/02 functional slice" : receipt.error);
+  setStatus(receipt.ok ? "실행 중 · M2-1/03 vertical slice" : receipt.error);
+  updateHud();
   return receipt;
 }
 
 function pause() {
   const receipt = runtime.pause();
-  setStatus(receipt.ok ? "일시정지" : receipt.error);
+  setStatus(receipt.ok ? (runtime.getResult() ? "종료됨" : "일시정지") : receipt.error);
+  updateHud();
   return receipt;
 }
 
@@ -116,6 +143,7 @@ function dispose() {
 function loadSnapshot(snapshot) {
   const receipt = runtime.loadSnapshot(snapshot);
   if (receipt.ok) inputController?.refreshFormationLists();
+  updateHud();
   return receipt;
 }
 
@@ -131,7 +159,7 @@ try {
     loadSnapshot,
     start,
     pause,
-    setTimeScale(scale) { return runtime.setTimeScale(scale); },
+    setTimeScale(scale) { const receipt = runtime.setTimeScale(scale); updateHud(); return receipt; },
     issueCommand(command) { return runtime.issueCommand(command); },
     getSnapshot() { return runtime.getSnapshot(); },
     getResult() { return runtime.getResult(); },
@@ -160,7 +188,7 @@ try {
   }
   start();
 } catch (error) {
-  console.error("[ARS BELLUM M2-1/02] bootstrap failed", error);
+  console.error("[ARS BELLUM M2-1/03] bootstrap failed", error);
   if (diagnostics) diagnostics.markError(error);
   setStatus(`초기화 실패: ${String(error.message || error)}`);
   updateHud();

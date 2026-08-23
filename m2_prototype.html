@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ARS BELLUM M2-1/02 Functional Slice</title>
+  <title>ARS BELLUM M2-1/03 Vertical Slice</title>
   <link rel="stylesheet" href="m2_prototype.css">
 </head>
 <body>
   <main id="m2App" class="m2-app">
-    <canvas id="m2Canvas" aria-label="M2-1/02 20v20 전투 기술 슬라이스"></canvas>
+    <canvas id="m2Canvas" aria-label="M2-1/03 20v20 전투 기술 슬라이스"></canvas>
 
     <section class="m2-header" aria-live="polite">
       <div>
-        <div class="m2-kicker">M2-1/02 · PLAYER COMBAT / CAMERA / INPUT</div>
+        <div class="m2-kicker">M2-1/03 · MORALE / ROUTING / RESULT</div>
         <h1>ARS BELLUM</h1>
         <p>20v20 · fixed 20 Hz · M2_TEST_ONLY technical combat</p>
       </div>
@@ -41,6 +41,15 @@
         <select id="m2EnemyFormation"></select>
       </label>
       <button id="m2AttackOrder" type="button">ATTACK TARGET</button>
+      <div class="m2-button-row">
+        <button id="m2Rally" type="button">RALLY</button>
+        <button id="m2Retreat" type="button">RETREAT</button>
+      </div>
+      <div>ALLY MORALE <strong id="m2MoraleAlly">0</strong></div>
+      <div>ENEMY MORALE <strong id="m2MoraleEnemy">0</strong></div>
+      <div>ALLY ROUTING <strong id="m2RoutingAlly">0</strong></div>
+      <div>ENEMY ROUTING <strong id="m2RoutingEnemy">0</strong></div>
+      <div>RESULT <strong id="m2Result">—</strong></div>
       <div class="m2-button-row">
         <button id="m2Line" type="button">LINE · 1</button>
         <button id="m2Column" type="button">COLUMN · 2</button>

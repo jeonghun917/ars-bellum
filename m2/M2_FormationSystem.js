@@ -1,4 +1,4 @@
-import { M2_FORMATION_ATTACK_DEFINITION } from "./M2_Definitions.js";
+import { M2_FORMATION_ATTACK_DEFINITION, M2_MORALE_DEFINITION } from "./M2_Definitions.js";
 import { isM2UnitActive } from "./M2_BattleState.js";
 
 function rotateLocal(localX, localZ, facing) {
@@ -7,6 +7,13 @@ function rotateLocal(localX, localZ, facing) {
   const forwardX = Math.sin(facing);
   const forwardZ = Math.cos(facing);
   return { x: localX * rightX + localZ * forwardX, z: localX * rightZ + localZ * forwardZ };
+}
+
+function retreatAnchor(formation) {
+  return {
+    x: formation.anchor.x,
+    z: formation.sideId === "ally" ? M2_MORALE_DEFINITION.retreatEdgeZ : -M2_MORALE_DEFINITION.retreatEdgeZ
+  };
 }
 
 export function calculateFormationSlots(formation, memberUnitIds = formation.memberUnitIds) {
@@ -62,8 +69,12 @@ export class M2FormationSystem {
       formation.order = { type: "attack_target", target: null, targetFormationId: command.targetFormationId, commandId: command.commandId };
     } else if (command.type === "formation_set_type") {
       formation.formationTypeId = command.formationTypeId;
+    } else if (command.type === "formation_rally") {
+      formation.order = { type: "rally", target: null, targetFormationId: null, commandId: command.commandId };
+    } else if (command.type === "formation_retreat") {
+      formation.order = { type: "withdraw", target: retreatAnchor(formation), targetFormationId: null, commandId: command.commandId };
     } else {
-      throw new Error("m2_command_not_available_m2_1_02");
+      throw new Error("m2_command_not_available_m2_1_03");
     }
     formation.revision += 1;
   }
@@ -74,9 +85,6 @@ export class M2FormationSystem {
       const target = battleState.getFormation(formation.order.targetFormationId);
       if (!target || target.sideId === formation.sideId) return;
       if (battleState.getActiveFormationMemberIds(target).length === 0) return;
-
-      // M2-1/02 authority: attack_target approaches the target formation anchor,
-      // never a derived active-member centroid.
       const targetAnchor = target.anchor;
       const dx = targetAnchor.x - formation.anchor.x;
       const dz = targetAnchor.z - formation.anchor.z;

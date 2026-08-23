@@ -26,6 +26,9 @@ export class M2Diagnostics {
   #activeProjectileCount = 0;
   #projectileHitCount = 0;
   #projectileOverflowCount = 0;
+  #moraleSummary = Object.freeze({ ally: 0, enemy: 0 });
+  #routingCounts = Object.freeze({ ally: 0, enemy: 0, total: 0 });
+  #battleResultOutcome = null;
 
   markStatus(status) { this.#status = status; }
   markError(error) { this.#lastError = String(error?.message || error); this.#status = "error"; }
@@ -49,6 +52,21 @@ export class M2Diagnostics {
     this.#activeProjectileCount = Math.max(0, observation.activeProjectileCount | 0);
     this.#projectileHitCount = Math.max(0, observation.projectileHitCount | 0);
     this.#projectileOverflowCount = Math.max(0, observation.projectileOverflowCount | 0);
+  }
+
+  setBattleObservation(renderSnapshot = {}) {
+    const ally = Number(renderSnapshot.moraleSummary?.ally);
+    const enemy = Number(renderSnapshot.moraleSummary?.enemy);
+    this.#moraleSummary = Object.freeze({
+      ally: Number.isFinite(ally) ? ally : 0,
+      enemy: Number.isFinite(enemy) ? enemy : 0
+    });
+    this.#routingCounts = Object.freeze({
+      ally: Math.max(0, renderSnapshot.routingCounts?.ally | 0),
+      enemy: Math.max(0, renderSnapshot.routingCounts?.enemy | 0),
+      total: Math.max(0, renderSnapshot.routingCounts?.total | 0)
+    });
+    this.#battleResultOutcome = renderSnapshot.battleResultOutcome || null;
   }
 
   sampleFrame(frameMs, rendererInfo = {}) {
@@ -86,6 +104,9 @@ export class M2Diagnostics {
       activeProjectileCount: this.#activeProjectileCount,
       projectileHitCount: this.#projectileHitCount,
       projectileOverflowCount: this.#projectileOverflowCount,
+      moraleSummary: this.#moraleSummary,
+      routingCounts: this.#routingCounts,
+      battleResultOutcome: this.#battleResultOutcome,
       lastError: this.#lastError
     });
   }
