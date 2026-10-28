@@ -365,6 +365,1968 @@
       "title": "loading and playing the battle raises no page errors",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "core.store.all-or-nothing",
+      "title": "a failed change leaves every area and the revision untouched",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "core.store.revision",
+      "title": "a successful change applies everything and raises the revision by one",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "core.store.read-only",
+      "title": "state read from the store cannot be changed in place",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "core.store.json-only",
+      "title": "values that cannot be saved as plain JSON are refused",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "core.calendar.days",
+      "title": "advancing time lists every day that ended, in order",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "core.rng.repeatable",
+      "title": "the same seed always gives the same numbers",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "persist.new-game.valid",
+      "title": "a new game passes the state checks",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.round-trip",
+      "title": "what is saved loads back exactly",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.failed-write-keeps-old",
+      "title": "a write that fails leaves the previous save in place",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.conflict",
+      "title": "a save made elsewhere meanwhile is not overwritten",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.newer-version-kept",
+      "title": "a save from a newer game version is neither loaded nor overwritten",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.damage-detected",
+      "title": "a changed or broken save is reported, and kept unless replacing is asked for",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.v1.imports-earlier-save",
+      "title": "a new-game save of the earlier version loads as the same game",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.v1.key-untouched",
+      "title": "loading and saving never changes the earlier version's save",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.readback-restores",
+      "title": "if the final save does not read back intact, the previous save is put back",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.v1.no-catch-up-flood",
+      "title": "an earlier-version save on a later day does not replay every past day",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "game.daily.in-order",
+      "title": "each ended day runs once, steps in their order",
+      "kind": "unit",
+      "source": "tests/unit/daily.test.mjs"
+    },
+    {
+      "id": "game.daily.failure-stops",
+      "title": "a failing step leaves that day unprocessed and keeps earlier days",
+      "kind": "unit",
+      "source": "tests/unit/daily.test.mjs"
+    },
+    {
+      "id": "world.move.arrival-once",
+      "title": "a group arrives at its destination exactly once, and stays put afterwards",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.move.one-commit-per-step",
+      "title": "a frame is one commit however far it goes, and an idle frame is none",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.move.terrain-speed",
+      "title": "speed follows the ground under the group: road faster, forest slower",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.move.blocked-result",
+      "title": "impassable ground ends the order with a blocked event instead of freezing the group",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.command.manual-cancels-route",
+      "title": "a manual order replaces the road route",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.command.cancel-only-given-group",
+      "title": "cancelling a route touches that group and no other",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.order.road-or-direct",
+      "title": "a settlement order uses the roads when it can and walks straight when it cannot",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.rules.failed-changes-nothing",
+      "title": "a rule that fails changes nothing, in the draft or in the store",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.check.state-shape",
+      "title": "saved movement is checked, and the earlier version's whole-node targetNode is accepted",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.route.shortest-road-path",
+      "title": "the route follows the cheapest roads, not the fewest",
+      "kind": "unit",
+      "source": "tests/unit/world-routes.test.mjs"
+    },
+    {
+      "id": "world.route.deterministic-ties",
+      "title": "equal-cost routes are settled by id, whatever order the data is listed in",
+      "kind": "unit",
+      "source": "tests/unit/world-routes.test.mjs"
+    },
+    {
+      "id": "world.route.unreachable",
+      "title": "a route that cannot be made says why, and nothing is invented",
+      "kind": "unit",
+      "source": "tests/unit/world-routes.test.mjs"
+    },
+    {
+      "id": "world.terrain.profile-values-match-old",
+      "title": "every base, route and feature combination gives the earlier version's travel profile",
+      "kind": "unit",
+      "source": "tests/unit/world-terrain.test.mjs"
+    },
+    {
+      "id": "world.terrain.cell-rules",
+      "title": "the ground is plain unless a zone or a road says otherwise, and outside the map is sea",
+      "kind": "unit",
+      "source": "tests/unit/world-terrain.test.mjs"
+    },
+    {
+      "id": "world.terrain.road-geometry",
+      "title": "a road is one polyline through its bends, used for both the road cell and the route length",
+      "kind": "unit",
+      "source": "tests/unit/world-terrain.test.mjs"
+    },
+    {
+      "id": "world.data.static-valid",
+      "title": "the map data is valid, frozen, and bad data is refused",
+      "kind": "unit",
+      "source": "tests/unit/world-terrain.test.mjs"
+    },
+    {
+      "id": "settlements.construction.enqueue-pays",
+      "title": "queueing a building pays its cost at once and records the job",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.enqueue-refused",
+      "title": "a job that cannot be queued changes nothing and pays nothing",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.chain-levels",
+      "title": "queued levels of one building follow each other and cost more each time",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.cancel-refund",
+      "title": "a job that has not started gets everything back, a started one half",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.cancel-cascade",
+      "title": "cancelling a level also cancels the later levels of that building",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.cancel-refused",
+      "title": "only a job that is waiting or running can be cancelled",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.workforce-input",
+      "title": "the crew size must be a whole number of at least zero",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.no-labor-no-progress",
+      "title": "with nobody assigned a building makes no progress, however long it waits",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.progress-per-laborer",
+      "title": "each laborer adds one unit of work a day, up to the laborers the settlement has free",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.completion-once",
+      "title": "a finished job raises the building by exactly one level, once",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.levels-in-order",
+      "title": "queued levels are built one after another and none is skipped",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.stale-job-cancelled",
+      "title": "a job whose building changed level some other way is cancelled and refunded, not built",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.daily.step-order",
+      "title": "the steps run construction, effects, labor, production, consumption, spoilage, finance, population",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.order-effects",
+      "title": "a building that finishes today already raises capacity and jobs today, and food made today is eaten today",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.deterministic",
+      "title": "the same start and the same days give the same state, also across a save and load",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.catch-up-equals-single-days",
+      "title": "processing 30 days one at a time equals processing them in one catch-up",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.failed-day-changes-nothing",
+      "title": "if a later step fails the whole day is discarded, including every settlement step",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.no-negatives",
+      "title": "after hundreds of days of hunger, debt and heavy upkeep no stock, money or count is below zero",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.unknown-resource-kept",
+      "title": "a resource id the catalog does not know is never dropped, spoiled or eaten",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.production.farm-output",
+      "title": "a farm makes its recipe amount per level, and idle peasants add a little subsistence grain",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.production.labor-limited",
+      "title": "too few workers slow a building down, and below its minimum rate it stops",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.production.inputs",
+      "title": "a processing building uses its inputs, runs at the rate they allow and stops without them",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.production.switched-off",
+      "title": "a switched-off building produces nothing, offers no jobs and still costs upkeep",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.consumption.eats-in-order",
+      "title": "people eat perishable food first and grain last, and a full meal means full satisfaction",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.consumption.shortage",
+      "title": "with no food nobody eats, satisfaction falls to zero and deaths become more likely",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.spoilage.rates",
+      "title": "perishable goods lose their daily share, warehouses reduce the loss, unknown goods and non-perishables stay",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.production.goods-balance",
+      "title": "every day, goods at the start plus made minus used, eaten and spoiled equals goods at the end",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.finance.maintenance-charged",
+      "title": "every building costs its upkeep from the treasury each day, paid to private wealth, and only what the treasury holds",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.finance.wages-taxes",
+      "title": "the treasury pays wages to its staff and crew, and private wealth pays tax on production and wages",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.population.base-rates-stay",
+      "title": "the base birth and death rates do not shrink from day to day",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.population.capacity-limits",
+      "title": "a crowded settlement gets no arrivals, loses people, and its demography stays whole",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.labor.employment-balance",
+      "title": "everyone in the workforce is either employed or not, and construction work counts as laborer jobs",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.cost.all-or-nothing",
+      "title": "a cost that cannot be paid in full takes nothing, even when part of it is affordable",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.cost.unknown-resource",
+      "title": "a cost that names a resource nobody defined is refused whole",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.cost.invalid-input",
+      "title": "bad costs, amounts, rates and settlement ids are refused",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.cost.refund-rate",
+      "title": "a refund gives back the given share of gold and goods",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.stock.no-negative",
+      "title": "goods and gold cannot be taken below zero",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.settings.limits",
+      "title": "tax rate, wage index and building switches only accept valid values",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.seed.creates-all",
+      "title": "seeding the map data creates consistent records for every settlement",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.seed.idempotent",
+      "title": "seeding again changes nothing, not even a settlement that has since changed",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.seed.all-or-nothing",
+      "title": "one bad entry means no settlement is created at all",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.seed.invalid-entries",
+      "title": "every kind of bad map entry is named and refused",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.seed.unknown-resource-kept",
+      "title": "a resource id the catalog does not know survives seeding and every read",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.check.rejects-bad-records",
+      "title": "the state check refuses negative, missing or inconsistent settlement data",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.catalog.consistent",
+      "title": "every id the tables mention exists, shares add up, formulas refuse levels that do not exist",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "definitions.new-game.valid",
+      "title": "a new game and an earlier version's new-game save pass the definition checks",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.registry.domain-rules",
+      "title": "a domain is registered once, with valid ids and valid built-in definitions",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.registry.built-in-copy",
+      "title": "a built-in definition read from the registry cannot be changed by the reader",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.propose.stores-pending",
+      "title": "a proposal is stored as pending in the earlier record shape and is not usable yet",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.propose.rejects-bad-input",
+      "title": "a proposal with bad or conflicting input is refused and changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.propose.pending-not-known",
+      "title": "a proposal that is still pending does not count as a known definition for others that need it",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.approve.makes-known",
+      "title": "an approved definition is known everywhere, built in ones stay, and the record is kept",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.reject.stays-unknown",
+      "title": "a rejected proposal never becomes known and cannot be decided again",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.decide.rejects-bad-input",
+      "title": "approving or rejecting needs an existing pending proposal, its current revision and a real approver",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.decide.rechecks-data",
+      "title": "approval fails if the definition no longer fits its domain when it is decided",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.check.rejects-bad-records",
+      "title": "a saved game with a damaged definition record is refused",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.check.unknown-domain-kept",
+      "title": "records of a domain no area has registered yet are kept as they are",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.refs.targets",
+      "title": "a reference is found when its record exists, for every reference type",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.refs.check-ref",
+      "title": "a reference is checked for shape, type, target and the capability its type needs",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "characters.new-game.valid",
+      "title": "a new game and an earlier version's new-game save pass the character checks",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.catalog.built-in",
+      "title": "the built-in skills, aptitudes, growth sources and ratings are complete and refer to each other",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.create.new-character",
+      "title": "a new character gets the default record, today as birth day, and the custom skills approved so far",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.create.rejects-bad-input",
+      "title": "a character with bad input, a taken id, or fields owned by other areas is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.create.links-existing-assets",
+      "title": "a new character may point at an existing personal account and inventory",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.profile.updates",
+      "title": "only the given profile fields change, the revision goes up once, and asking for nothing new changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.profile.rejects-bad-input",
+      "title": "a profile change with bad input or for a missing character is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.revision.expected",
+      "title": "a change made against an out-of-date revision is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.affiliation.sets-and-rejects",
+      "title": "clan and faction can be set to existing ones, and a missing one or a bad request is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.index.title-and-claim",
+      "title": "the title and claim lists are stored sorted without repeats, and bad lists are refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.assets.personal",
+      "title": "the personal account and inventory can be pointed at existing records and cleared; missing ones are refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.location.settlement",
+      "title": "a character outside any group can be placed in a settlement or nowhere, but not one who travels with a group",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.location.group-side",
+      "title": "the character side of a group link is set only to a group that exists, with a matching mode",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.condition.clamps-and-flags",
+      "title": "health and fatigue stay within 0 to 100, injuries make a character wounded, and exhaustion incapacitates",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.condition.rejects-bad-patch",
+      "title": "a condition change with bad values, unknown fields or for a missing character is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.condition.modifiers",
+      "title": "health, fatigue, injuries and old age each scale what a character can do, within their limits",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.experience.levels-up",
+      "title": "experience adds up per skill and source, and every full 100 points raise the level by one",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.experience.modifiers",
+      "title": "a gain is scaled by difficulty, repetition, failure and aptitude, with their floors",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.experience.max-level",
+      "title": "a skill never goes above its maximum level, although experience keeps adding up",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.experience.custom-definitions",
+      "title": "an approved custom skill, aptitude and growth source work like built-in ones, with their own limits",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.experience.rejects-bad-input",
+      "title": "experience with bad input, for a dead or missing character, or too easy a task is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.ratings.derived",
+      "title": "a rating is the weighted average of its skills, scaled by the character's condition",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.death.records",
+      "title": "a death sets the day and leaves the character dead, once, within their lifetime",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.check.rejects-bad-records",
+      "title": "a saved game with a damaged character record is refused, naming the problem",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.check.group-link-two-way",
+      "title": "a character in a group must be listed by that group, and the checks run on every change",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.default-profile",
+      "title": "a character without a stored profile has the default one, and a missing character has none",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.tier-changes",
+      "title": "a character moves up freely, but down only when eligible and never below a role, a pin or a post",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.historical-blocked",
+      "title": "a character becomes historical only when no role, pin or post refers to them",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.tier-change-input",
+      "title": "tier changes with bad input, a stale revision or one bad entry among good ones change nothing",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.replay-no-op",
+      "title": "asking again for what is already so succeeds without a new revision, even with an old revision number",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.role-effects",
+      "title": "gaining a role makes a character at least named, clears planned demotion and brings processing forward",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.processing",
+      "title": "a character is processed once a day when due, and the next time is set by their tier",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.due-list",
+      "title": "the due characters come most important first, limited by the budget, without historical or already processed ones",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.due-order-ties",
+      "title": "equally important characters are taken in the order they have waited, then by id; one processed today is not due again today",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.check-rejects-bad-records",
+      "title": "a saved game with a damaged activity profile is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "groups.new-game.valid",
+      "title": "a new game and an earlier version's new-game save pass the group checks",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.catalog.built-in",
+      "title": "the built-in group types and command structures are known, and an approved custom type is usable once approved",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.create.with-members",
+      "title": "a new group takes its members from where they were, with defaults for what is not given",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.create.rejects-bad-input",
+      "title": "a group with bad input, a taken id, unusable members or a commander who is not a member is refused",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.link.adds-member",
+      "title": "a living free character joins a group on both sides at once, and joining again changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.link.rejects",
+      "title": "joining is refused for a missing or dead character, one already in another group, or a stale revision",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.unlink.removes-member",
+      "title": "a member leaves on both sides at once, and the commanders cannot leave",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.commanders.appoints",
+      "title": "commanders must be living members, can be cleared, and the command structure must be a known one",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.allegiance.sets-refs",
+      "title": "owner, employer, paymaster, command authority and loyalty anchors must point at existing records",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.cohesion.limits",
+      "title": "cohesion is set between 0 and 100 and nothing else is accepted",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.members.counted",
+      "title": "counted members (troops, assets) are set to a whole number, and zero removes them",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.update.fields",
+      "title": "a group can be renamed, retyped or given free data, but not through this rule's other fields",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.attach.inventory-and-treasury",
+      "title": "an inventory or account is attached only if it exists and is owned by the group",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.split.moves-parts",
+      "title": "a split moves the named characters, counted members and assets to a new group that starts where the source is",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.split.rejects",
+      "title": "a split with bad input, a bad allocation, a taken id or the wrong commanders is refused and changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.split.all-or-nothing",
+      "title": "a split that fails at the last step leaves no half-moved characters, counted members or new group",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.check.rejects-bad-records",
+      "title": "a saved game with a damaged group record is refused, naming the problem",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.check.two-way-link",
+      "title": "a one-sided link between a character and a group is refused when a change would leave it",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "control.new-game.valid",
+      "title": "a new game and an earlier version's new-game save pass the player control checks",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.death",
+      "title": "when the played character has died, control passes to the chosen living character and the old one is released for good",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.retirement",
+      "title": "a formal retirement of a living character, decided and approved, passes control on",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.abdication",
+      "title": "an approved abdication that gives something up, decided by the player, passes control on",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.rejects",
+      "title": "control does not pass on without a death, an approved retirement or abdication, and an eligible successor",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.never-replay",
+      "title": "a character the player has left can never be played again, not even as a successor",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.end-of-campaign",
+      "title": "with no one to switch to the campaign ends, keeping the last character, and stays ended",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.end-campaign.by-decision",
+      "title": "the player can end the campaign by a recorded decision while the character is alive",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.only-way-to-switch",
+      "title": "no other rule changes who the player plays, whatever happens to the characters",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.successors.set-and-prune",
+      "title": "successors are chosen among living, unplayed characters; one who dies later is allowed to stay until pruned",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.campaign-clan.set",
+      "title": "the campaign clan is chosen by a recorded decision among existing clans",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.bind-initial.unbound",
+      "title": "a campaign with no character yet is bound to a living one, once, with an existing clan",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.check.rejects-bad-records",
+      "title": "a saved game with a damaged player control record is refused, naming the problem",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "finance.records.new-game-valid",
+      "title": "the new-game finance records pass the finance check",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.records.v1-save-valid",
+      "title": "the finance records of an earlier-version save pass the finance check unchanged",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.records.bad-records-refused",
+      "title": "records the earlier version would not save are refused",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.account.create",
+      "title": "an account opens empty for an owner that exists and may hold it",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.account.create-refused",
+      "title": "a bad account is refused and nothing changes",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.account.owner-change",
+      "title": "ownership moves only to an existing record that may own an account of that type",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.account.frozen",
+      "title": "a frozen account neither pays nor receives until it is unfrozen",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.account.spenders",
+      "title": "only the owner or an authorized spender may move money out of an account",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.moves-money",
+      "title": "a transfer moves the amount, keeps the total and leaves one record",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.all-or-nothing",
+      "title": "a transfer that cannot complete changes no account and writes no record",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.no-negative-balance",
+      "title": "an account can pay out everything it has but never more",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.currency-match",
+      "title": "money never moves between accounts of different currencies",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.reserve-emergency",
+      "title": "an account keeps its reserve unless the payment is marked an emergency",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.idempotent",
+      "title": "repeating a request with the same key pays once, a different request under that key is refused",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.budget-policy",
+      "title": "a budget policy given by the caller can refuse a payment, and a failing policy refuses it too",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.overflow-refused",
+      "title": "an account cannot be pushed past the largest whole number",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.mint.reason-recorded",
+      "title": "minted and spent money leaves a record naming its reason and the account",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.mint.invalid-refused",
+      "title": "minting or spending without a valid account, amount or reason changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.metrics.change",
+      "title": "manpower and territory change by whole numbers, never below zero, in the stored shape",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.metrics.follow-control",
+      "title": "when control passes to another character the metrics move to that character's account",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.victory.all-or-nothing",
+      "title": "a battle victory adds loot, manpower and territory together or not at all",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.create",
+      "title": "a debt records who owes whom and how much, and starts unpaid",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.create-refused",
+      "title": "a debt with a bad amount, party or type is refused and nothing changes",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.payment",
+      "title": "paying a debt moves the money and lowers what is owed; the last payment marks it paid",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.payment-all-or-nothing",
+      "title": "a payment that cannot be both made and recorded changes neither the accounts nor the debt",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.payment-parties",
+      "title": "a guarantor may pay for the debtor, and a debt held in an account is paid from that account",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.record-payment",
+      "title": "an earlier transfer counts as a payment once, for the right parties and currency",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.currency-match",
+      "title": "a debt is paid only in its own currency",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.overdue",
+      "title": "a debt becomes overdue only after its due day, and a paid debt never does",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.renegotiate",
+      "title": "only the terms of an unpaid debt can change",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.daily-overdue",
+      "title": "the daily step marks debts overdue once their due day has ended",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.definitions.custom-account-type",
+      "title": "an approved custom account type can be used, a merely proposed one cannot",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "inventory.records.new-game-valid",
+      "title": "the new-game inventory passes the inventory check",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.records.v1-save-valid",
+      "title": "the inventory records of an earlier-version save pass the inventory check unchanged",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.records.bad-records-refused",
+      "title": "records the earlier version would not save are refused",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.create",
+      "title": "an inventory opens empty for an owner that exists",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.create-refused",
+      "title": "a bad inventory is refused and nothing changes",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.owner-change",
+      "title": "an inventory changes hands only to an existing owner",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.bulk.add-remove",
+      "title": "bulk goods are added and removed by whole units, and an empty entry disappears",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.bulk.invalid-refused",
+      "title": "bad quantities, unknown goods and missing inventories change nothing",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.equipment.add-remove-slot",
+      "title": "equipment is added with its own weight, equipped in a slot and removed whole",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.equipment.invalid-refused",
+      "title": "bad equipment, duplicates and unknown slots change nothing",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.cargo.add-remove",
+      "title": "cargo is carried for a purpose and handed over as a whole lot",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.cargo.invalid-refused",
+      "title": "bad cargo, duplicates and unknown purposes change nothing",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.loss.all-or-nothing",
+      "title": "losses are applied together, a lot that is used up is removed, and an unaffordable loss changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.load.calculation",
+      "title": "load adds bulk goods, equipment and cargo, taking cargo weight from the lot or else the resource",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.capacity.limits",
+      "title": "an inventory takes nothing past its weight limit, and a limit of 0 is no limit",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.capacity.decimal-sums",
+      "title": "decimal weights that add up to the limit exactly are not refused for rounding",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.records.rules-keep-records-valid",
+      "title": "a rule never writes an inventory that would not pass the record checks",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.capacity.volume-limit",
+      "title": "the volume limit is held for bulk goods, equipment and cargo alike",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.capacity.overload-and-relief",
+      "title": "an overloaded inventory can be unloaded, and a caller may knowingly overload it",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.food.summary",
+      "title": "food is counted by nutrition and turned into days of supply",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.transfer.moves-all",
+      "title": "goods, equipment and cargo move together and keep their owner and assignment",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.transfer.all-or-nothing",
+      "title": "a move that cannot complete leaves both inventories as they were",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.transfer.destination-capacity",
+      "title": "a move that would overload the receiving inventory is refused whole",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.definitions.custom-resource",
+      "title": "an approved custom resource can be stored, a merely proposed one cannot",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "relations.apply.creates-record-and-indexes",
+      "title": "the first effect creates one directed record listed under both characters",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.apply.accumulates-and-clamps",
+      "title": "later effects add to the values, which stay within -1000..1000",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.apply.directed-and-sorted-indexes",
+      "title": "a pair is directed and the indexes list ids in sorted order",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.apply.sparse-zero-pairs",
+      "title": "a pair that sums to zero gets no record, but an existing record is kept",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.apply.replay-is-a-noop",
+      "title": "the same effect delivered twice changes nothing; a different input under the same key is refused",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.apply.bad-input-changes-nothing",
+      "title": "invalid effects are refused and leave the whole state as it was",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.ids.match-earlier-version",
+      "title": "ids are the earlier version's sha256 digests and capitalised character ids still work",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.check.detects-corruption",
+      "title": "the area check rejects index, value, tag, id and effect problems",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.state.consistent-after-every-rule",
+      "title": "records, indexes and effects agree after each of many rule calls, failed or not",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "memories.create.record-and-owner-index",
+      "title": "creating a memory stores an unresolved record listed under its owner",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.create.targets-and-ids",
+      "title": "targets are de-duplicated and sorted; ids match the earlier version; one memory per owner, type and event",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.create.replay-and-conflict",
+      "title": "re-delivering an event is a no-op, also after the memory was closed; different content is refused",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.create.bad-input-changes-nothing",
+      "title": "invalid memories are refused and leave the state as it was",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.definitions.approved-custom-only",
+      "title": "custom memory types and decay policies count only once approved",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.resolve.transitions",
+      "title": "an open memory closes once; repeating the decision is a no-op, a different one is refused",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.resolve.permanent-never-expires",
+      "title": "a permanent memory cannot be expired, even when it is already closed",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.resolve.bad-input-changes-nothing",
+      "title": "invalid or unknown resolutions are refused and leave the state as it was",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.list.filters",
+      "title": "an owner's memories can be filtered by status, type and target",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.check.detects-corruption",
+      "title": "the area check rejects index, id, target, type and resolution problems",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.state.consistent-after-every-rule",
+      "title": "records and owner index agree after each of many rule calls, failed or not",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.title-event-makes-records",
+      "title": "a title change gets an activity and a memory record with the exact effects",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.other-event-kinds",
+      "title": "each event kind gets the records the earlier version made for it",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.replay-and-conflict",
+      "title": "the same event again is a no-op; the same event with other content quarantines what was not applied",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.bad-header-is-quarantined",
+      "title": "an event whose header disagrees with its delta is kept as a quarantined record and never applied",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.header-mismatches-are-quarantined",
+      "title": "each way an event can disagree with its own delta ends as one quarantined record",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.bad-input-changes-nothing",
+      "title": "malformed events and follow-up input are refused and leave the ledger as it was",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.same-event-later-day-conflict",
+      "title": "conflicting input that names an earlier day still leaves a valid quarantined record",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.events.normalize-direct",
+      "title": "normalizeFromEvent refuses handlers an event does not need, wrong headers and bad days",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.capacity-is-enforced",
+      "title": "a full ledger refuses new records, all-or-nothing, and still accepts repeats",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.applies-effects-once",
+      "title": "due records apply their effects on the day change and are never applied again",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.relationship-handler",
+      "title": "a relationship follow-up record changes the relationship and is applied once",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.failed-record-rolls-back-and-retries",
+      "title": "a record whose effect fails changes nothing else, is retried with a growing delay, and applies once fixed",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.retry-delay-is-capped",
+      "title": "the delay between retries doubles up to 30 days",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.failed-effect-restores-touched-areas",
+      "title": "when an effect fails or throws, the areas it may touch and the random generator are restored",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.missing-effect-handler-retries",
+      "title": "an effect type nobody handles yet fails the record for a later retry instead of dropping it",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.invalid-record-is-quarantined",
+      "title": "a stored record that fails its checks is quarantined and the day carries on",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.inconsistent-stored-record-is-quarantined",
+      "title": "a stored record whose handler or references no longer match its effects is quarantined",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.ledger-tampering-is-refused",
+      "title": "an effect that changes the ledger record it belongs to makes the whole run fail",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.order-is-by-day-event-handler",
+      "title": "records are handled by due day, then event id, then handler, in plain character order",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.budget-and-cursor",
+      "title": "one day handles at most 64 records, remembers where it stopped, and finishes on the next call",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.cursor-restarts-for-records-behind-it",
+      "title": "a record that became due behind the cursor is still handled on that day",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.catch-up-is-limited-and-resumes",
+      "title": "a long gap is worked off 30 days per call, each day at its own date, and can be extended",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.activity-phase-budget",
+      "title": "the per-character phase handles each character once per day, 128 at a time",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.step-failure-keeps-the-day-unprocessed",
+      "title": "when the activity phase fails the whole day change is discarded and resumes later",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.bad-input-changes-nothing",
+      "title": "a bad day or a bad context is refused and leaves the state as it was",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.runs-in-the-daily-runner",
+      "title": "the daily step is registered once, in the late slot, and works through the game runner",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.check.detects-corruption",
+      "title": "the area check rejects root, cursor and record problems; the digest check finds altered input",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.state.consistent-after-every-rule",
+      "title": "the ledger stays valid after each of many enqueue and run calls, failed or not",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "politics.definitions.built-in",
+      "title": "every built-in kind is known and unknown ids are not",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.definitions.custom-approved-only",
+      "title": "only an approved, well-formed custom definition counts",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.definitions.domain-specs",
+      "title": "the specs for the definitions area accept the defaults and name the problems",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.order-candidates",
+      "title": "designated candidates keep their order and appear once",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.eligibility",
+      "title": "the dead, the incapacitated and the released are not eligible",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.allocation-conserves",
+      "title": "a lot is split without losing or making up a unit",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.allocation-refused",
+      "title": "impossible lots are refused with a reason",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.pact-then-legal",
+      "title": "pacts decide the assets they name; the rest follows the expected shares and the first legal heir",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.run-isolated",
+      "title": "a policy runs on a copy of its input and a faulty one fails the caller",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.pacts.structure",
+      "title": "a pact must be well formed and an active one fully consented and approved",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.clan.create",
+      "title": "a clan is stored in the earlier record shape with nothing derived kept on it",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.create-refused",
+      "title": "a clan with a bad id, derived field, rule-owned field or bad value is refused whole",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.metrics",
+      "title": "the head power and standing change by patch, each value finite, a repeat is no change",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.laws",
+      "title": "a succession law and inheritance custom must be known definitions",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.successors-keep-order",
+      "title": "designated successors keep the priority they were given",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.branches",
+      "title": "branch clans must exist and may not loop back to the clan",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.pacts",
+      "title": "inheritance pacts are stored only when well formed and allowed by the clan's custom",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.view",
+      "title": "the clan view lists members, titles and the settlements it holds or claims on the day",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.faction.create",
+      "title": "a faction is stored in the earlier record shape with its four axes",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.faction.power-axes",
+      "title": "the four axes are set within 0..100 or adjusted and stopped at the ends",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.faction.laws-and-view",
+      "title": "laws are kept sorted and the view derives member clans and held settlements",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.faction.obedience-input",
+      "title": "the obedience input joins the four axes with the target's side and is frozen",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.affiliation.join-leave",
+      "title": "joining takes the clan's faction along, leaving clears both, and a head cannot leave",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.affiliation.link-faction",
+      "title": "a clan changing faction takes every member along; the ruling clan cannot leave",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.affiliation.head-and-ruler",
+      "title": "heads are living members, a ruling clan belongs to the faction, treasuries belong to their owner",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.create",
+      "title": "a title is stored in the earlier record shape with the type's default status",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.create-refused",
+      "title": "a title with a bad id, type, status, holder, parent or law is refused whole",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.hierarchy",
+      "title": "a parent must exist, be of an allowed type, not loop, and a root title must be allowed",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.status-rules",
+      "title": "holders and statuses change only along the statuses' rules",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.transfer-and-inherit-flags",
+      "title": "a title that cannot be transferred still passes by inheritance unless it is not inheritable",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.holders",
+      "title": "clans and factions may hold titles; the type decides which holders are allowed; succession laws must be known",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.create",
+      "title": "a right is stored in the earlier record shape; a single share is 1 and the start day is today",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.create-refused",
+      "title": "a right with a bad id, type, reference, share or day is refused whole",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.overlap-modes",
+      "title": "each kind allows or refuses overlapping rights on one settlement as its mode says",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.transfer",
+      "title": "a transferable right passes to a new holder; a claim cannot be given away; nothing else moves",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.recognition-and-dispute",
+      "title": "factions recognizing a right and the disputed flag change only on rights in force",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.terminate-supersede",
+      "title": "a right ends on a day; a superseded right is linked to its successor and both stay consistent",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.share-units",
+      "title": "shares are whole millionths, rounded before they are compared",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.split",
+      "title": "a fractional right is split in whole millionths; the original keeps a positive remainder",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.queries",
+      "title": "settlements are found by holder, by recognizing faction and as the rights in force on a day",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.checks.valid-state",
+      "title": "a consistent world passes the area check and the whole-state check, also after a save round trip",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.checks.registered",
+      "title": "the area check is part of whole-state validation, so a broken record cannot be stored or loaded",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.checks.rejects-corruption",
+      "title": "each broken link between politics records is named by the area check",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.clan-head",
+      "title": "the first eligible designated successor becomes head, in the order designated",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.eligibility",
+      "title": "the dead, the incapacitated, the released, non-members and the decedent are passed over",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.legal-heirs",
+      "title": "the legal heirs follow the designated candidates in the order the caller gives",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.titles",
+      "title": "each named title goes to its own heir; the title indexes of old and new holders follow",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.titles-refused",
+      "title": "a title that is not the decedent's, not inheritable or has no heir stops the whole succession",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.titles-not-transferable",
+      "title": "a title that cannot be given away still passes to an heir",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.land-rights",
+      "title": "rights pass whole, are split, end or are replaced as planned; kinds that cannot be inherited are refused",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.land-rights-refused",
+      "title": "a right that is not the decedent's, ended, not inheritable or badly planned stops the whole succession",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.faction-ruler",
+      "title": "the ruler of a faction is replaced while its ruling clan stays",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.everything-at-once",
+      "title": "clan, titles, rights and ruler are resolved together and the world stays consistent",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.deterministic",
+      "title": "the same state and plan always give the same result and no random number is drawn",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.pacts",
+      "title": "an active pact that does not apply yet does not block, a malformed active pact does",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.input-refused",
+      "title": "a succession with an unusable plan is refused and changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.estate-plan",
+      "title": "the estate split follows the clan's effective pacts and expected shares and loses nothing",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rules.junk-input",
+      "title": "every rule refuses empty or nonsensical input without throwing or changing anything",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rules.every-change-raises-revision",
+      "title": "a record changed by a rule gets one more revision, and records not named do not",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "game.campaign.new-has-settlements",
+      "title": "a new campaign starts with the map's settlements and passes every area check",
+      "kind": "unit",
+      "source": "tests/unit/campaign.test.mjs"
+    },
+    {
+      "id": "game.campaign.daily-steps-wired",
+      "title": "settlements, finance and follow-ups each run in the day change, in that order",
+      "kind": "unit",
+      "source": "tests/unit/campaign.test.mjs"
+    },
+    {
+      "id": "game.campaign.days-pass",
+      "title": "ten game days pass: every day is processed once and the state stays valid",
+      "kind": "unit",
+      "source": "tests/unit/campaign.test.mjs"
+    },
+    {
+      "id": "game.campaign.save-and-reopen",
+      "title": "a campaign saved after some days reopens exactly as it was",
+      "kind": "unit",
+      "source": "tests/unit/campaign.test.mjs"
+    },
+    {
+      "id": "game.campaign.earlier-save-gets-settlements",
+      "title": "an earlier-version save opens with the map's settlements added",
+      "kind": "unit",
+      "source": "tests/unit/campaign.test.mjs"
     }
   ]
 }
