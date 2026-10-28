@@ -2299,6 +2299,341 @@
       "title": "an earlier-version save opens with the map's settlements added",
       "kind": "unit",
       "source": "tests/unit/campaign.test.mjs"
+    },
+    {
+      "id": "ui.battle.result-validated",
+      "title": "only a complete, sane battle result is accepted; anything else pays nothing",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.battle.victory-reward-one-transaction",
+      "title": "a campaign victory adds 1500..2499 gold, manpower 40% of the routed and one territory in one transaction, then saves",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.battle.reward-gold-range",
+      "title": "over many seeds the gold of a victory is always 1500..2499 and spreads over the range",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.battle.victory-reward-uses-seeded-draw",
+      "title": "the gold of a victory comes from the game\\'s own seeded random numbers, so it repeats for the same seed and state",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.battle.victory-save-failure-changes-nothing",
+      "title": "if the reward cannot be saved the campaign is exactly as before and the failure says why",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.battle.victory-save-conflict-changes-nothing",
+      "title": "a save that another tab got ahead of is refused and the reward is not kept",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.battle.other-outcomes-text-and-no-state",
+      "title": "defeat, retreat, surrender and negotiated retreat describe themselves honestly and the campaign has no reward step for them",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.battle.flow-counts-end-once",
+      "title": "the end of a battle is honoured once, the battle is disposed once, a second report is ignored",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.battle.flow-end-before-start-returns",
+      "title": "a battle that reports its end before startBattle even returns is still closed properly, also when startBattle is async",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.battle.flow-start-failure",
+      "title": "a battle that cannot start, or reports nonsense, resolves as a failure and pays nothing",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.format.clock-and-numbers",
+      "title": "the clock shows day and hour with two digits; numbers read the same in every locale",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.format.days-never-promise-more-than-there-is",
+      "title": "days of food are rounded down, and unknown shows a dash",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.format.cost-names-goods",
+      "title": "a cost is written with the goods\\' Korean names, gold first",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.frame.idle-commits-nothing",
+      "title": "a frame where the group stands still and no game minute is due commits no transaction",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.frame.moving-one-transaction",
+      "title": "a moving group commits exactly one transaction per frame, with the movement rule\\'s patch",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.frame.arrival-event",
+      "title": "the group walks to the settlement, the frame reports arrival once, and later frames are idle again",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.frame.blocked-event",
+      "title": "walking into a mountain stops the group with a blocked event naming the terrain",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.frame.paused-no-movement-no-time",
+      "title": "while paused nothing moves and no time passes, even with an order given",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.frame.time-runs-days",
+      "title": "game minutes go through advanceMinutes and the days that end are processed and reported",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.frame.failure-reported",
+      "title": "a failing daily run is returned as the frame\\'s failure with the days that did finish; a retry asks again with zero minutes",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.frame.unknown-group-fails",
+      "title": "a frame for a group that does not exist reports the failure and commits nothing",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.messages.failure-keeps-code",
+      "title": "every message names the failure code, also for wrapped and unknown failures",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.messages.settlement-refusals-explain",
+      "title": "a real construction refusal is explained with what is missing",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.messages.save-failures-explain",
+      "title": "conflict, newer version and damaged saves each get their own reason",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.messages.new-start-not-offered-over-newer-save",
+      "title": "starting over is offered for damaged saves but never over a newer version\\'s save",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.pacer.whole-minutes",
+      "title": "real time becomes whole game minutes by speed; the remainder is kept, paused gives none",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.pacer.long-frame-capped",
+      "title": "a frame that took very long (hidden tab) hands out little time, and never more than a day",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.camera.zoom-keeps-anchor",
+      "title": "zooming keeps the world point under the pointer where it is, within the zoom limits",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.camera.pan-stays-on-map",
+      "title": "panning cannot push the map off the screen and a small map stays centred",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.camera.hit-small-settlement",
+      "title": "a small settlement is still easy to hit: a minimum hit size, and the nearest one wins",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.hud.reads-state",
+      "title": "the top bar reads gold, days of food, manpower, territory and the date from the state",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.hud.settlement-under-group",
+      "title": "the settlement panel belongs to a group that stands in a settlement, not one passing or far away",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.hud.messages-for-orders-and-events",
+      "title": "arrival, blocking and orders are written with the settlement\\'s and terrain\\'s names",
+      "kind": "unit"
+    },
+    {
+      "id": "ui.page.loads-clean",
+      "title": "play.html loads to its menu and into the campaign with no script errors, console errors or dialogs",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.menu.new-game-day1-gold500",
+      "title": "a new game opens on day 1 with 500 gold, 10 days of food, no manpower or territory, at 1일 08:00",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.map.click-to-move",
+      "title": "clicking a settlement sends the group there along the road; it arrives, says so in the page and the settlement panel opens",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.map.click-ground-moves",
+      "title": "clicking bare ground sends the group to that point",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.map.second-order-replaces-first",
+      "title": "a new click while walking changes the destination",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.map.paused-group-stands-still",
+      "title": "while paused an ordered group does not move; when time runs again it walks on",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.map.blocked-message",
+      "title": "walking into impassable terrain stops the group and the page says which terrain blocked it",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.time.controls-advance-days",
+      "title": "pause, 1x, 2x and 4x set the pace; days pass, the day and hour show, and the settlement changes day by day",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.time.speed-is-saved",
+      "title": "the chosen pace belongs to the game state: pause, save, reopen and the game is still paused",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.settlement.panel-shows-state",
+      "title": "at a settlement the panel shows people, stock, treasury, buildings and the queue",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.settlement.panel-hidden-away-from-settlements",
+      "title": "away from every settlement there is no panel",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.build.enqueue-and-cancel",
+      "title": "a building can be queued (cost paid from the settlement) and cancelled (cost refunded); both show in the panel",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.build.refusals-show-reason",
+      "title": "every refusal says why: not enough goods, a building the place cannot have, a bad crew size",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.build.crew-builds-over-days",
+      "title": "with a crew set and time running, the queued building is worked on and finishes",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.build.no-crew-no-progress",
+      "title": "a queued building with no crew set is not worked on, and the panel says a crew of 0 does not build",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.save.button-and-reload-restores",
+      "title": "saving and reopening gives back the same game: bar, place, speed, and the stored save is untouched by opening",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.save.autosave-each-day",
+      "title": "the game saves itself once per game day and not while no day passes",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.save.failure-shows-reason",
+      "title": "a save another tab got ahead of is refused with its reason, in the page, and the stored save stays",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.save.autosave-failure-shows-reason",
+      "title": "when the daily autosave fails the page says so with the reason, and the game keeps running",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.save.v1-opens",
+      "title": "an earlier version\\'s save in localStorage opens as a game; its key is left alone until a new save is made",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.save.damaged-message-and-new",
+      "title": "a damaged save is explained, left untouched until the player chooses to start new, and only then replaced",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.save.tampered-save-explained",
+      "title": "a save whose content no longer matches its check value says so",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.save.newer-version-never-overwritten",
+      "title": "a save from a newer version is explained and never replaced; starting over it is not offered",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.save.leaving-without-save-asks",
+      "title": "leaving for the menu saves first; if that fails the player is told why and may still leave",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.battle.practice-changes-nothing",
+      "title": "a practice battle changes nothing in the saved game and nothing on the campaign screen",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.battle.practice-without-save-writes-nothing",
+      "title": "practice with no saved game at all leaves storage empty",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.battle.campaign-victory-reward-once",
+      "title": "a campaign victory adds 1500..2499 gold, 40% of the routed as manpower and one territory, once, and saves it",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.battle.reward-save-failure-one-message",
+      "title": "if the reward cannot be saved the page says so once and nothing changes, on screen or in storage",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.battle.defeat-changes-nothing",
+      "title": "defeat in the campaign changes nothing and says honestly that nothing was recorded",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.battle.retreat-changes-nothing",
+      "title": "retreat in the campaign changes nothing and says honestly that nothing was recorded",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.battle.surrender-changes-nothing",
+      "title": "surrender in the campaign changes nothing and says honestly that nothing was recorded",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.battle.negotiated-retreat-changes-nothing",
+      "title": "negotiated_retreat in the campaign changes nothing and says honestly that nothing was recorded",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.battle.start-failure-shown",
+      "title": "a battle that cannot start is reported in the page and the game goes on unchanged",
+      "kind": "browser"
+    },
+    {
+      "id": "ui.battle.time-stops-during-battle",
+      "title": "game time does not run while a battle is on and runs again afterwards",
+      "kind": "browser"
     }
   ]
 }
