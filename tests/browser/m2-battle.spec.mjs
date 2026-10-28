@@ -60,24 +60,34 @@ test.describe('3D battle', () => {
   });
 
   test('[m2.player.melee-hit] a sword swing with an enemy in reach damages it', async ({ page }) => {
-    // Put the nearest enemy one metre in front of the player, inside the 1.6 m reach and the 120 degree arc.
+    // Put one enemy one metre in front of the player (reach 1.6 m, 120 degree arc) and keep every
+    // formation holding still, so the enemy is still in reach when the swing happens even on a busy machine.
     await loadVariant(page, `
       snapshot.battleId = 'test_melee_hit';
       const me = snapshot.characters.find((c) => c.characterId === snapshot.playerCharacterId);
-      const foe = snapshot.characters.find((c) => c.sideId === 'enemy');
+      const commanders = new Set(snapshot.formations.map((f) => f.commanderUnitId));
+      const foe = snapshot.characters.find((c) => c.sideId === 'enemy' && !commanders.has(c.characterId));
       const heading = me.spawn.heading ?? 0;
       foe.spawn = { ...foe.spawn, x: me.spawn.x + Math.sin(heading), z: me.spawn.z + Math.cos(heading) };
+      foe.formationId = 'test_lone_foe';
+      for (const f of snapshot.formations) { f.order = 'hold'; delete f.target; }
+      const foeFormation = snapshot.formations.find((f) => f.memberUnitIds.includes(foe.characterId));
+      foeFormation.memberUnitIds = foeFormation.memberUnitIds.filter((id) => id !== foe.characterId);
+      foeFormation.anchor = { ...foeFormation.anchor, z: -30 };
+      snapshot.formations.push({ ...foeFormation, formationId: 'test_lone_foe', memberUnitIds: [foe.characterId],
+        commanderUnitId: foe.characterId, anchor: { ...foeFormation.anchor, x: foe.spawn.x, z: foe.spawn.z } });
       window.__foeId = foe.characterId;
     `);
-    const foeId = await page.evaluate(() => window.__foeId);
-    const hp = async () => page.evaluate((id) => window.ArsM2Battle.getSnapshot().units.find((u) => u.unitId === id).hp, foeId);
-    const before = await hp();
     await page.evaluate(() => window.ArsM2Battle.setTimeScale(0));
+    const foeId = await page.evaluate(() => window.__foeId);
+    const unit = (id) => page.evaluate((unitId) => window.ArsM2Battle.getSnapshot().units.find((u) => u.unitId === unitId), id);
+    const [me, foe] = [await player(page), await unit(foeId)];
+    expect(Math.hypot(foe.position.x - me.position.x, foe.position.z - me.position.z)).toBeLessThan(1.6);
     await tap(page, '#m2Attack');
     await page.evaluate(() => window.ArsM2Battle.setTimeScale(1));
     await waitTicks(page, 2);
     expect((await player(page)).attackCooldownTicks).toBeGreaterThan(0);
-    expect(await hp()).toBeLessThan(before);
+    expect((await unit(foeId)).hp).toBeLessThan(foe.hp);
   });
 
   test('[m2.player.block] block holds while pressed and ends on release', async ({ page }) => {
