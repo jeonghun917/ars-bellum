@@ -192,7 +192,10 @@ test.describe('3D battle', () => {
   });
 
   test('[m2.hud.morale-matches-state] the morale and routing numbers on screen match the battle state', async ({ page }) => {
+    // The screen is redrawn every 200 ms but the state changes every frame, so stop the clock first.
     await page.waitForTimeout(250);
+    expect((await page.evaluate(() => window.ArsM2Battle.setTimeScale(0))).ok).toBe(true);
+    await page.waitForTimeout(450);
     const [g, morale, routing] = await page.evaluate(() => [
       window.ArsM2Diagnostics.getSnapshot(),
       Number(document.getElementById('m2MoraleAlly').textContent),
@@ -298,13 +301,11 @@ test.describe('3D battle', () => {
         .map((f) => ({ ...f, memberUnitIds: f.memberUnitIds.filter((id) => ids.has(id)) }));
     `);
     await page.waitForFunction(() => window.ArsM2Battle.getResult(), null, { timeout: 5_000 });
-    await page.waitForTimeout(220);
-    const [result, g, shown] = await page.evaluate(() => [
-      window.ArsM2Battle.getResult(), window.ArsM2Diagnostics.getSnapshot(), Number(document.getElementById('m2MoraleEnemy').textContent),
-    ]);
+    const [result, g] = await page.evaluate(() => [window.ArsM2Battle.getResult(), window.ArsM2Diagnostics.getSnapshot()]);
     expect(result.outcome).toBe('ally_victory');
     expect(g.moraleSummary.enemy).toBe(0);
-    expect(shown).toBe(0);
+    // The screen is redrawn every 200 ms, so wait for the redraw rather than a fixed time.
+    await expect(page.locator('#m2MoraleEnemy')).toHaveText('0');
   });
 
   test('[m2.page.no-errors] loading and playing the battle raises no page errors', async ({ page }) => {

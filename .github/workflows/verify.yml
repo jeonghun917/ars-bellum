@@ -22,4 +22,4 @@ jobs:
       - name: Verify source
         run: node verify.mjs
       - name: 2D battle checks
-        run: node --test tests/unit/battle2d.test.mjs
+        run: node --test tests/unit/battle2d-sim.test.mjs tests/unit/battle2d-battle.test.mjs tests/unit/ui-battle.test.mjs
