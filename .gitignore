@@ -4,3 +4,5 @@ Thumbs.db
 *.zip
 *.sha256
 node_modules/
+test-results/
+playwright-report/

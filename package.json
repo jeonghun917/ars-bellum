@@ -4,10 +4,15 @@
   "private": true,
   "description": "ARS BELLUM HTML/CSS/JavaScript strategy game",
   "scripts": {
-    "verify": "node verify.mjs",
-    "verify:m2": "node m2_verify.mjs"
+    "test": "node tests/run-all.mjs",
+    "test:browser": "playwright test",
+    "test:m1": "node verify.mjs",
+    "test:m2-unit": "node m2_verify.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
   }
 }

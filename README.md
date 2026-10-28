@@ -41,3 +41,17 @@ node verify.mjs
 - 변경은 별도 브랜치와 Pull Request를 거칩니다.
 - 실행하지 않은 브라우저 검사는 PASS로 기록하지 않습니다.
 - ZIP과 과거 감사 자료는 이 저장소의 active 원본에 섞지 않습니다.
+
+## Tests
+
+```
+npm ci
+npx playwright install chromium   # once
+npm test
+```
+
+`npm test` runs every check listed in `tests/checks.json` and writes `test-results/results.json`.
+Each check is PASS, FAIL or NOT_TESTED, and anything that is not PASS carries a reason
+(for example `browser_missing`, `timeout:…`, `assertion_failed:…`). Browser tests live in
+`tests/browser/*.spec.mjs`; a test title starts with its check id. To use a local Chromium,
+set `PW_CHROMIUM_PATH`.
