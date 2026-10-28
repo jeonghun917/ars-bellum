@@ -1,90 +1,142 @@
 :root {
   color-scheme: dark;
   font-family: Inter, Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #10151a;
+  background: #1b2630;
   color: #eef2f4;
+  --edge: 14px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --panel: rgba(10, 15, 19, .74);
+  --line: rgba(255, 255, 255, .16);
+  --gold: #d7b85b;
 }
 * { box-sizing: border-box; }
-html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
-body { background: #10151a; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
+body { background: #1b2630; -webkit-tap-highlight-color: transparent; }
 button, select { font: inherit; color: inherit; }
-button { touch-action: none; user-select: none; }
-.m2-app { position: relative; width: 100%; height: 100%; background: #10151a; }
+button { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.m2-app { position: relative; width: 100%; height: 100%; height: 100dvh; background: #1b2630; user-select: none; -webkit-user-select: none; }
 #m2Canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+kbd { margin-left: 6px; padding: 0 4px; border: 1px solid var(--line); border-radius: 4px; font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #b8c3c9; }
+[hidden] { display: none !important; }
 
 .m2-header {
   position: absolute; top: 0; left: 0; right: 0; z-index: 2;
-  display: flex; justify-content: space-between; gap: 16px;
-  padding: 18px 20px;
-  background: linear-gradient(180deg, rgba(9,13,17,.92), rgba(9,13,17,0));
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: calc(14px + var(--safe-top)) calc(18px + var(--safe-right)) 28px calc(18px + var(--safe-left));
+  background: linear-gradient(180deg, rgba(9,13,17,.62), rgba(9,13,17,0));
   pointer-events: none;
 }
-.m2-header h1 { margin: 2px 0 0; font-size: clamp(24px,4vw,42px); letter-spacing: .12em; }
-.m2-header p { margin: 6px 0 0; color: #aebac2; font-size: 13px; }
-.m2-kicker { color: #d7b85b; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
-.m2-status { align-self: flex-start; padding: 8px 12px; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; background: rgba(12,18,23,.76); font-size: 12px; white-space: nowrap; }
+.m2-header h1 { margin: 2px 0 0; font-size: clamp(20px, 3.2vw, 34px); letter-spacing: .14em; text-shadow: 0 2px 10px rgba(0,0,0,.45); }
+.m2-kicker { color: var(--gold); font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.m2-status { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); font-size: 12px; white-space: nowrap; }
 
-.m2-controls, .m2-combat-controls, .m2-tactical-panel {
-  position: absolute; z-index: 5; display: flex; gap: 7px;
-}
-.m2-runtime-controls { left: 14px; bottom: 14px; flex-wrap: wrap; }
-.m2-combat-controls { right: 14px; bottom: 14px; }
+.m2-controls, .m2-combat-controls, .m2-tactical-panel { position: absolute; z-index: 5; display: flex; gap: 7px; }
+.m2-runtime-controls { left: calc(var(--edge) + var(--safe-left)); bottom: calc(var(--edge) + var(--safe-bottom)); flex-wrap: wrap; }
+.m2-combat-controls { right: calc(var(--edge) + var(--safe-right)); bottom: calc(var(--edge) + var(--safe-bottom)); }
+
 .m2-tactical-panel {
-  left: 14px; top: 104px; width: 230px; padding: 10px; flex-direction: column;
-  border: 1px solid rgba(255,255,255,.14); border-radius: 9px; background: rgba(8,12,15,.78);
+  left: calc(var(--edge) + var(--safe-left)); top: calc(86px + var(--safe-top)); width: 236px; padding: 8px;
+  flex-direction: column; border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  max-height: calc(100% - 190px - var(--safe-top) - var(--safe-bottom)); overflow: auto;
 }
-.m2-tactical-panel label { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 6px; font-size: 11px; }
-.m2-tactical-panel select { width: 100%; background: rgba(20,29,36,.95); border: 1px solid rgba(255,255,255,.17); border-radius: 6px; padding: 6px; }
+.m2-panel-toggle {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 4px; border: 0; background: none; font-size: 12px; font-weight: 700; color: var(--gold); cursor: pointer;
+}
+.m2-panel-toggle::after { content: "▾"; color: #b8c3c9; }
+.m2-panel-summary { display: none; color: #dfe6ea; font-weight: 500; }
+.m2-tactical-panel.is-collapsed { width: auto; }
+.m2-tactical-panel.is-collapsed .m2-panel-toggle::after { content: "▸"; }
+.m2-tactical-panel.is-collapsed .m2-panel-summary { display: inline; }
+.m2-tactical-panel.is-collapsed .m2-panel-body { display: none; }
+.m2-panel-body { display: flex; flex-direction: column; gap: 7px; }
+.m2-tactical-panel label { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 6px; font-size: 12px; }
+.m2-tactical-panel select { width: 100%; min-height: 36px; background: rgba(20,29,36,.95); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+.m2-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; padding: 4px 2px; font-size: 12px; color: #c9d2d7; }
+.m2-stats strong { color: #fff; font-variant-numeric: tabular-nums; }
+.m2-stats-wide { grid-column: 1 / -1; }
 .m2-button-row { display: flex; gap: 5px; }
 .m2-button-row button { flex: 1; min-width: 0; }
 
-.m2-controls button, .m2-combat-controls button, .m2-tactical-panel button {
-  min-width: 68px; padding: 9px 11px; border: 1px solid rgba(255,255,255,.17);
-  border-radius: 8px; background: rgba(20,29,36,.92); cursor: pointer;
+.m2-controls button, .m2-combat-controls button, .m2-panel-body button {
+  min-width: 64px; min-height: 40px; padding: 8px 11px; border: 1px solid var(--line);
+  border-radius: 9px; background: rgba(20,29,36,.88); cursor: pointer; white-space: nowrap;
 }
+.m2-panel-body button { min-width: 0; }
+.m2-combat-controls button { min-width: 76px; min-height: 48px; font-weight: 700; }
 button:hover { background: rgba(39,52,61,.96); }
+button:active { background: rgba(215,184,91,.28); }
 button:disabled { opacity: .45; cursor: default; }
+button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
 
 .m2-virtual-stick {
-  position: absolute; z-index: 7; left: 20px; bottom: 74px;
-  width: 112px; height: 112px; border-radius: 50%;
-  border: 1px solid rgba(255,255,255,.24); background: rgba(20,29,36,.38);
+  position: absolute; z-index: 7; left: calc(20px + var(--safe-left)); bottom: calc(74px + var(--safe-bottom));
+  width: 120px; height: 120px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.28); background: rgba(20,29,36,.32);
   touch-action: none;
 }
 .m2-virtual-stick span {
-  position: absolute; left: 50%; top: 50%; width: 42px; height: 42px; transform: translate(-50%,-50%);
-  border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(215,184,91,.18);
+  position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; transform: translate(-50%,-50%);
+  border-radius: 50%; border: 1px solid rgba(255,255,255,.3); background: rgba(215,184,91,.24);
 }
 
 .m2-legend {
-  position: absolute; right: 14px; bottom: 66px; z-index: 3;
-  display: grid; gap: 5px; padding: 9px 11px; min-width: 180px;
-  border: 1px solid rgba(255,255,255,.13); border-radius: 8px;
-  background: rgba(9,14,18,.82); color: #c9d2d7; font-size: 10px;
+  position: absolute; right: calc(var(--edge) + var(--safe-right)); top: calc(62px + var(--safe-top)); z-index: 3;
+  display: flex; gap: 12px; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: #c9d2d7; font-size: 11px;
   pointer-events: none;
 }
-.m2-legend span { display: flex; align-items: center; gap: 7px; }
+.m2-legend span { display: flex; align-items: center; gap: 6px; }
 .m2-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.m2-legend .ally { background: #4f7fa4; }
-.m2-legend .enemy { background: #a4524c; }
-.m2-legend .player { background: #d7b85b; }
+.m2-legend .ally { background: #5b93c2; }
+.m2-legend .enemy { background: #c0574c; }
+.m2-legend .player { background: var(--gold); }
 
 .m2-diagnostics {
-  position: absolute; top: 104px; right: 14px; z-index: 2;
+  position: absolute; top: calc(100px + var(--safe-top)); right: calc(var(--edge) + var(--safe-right)); z-index: 4;
   width: min(330px, calc(100vw - 28px)); max-height: 46vh; margin: 0; padding: 11px;
-  overflow: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 8px;
-  background: rgba(8,12,15,.76); color: #bfe1cc; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: auto; border: 1px solid var(--line); border-radius: 8px;
+  background: rgba(8,12,15,.82); color: #bfe1cc; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
   pointer-events: none;
 }
 
+/* Touch screens: no keyboard, so the key hints go. */
+@media (hover: none) {
+  kbd { display: none; }
+}
+
+/* Phones held upright. */
 @media (max-width: 760px) {
-  .m2-header { padding: 12px; }
-  .m2-header p { display: none; }
-  .m2-diagnostics { display: none; }
-  .m2-tactical-panel { top: 86px; left: 8px; width: min(218px, 58vw); }
-  .m2-runtime-controls { display: none; }
-  .m2-combat-controls { right: 8px; bottom: 8px; display: grid; grid-template-columns: repeat(2, minmax(72px,1fr)); }
-  .m2-combat-controls button { padding: 11px 8px; }
-  .m2-virtual-stick { left: 10px; bottom: 10px; }
-  .m2-legend { display: none; }
+  :root { --edge: 10px; }
+  .m2-header { padding-bottom: 18px; }
+  .m2-header h1 { font-size: 18px; letter-spacing: .1em; }
+  .m2-kicker { font-size: 10px; }
+  .m2-legend, .m2-dev-only { display: none; }
+  .m2-runtime-controls { top: calc(56px + var(--safe-top)); bottom: auto; right: calc(var(--edge) + var(--safe-right)); left: auto; gap: 5px; }
+  .m2-runtime-controls button { min-width: 0; min-height: 36px; padding: 6px 10px; font-size: 12px; }
+  .m2-tactical-panel { top: calc(104px + var(--safe-top)); left: calc(var(--edge) + var(--safe-left)); width: min(250px, calc(100vw - 20px)); }
+  .m2-combat-controls { display: grid; grid-template-columns: repeat(2, minmax(78px, 1fr)); gap: 8px; }
+  .m2-combat-controls button { min-height: 56px; font-size: 15px; }
+  .m2-virtual-stick { left: calc(14px + var(--safe-left)); bottom: calc(14px + var(--safe-bottom)); width: 132px; height: 132px; }
+  .m2-diagnostics { top: calc(150px + var(--safe-top)); }
+}
+
+/* Phones held sideways: very little height, so the header shrinks to one line. */
+@media (max-height: 500px) {
+  :root { --edge: 10px; }
+  .m2-header { padding-top: calc(8px + var(--safe-top)); padding-bottom: 10px; align-items: center; }
+  .m2-kicker, .m2-legend, .m2-dev-only { display: none; }
+  .m2-header h1 { font-size: 16px; margin: 0; }
+  .m2-status { padding: 5px 10px; font-size: 11px; }
+  .m2-runtime-controls { top: calc(8px + var(--safe-top)); bottom: auto; left: 50%; right: auto; transform: translateX(-50%); gap: 5px; }
+  .m2-runtime-controls button { min-width: 0; min-height: 32px; padding: 5px 10px; font-size: 12px; }
+  .m2-tactical-panel { top: calc(48px + var(--safe-top)); max-height: calc(100% - 60px - var(--safe-top) - var(--safe-bottom)); }
+  .m2-combat-controls { display: grid; grid-template-columns: repeat(2, minmax(76px, 1fr)); gap: 8px; }
+  .m2-combat-controls button { min-height: 50px; }
+  .m2-virtual-stick { left: calc(14px + var(--safe-left)); bottom: calc(12px + var(--safe-bottom)); width: 116px; height: 116px; }
+  .m2-diagnostics { top: calc(48px + var(--safe-top)); max-height: 60vh; }
 }

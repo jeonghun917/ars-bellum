@@ -113,8 +113,13 @@ export class M2InputController {
   switchMode() {
     if (this.#disposed) return;
     this.resetInputContext({ enqueueReleases: true });
-    const player = this.#runtime.getSnapshot()?.units?.find((unit) => unit.isPlayer)?.position || null;
-    this.#camera.toggle(player);
+    // The tactical view opens over the middle of everyone still standing, so both armies are in frame.
+    const standing = (this.#runtime.getSnapshot()?.units || []).filter((unit) => unit.state !== "dead");
+    const middle = standing.length ? {
+      x: standing.reduce((sum, unit) => sum + unit.position.x, 0) / standing.length,
+      z: standing.reduce((sum, unit) => sum + unit.position.z, 0) / standing.length
+    } : null;
+    this.#camera.toggle(middle);
     if (this.#camera.mode === "tactical") this.refreshFormationLists();
     this.#observe();
   }

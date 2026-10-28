@@ -2,28 +2,33 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+// How far each view may tilt and zoom. The tactical view starts high and far enough back to show both
+// 20-man armies; each view keeps its own tilt and zoom, so switching back returns to where it was.
+const LIMITS = Object.freeze({
+  third_person: Object.freeze({ pitch: [-0.9, -0.12], distance: [3.5, 14] }),
+  tactical: Object.freeze({ pitch: [-1.3, -0.55], distance: [10, 44] })
+});
+
 export class M2CameraController {
   #mode = "third_person";
   #heading = 0;
-  #pitch = -0.42;
-  #distance = 7;
+  #pitch = -0.38;
+  #distance = 8.5;
   #heightOffset = 1.55;
   #center = { x: 0, z: 0 };
+  #saved = { third_person: { pitch: -0.38, distance: 8.5 }, tactical: { pitch: -0.98, distance: 26 } };
   #disposed = false;
 
   get mode() { return this.#disposed ? "disposed" : this.#mode; }
 
   switchMode(mode, playerPosition = null) {
     if (this.#disposed || !["third_person", "tactical"].includes(mode)) return false;
+    this.#saved[this.#mode] = { pitch: this.#pitch, distance: this.#distance };
     this.#mode = mode;
     if (mode === "tactical" && playerPosition) this.#center = { x: playerPosition.x, z: playerPosition.z };
-    if (mode === "tactical") {
-      this.#pitch = clamp(this.#pitch, -1.18, -0.55);
-      this.#distance = clamp(this.#distance, 8, 28);
-    } else {
-      this.#pitch = clamp(this.#pitch, -0.9, -0.12);
-      this.#distance = clamp(this.#distance, 3.5, 12);
-    }
+    const limits = LIMITS[mode];
+    this.#pitch = clamp(this.#saved[mode].pitch, ...limits.pitch);
+    this.#distance = clamp(this.#saved[mode].distance, ...limits.distance);
     return true;
   }
 
@@ -35,16 +40,12 @@ export class M2CameraController {
     if (this.#disposed) return;
     this.#heading += Number(deltaHeading) || 0;
     this.#pitch += Number(deltaPitch) || 0;
-    this.#pitch = this.#mode === "third_person"
-      ? clamp(this.#pitch, -0.9, -0.12)
-      : clamp(this.#pitch, -1.18, -0.55);
+    this.#pitch = clamp(this.#pitch, ...LIMITS[this.#mode].pitch);
   }
 
   zoom(delta) {
     if (this.#disposed) return;
-    const min = this.#mode === "third_person" ? 3.5 : 8;
-    const max = this.#mode === "third_person" ? 12 : 28;
-    this.#distance = clamp(this.#distance + (Number(delta) || 0), min, max);
+    this.#distance = clamp(this.#distance + (Number(delta) || 0), ...LIMITS[this.#mode].distance);
   }
 
   pan(x, z) {
