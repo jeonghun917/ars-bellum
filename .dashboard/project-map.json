@@ -1,0 +1,940 @@
+{
+  "format": "project-map/v1",
+  "project": "ars-bellum",
+  "repository": "jeonghun917/ars-bellum",
+  "groups": [
+    {
+      "id": "bellum-app-entry",
+      "title": "게임 시작 화면과 진입점",
+      "owner": "index.html이 src/main.js 하나를 불러 앱을 띄운다. main.js가 저장소·전투 시작 함수를 골라 src/ui/app.js에 넘긴다. 이 묶음은 상태를 바꾸지 않는다",
+      "files": [
+        "index.html",
+        "src/main.js",
+        "castle_icon.png"
+      ],
+      "validators": [
+        {
+          "path": "verify.mjs",
+          "kind": "SCRIPT"
+        },
+        {
+          "path": "tests/browser/ui-map.spec.mjs",
+          "kind": "BROWSER_TEST"
+        },
+        {
+          "path": ".github/workflows/verify.yml",
+          "kind": "CI"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "entry-01",
+          "risk": "index.html의 모듈 경로나 main.js가 넘기는 저장소·전투 함수가 바뀌면 화면 전체가 뜨지 않는다",
+          "trigger": "index.html의 script/link 태그, src/main.js의 mountApp 인자 변경",
+          "preWriteRule": "verify.mjs(index.html 스크립트·모든 src 모듈 문법과 import)와 ui-map 브라우저 검사를 돌린 뒤 바꾼다",
+          "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
+        }
+      ]
+    },
+    {
+      "id": "bellum-ui-screens",
+      "title": "화면(메뉴·세계 지도·영지 패널·전투 결과)",
+      "owner": "src/ui가 화면을 그리고 사용자 입력을 받는다. 게임 상태는 직접 바꾸지 않고 src/game/campaign.js를 통해서만 바꾼다(이동·건설·저장). 연습 전투 결과는 기록하지 않는다",
+      "files": [
+        "src/ui/app.js",
+        "src/ui/battle-flow.js",
+        "src/ui/battle-result.js",
+        "src/ui/camera.js",
+        "src/ui/dom.js",
+        "src/ui/fake-battle.js",
+        "src/ui/format.js",
+        "src/ui/frame.js",
+        "src/ui/map-draw.js",
+        "src/ui/menu-screen.js",
+        "src/ui/messages.js",
+        "src/ui/pacer.js",
+        "src/ui/settlement-panel.js",
+        "src/ui/ui.css",
+        "src/ui/view-model.js",
+        "src/ui/world-screen.js",
+        "tests/browser/ui-map.spec.mjs",
+        "tests/browser/ui-battle.spec.mjs",
+        "tests/browser/ui-save.spec.mjs",
+        "tests/browser/ui-settlement.spec.mjs",
+        "tests/unit/ui-battle.test.mjs",
+        "tests/unit/ui-format.test.mjs",
+        "tests/unit/ui-frame.test.mjs",
+        "tests/unit/ui-messages.test.mjs",
+        "tests/unit/ui-pacer-camera.test.mjs",
+        "tests/unit/ui-view-model.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/ui-battle.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/ui-format.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/ui-frame.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/ui-messages.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/ui-pacer-camera.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/ui-view-model.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/browser/ui-map.spec.mjs",
+          "kind": "BROWSER_TEST"
+        },
+        {
+          "path": "tests/browser/ui-settlement.spec.mjs",
+          "kind": "BROWSER_TEST"
+        },
+        {
+          "path": "tests/browser/ui-battle.spec.mjs",
+          "kind": "BROWSER_TEST"
+        },
+        {
+          "path": "tests/browser/ui-save.spec.mjs",
+          "kind": "BROWSER_TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "ui-01",
+          "risk": "연습 전투(mode practice)의 승리가 campaign에 넘어가면 연습인데 전리품·영지가 기록된다(옛 코드에 있던 버그)",
+          "trigger": "src/ui/app.js의 연습 전투 흐름, src/ui/battle-result.js의 practice 분기 변경",
+          "preWriteRule": "ui-battle 단위·브라우저 검사에서 연습 승리가 저장을 바꾸지 않는지 확인한다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        },
+        {
+          "id": "ui-02",
+          "risk": "화면 코드가 store를 직접 바꾸면 한 번에 전부 아니면 전무인 저장 규칙을 건너뛴다",
+          "trigger": "src/ui에서 store.transact나 draft를 직접 쓰는 변경",
+          "preWriteRule": "상태 변경은 src/game/campaign.js의 함수로만 하고, 없으면 거기에 먼저 추가한다",
+          "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
+        }
+      ]
+    },
+    {
+      "id": "bellum-game-flow",
+      "title": "게임 진행(새 게임·하루 진행·캠페인)",
+      "owner": "src/game이 영역들을 묶는다. new-game.js가 처음 상태 모양을, daily.js가 끝난 날마다 영역별 하루 단계를 순서대로 돌리고, campaign.js가 열기·진행·저장을 맡는다. 화면은 campaign.js만 부른다",
+      "files": [
+        "src/game/areas.js",
+        "src/game/campaign.js",
+        "src/game/daily.js",
+        "src/game/new-game.js",
+        "tests/unit/campaign.test.mjs",
+        "tests/unit/daily.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/campaign.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/daily.test.mjs",
+          "kind": "TEST"
+        }
+      ],
+      "storage": {
+        "reads": [
+          "ars_bellum_save_v2",
+          "ars_bellum_save_v1"
+        ],
+        "writes": [
+          "ars_bellum_save_v2"
+        ]
+      },
+      "risks": [
+        {
+          "id": "flow-01",
+          "risk": "하루 단계 하나가 실패하면 그날과 그 뒤 날은 처리되지 않은 채 남는다. 실패를 삼키면 날짜만 넘어가고 영지 계산이 빠진다",
+          "trigger": "src/game/daily.js의 단계 정렬·실패 처리, 각 영역 dailySteps의 order 변경",
+          "preWriteRule": "daily 단위 검사(실패한 날은 아무것도 바꾸지 않음)를 돌리고, 새 단계는 order를 겹치지 않게 정한다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        },
+        {
+          "id": "flow-02",
+          "risk": "new-game.js의 상태 모양을 바꾸면 기존 저장 파일이 검사에 걸려 열리지 않는다",
+          "trigger": "src/game/new-game.js 상태 모양 변경",
+          "preWriteRule": "src/persist에 옛 저장을 바꾸는 단계를 같은 변경에 넣고 save 단위 검사를 돌린다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        }
+      ]
+    },
+    {
+      "id": "bellum-core-store",
+      "title": "상태 저장소·달력·난수",
+      "owner": "src/core/store.js가 게임 상태 하나를 갖고, transact 안에서만 바뀐다(실패하면 통째로 버림). calendar.js가 날짜를, rng.js가 저장되는 난수를 맡는다",
+      "files": [
+        "src/core/calendar.js",
+        "src/core/data.js",
+        "src/core/ids.js",
+        "src/core/result.js",
+        "src/core/rng.js",
+        "src/core/sha256.js",
+        "src/core/store.js",
+        "tests/unit/core.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/core.test.mjs",
+          "kind": "TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "core-01",
+          "risk": "transact가 실패나 예외에서 초안을 버리지 않으면 반쯤 바뀐 상태가 남고 모든 영역 규칙의 되돌림이 깨진다",
+          "trigger": "src/core/store.js 변경",
+          "preWriteRule": "core 단위 검사(실패 시 아무것도 안 바뀜)를 돌리고 일부러 깨서 실패하는지 확인한다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        },
+        {
+          "id": "core-02",
+          "risk": "규칙 안에서 Math.random이나 Date.now를 쓰면 같은 저장에서 결과가 달라진다",
+          "trigger": "src/domains·src/game·src/battle2d/sim에 Math.random·Date.now 추가",
+          "preWriteRule": "난수는 rng.js의 draw(draft.rng), 시간은 draft.calendar만 쓴다",
+          "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
+        }
+      ]
+    },
+    {
+      "id": "bellum-save",
+      "title": "저장과 예전 저장 변환",
+      "owner": "src/persist가 저장 파일을 쓰고 읽는다. 임시 칸에 먼저 쓰고 검사한 뒤 본 칸으로 옮긴다. 예전 버전 저장(ars_bellum_save_v1)은 처음 열 때 읽어서 바꾸기만 하고 절대 바꾸거나 지우지 않는다",
+      "files": [
+        "src/persist/migrate-v1.js",
+        "src/persist/save.js",
+        "src/persist/schema.js",
+        "src/persist/storage.js",
+        "tests/fixtures/v1-new-game-save.json",
+        "tests/unit/save.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/save.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/browser/ui-save.spec.mjs",
+          "kind": "BROWSER_TEST"
+        }
+      ],
+      "storage": {
+        "reads": [
+          "ars_bellum_save_v2",
+          "ars_bellum_save_v2_staging",
+          "ars_bellum_save_v1"
+        ],
+        "writes": [
+          "ars_bellum_save_v2",
+          "ars_bellum_save_v2_staging"
+        ]
+      },
+      "risks": [
+        {
+          "id": "save-01",
+          "risk": "예전 저장 키 ars_bellum_save_v1에 쓰거나 지우면 이전 버전 플레이어의 저장이 사라진다",
+          "trigger": "src/persist/save.js·storage.js에서 V1_SAVE_KEY로 set/remove",
+          "preWriteRule": "persist.v1.key-untouched 검사를 돌리고, v1 키는 get만 쓴다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        },
+        {
+          "id": "save-02",
+          "risk": "본 칸을 쓰다 실패했을 때 이전 내용으로 되돌리지 않으면 저장이 깨진 채 남는다",
+          "trigger": "src/persist/save.js의 임시 칸·되돌림 순서 변경",
+          "preWriteRule": "save 단위 검사(쓰기 실패 시 이전 저장 유지)를 돌린다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        },
+        {
+          "id": "save-03",
+          "risk": "예전 저장 변환이 실제 예전 저장과 다르게 바뀌면 이전 플레이어 게임이 안 열린다",
+          "trigger": "src/persist/migrate-v1.js 변경, tests/fixtures/v1-new-game-save.json 교체",
+          "preWriteRule": "fixture는 옛 게임에서 실제로 만든 파일이므로 고치지 말고, persist.v1.imports-earlier-save가 통과하게 코드를 맞춘다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        }
+      ]
+    },
+    {
+      "id": "bellum-world-map",
+      "title": "세계 지도·길·이동",
+      "owner": "src/domains/world가 지도 데이터(거점·길·지형)와 무리의 이동을 맡는다. 이동 상태는 world 규칙으로만 바뀐다",
+      "files": [
+        "src/domains/world/checks.js",
+        "src/domains/world/constants.js",
+        "src/domains/world/data/map.js",
+        "src/domains/world/data/nodes.js",
+        "src/domains/world/data/roads.js",
+        "src/domains/world/data/terrain-types.js",
+        "src/domains/world/data/zones.js",
+        "src/domains/world/geometry.js",
+        "src/domains/world/index.js",
+        "src/domains/world/movement.js",
+        "src/domains/world/routes.js",
+        "src/domains/world/rules.js",
+        "src/domains/world/terrain.js",
+        "src/domains/world/world.js",
+        "tests/unit/world-movement.test.mjs",
+        "tests/unit/world-routes.test.mjs",
+        "tests/unit/world-terrain.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/world-movement.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/world-routes.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/world-terrain.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/browser/ui-map.spec.mjs",
+          "kind": "BROWSER_TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "world-01",
+          "risk": "world 기록 모양은 예전 저장과 같게 유지된다. 모양을 바꾸면 예전 저장 변환이 깨진다",
+          "trigger": "src/domains/world 기록 필드 이름·모양 변경",
+          "preWriteRule": "src/persist 변환 단계를 같이 고치고 save·world 검사를 돌린다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        }
+      ]
+    },
+    {
+      "id": "bellum-settlements",
+      "title": "영지(인구·생산·건설·재고)",
+      "owner": "src/domains/settlements가 영지의 인구·노동·생산·건설·재고·금고를 맡고, 하루 단계(dailySteps)로 매일 계산된다. 비용은 모두 낼 수 있을 때만 한 번에 뺀다",
+      "files": [
+        "src/domains/settlements/buildings.js",
+        "src/domains/settlements/checks.js",
+        "src/domains/settlements/config.js",
+        "src/domains/settlements/construction.js",
+        "src/domains/settlements/daily.js",
+        "src/domains/settlements/demography.js",
+        "src/domains/settlements/effects.js",
+        "src/domains/settlements/finance.js",
+        "src/domains/settlements/index.js",
+        "src/domains/settlements/labor-types.js",
+        "src/domains/settlements/labor.js",
+        "src/domains/settlements/production.js",
+        "src/domains/settlements/records.js",
+        "src/domains/settlements/resources.js",
+        "src/domains/settlements/rules.js",
+        "src/domains/settlements/seed-data.js",
+        "src/domains/settlements/seed.js",
+        "src/domains/settlements/stock.js",
+        "tests/unit/settlements.construction.test.mjs",
+        "tests/unit/settlements.daily.test.mjs",
+        "tests/unit/settlements.stock.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/settlements.construction.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/settlements.daily.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/settlements.stock.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/browser/ui-settlement.spec.mjs",
+          "kind": "BROWSER_TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "settle-01",
+          "risk": "건설 비용 중 일부만 빠지고 실패하면 재고·금고가 어긋난다",
+          "trigger": "src/domains/settlements/construction.js·stock.js·finance.js 비용 처리 변경",
+          "preWriteRule": "settlements.construction 검사(부족하면 아무것도 안 빠짐)를 돌린다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        }
+      ]
+    },
+    {
+      "id": "bellum-people",
+      "title": "인물·무리·조종",
+      "owner": "src/domains/characters가 인물과 성장·상태·활동을, groups가 무리를, control이 플레이어가 조종하는 대상을 맡는다",
+      "files": [
+        "src/domains/characters/activity/checks.js",
+        "src/domains/characters/activity/profiles.js",
+        "src/domains/characters/activity/rules.js",
+        "src/domains/characters/catalog.js",
+        "src/domains/characters/checks.js",
+        "src/domains/characters/condition.js",
+        "src/domains/characters/index.js",
+        "src/domains/characters/progression.js",
+        "src/domains/characters/rules.js",
+        "src/domains/characters/shape.js",
+        "src/domains/characters/store.js",
+        "src/domains/groups/catalog.js",
+        "src/domains/groups/checks.js",
+        "src/domains/groups/index.js",
+        "src/domains/groups/rules.js",
+        "src/domains/groups/shape.js",
+        "src/domains/control/checks.js",
+        "src/domains/control/index.js",
+        "src/domains/control/rules.js",
+        "tests/unit/characters.test.mjs",
+        "tests/unit/control.test.mjs",
+        "tests/unit/groups.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/characters.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/groups.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/control.test.mjs",
+          "kind": "TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": []
+    },
+    {
+      "id": "bellum-economy",
+      "title": "돈·빚·소지품",
+      "owner": "src/domains/finance가 계좌·이체·빚을, inventory가 소지품을 맡는다. 이체는 전부 되거나 전혀 안 된다",
+      "files": [
+        "src/domains/finance/checks.js",
+        "src/domains/finance/index.js",
+        "src/domains/finance/rules.js",
+        "src/domains/inventory/checks.js",
+        "src/domains/inventory/index.js",
+        "src/domains/inventory/rules.js",
+        "tests/unit/finance.test.mjs",
+        "tests/unit/inventory.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/finance.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/inventory.test.mjs",
+          "kind": "TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": []
+    },
+    {
+      "id": "bellum-politics",
+      "title": "가문·세력·작위·상속",
+      "owner": "src/domains/politics가 가문·세력·작위·영지권·소속·조약·상속을 맡는다. 지금 게임 화면에서 부르는 곳은 적다",
+      "files": [
+        "src/domains/politics/affiliation.js",
+        "src/domains/politics/checks.js",
+        "src/domains/politics/clans.js",
+        "src/domains/politics/definitions.js",
+        "src/domains/politics/factions.js",
+        "src/domains/politics/index.js",
+        "src/domains/politics/land-rights.js",
+        "src/domains/politics/pacts.js",
+        "src/domains/politics/policies.js",
+        "src/domains/politics/shared.js",
+        "src/domains/politics/succession.js",
+        "src/domains/politics/titles.js",
+        "tests/unit/politics-policies.test.mjs",
+        "tests/unit/politics.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/politics.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/politics-policies.test.mjs",
+          "kind": "TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": []
+    },
+    {
+      "id": "bellum-social-records",
+      "title": "관계·기억·후속 사건",
+      "owner": "src/domains/relations가 인물 사이 관계를, memories가 기억을, followups가 나중에 일어날 사건을 맡는다",
+      "files": [
+        "src/domains/relations/checks.js",
+        "src/domains/relations/index.js",
+        "src/domains/relations/rules.js",
+        "src/domains/memories/checks.js",
+        "src/domains/memories/index.js",
+        "src/domains/memories/rules.js",
+        "src/domains/followups/checks.js",
+        "src/domains/followups/events.js",
+        "src/domains/followups/index.js",
+        "src/domains/followups/rules.js",
+        "src/domains/followups/shared.js",
+        "tests/unit/followups.test.mjs",
+        "tests/unit/memories.test.mjs",
+        "tests/unit/relations.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/relations.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/memories.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/followups.test.mjs",
+          "kind": "TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": []
+    },
+    {
+      "id": "bellum-definitions",
+      "title": "정의 목록과 참조",
+      "owner": "src/domains/definitions가 다른 영역이 쓰는 정의(종류 목록)와 참조 확인을 맡는다",
+      "files": [
+        "src/domains/definitions/checks.js",
+        "src/domains/definitions/index.js",
+        "src/domains/definitions/refs.js",
+        "src/domains/definitions/registry.js",
+        "src/domains/definitions/rules.js",
+        "tests/unit/definitions.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/definitions.test.mjs",
+          "kind": "TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": []
+    },
+    {
+      "id": "bellum-battle2d",
+      "title": "2D 전투",
+      "owner": "src/battle2d/sim이 시드로 정해지는 전투 시뮬레이션을, src/battle2d/ui가 그리기·입력·HUD를 맡는다. 결과는 onEnd로 한 번만 넘기고 저장은 하지 않는다. battle2d.html은 개발용 단독 페이지",
+      "files": [
+        "src/battle2d/index.js",
+        "src/battle2d/sim/ai.js",
+        "src/battle2d/sim/army.js",
+        "src/battle2d/sim/battle.js",
+        "src/battle2d/sim/diplomacy.js",
+        "src/battle2d/sim/engine.js",
+        "src/battle2d/sim/formations.js",
+        "src/battle2d/sim/lord-dialogue.js",
+        "src/battle2d/sim/outcome.js",
+        "src/battle2d/sim/random.js",
+        "src/battle2d/sim/soldier.js",
+        "src/battle2d/sim/squad.js",
+        "src/battle2d/sim/terrain-types.js",
+        "src/battle2d/sim/terrain.js",
+        "src/battle2d/sim/unit-stats.js",
+        "src/battle2d/ui/camera.js",
+        "src/battle2d/ui/hud.js",
+        "src/battle2d/ui/input.js",
+        "src/battle2d/ui/renderer.js",
+        "src/battle2d/ui/session.js",
+        "src/battle2d/ui/styles.js",
+        "battle2d.html",
+        "tests/support/battle2d-fixtures.mjs",
+        "tests/browser/battle2d.spec.mjs",
+        "tests/unit/battle2d-battle.test.mjs",
+        "tests/unit/battle2d-sim.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/battle2d-sim.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/battle2d-battle.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/browser/battle2d.spec.mjs",
+          "kind": "BROWSER_TEST"
+        },
+        {
+          "path": "tests/browser/ui-battle.spec.mjs",
+          "kind": "BROWSER_TEST"
+        },
+        {
+          "path": ".github/workflows/verify.yml",
+          "kind": "CI"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "b2d-01",
+          "risk": "쓰러진 병사가 같은 틱에 공격하면 죽은 병사가 피해를 준다(옛 코드에 있던 버그)",
+          "trigger": "src/battle2d/sim/engine.js·soldier.js의 공격 처리 순서 변경",
+          "preWriteRule": "battle2d-sim 검사의 죽은 병사 검사를 돌린다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        },
+        {
+          "id": "b2d-02",
+          "risk": "전투 시뮬레이션에서 Math.random을 쓰면 같은 시드가 다른 결과를 낸다",
+          "trigger": "src/battle2d/sim 변경",
+          "preWriteRule": "random.js만 쓰고 battle2d.page.no-math-random 검사를 돌린다",
+          "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
+        },
+        {
+          "id": "b2d-03",
+          "risk": "onEnd가 두 번 불리거나 dispose 뒤에도 프레임·타이머가 남으면 결과가 두 번 처리된다",
+          "trigger": "src/battle2d/ui/session.js의 끝내기·정리 변경",
+          "preWriteRule": "battle2d.page.win-calls-onend-once와 dispose 검사를 돌린다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        }
+      ]
+    },
+    {
+      "id": "bellum-test-harness",
+      "title": "검사 목록과 실행기·CI",
+      "owner": "tests/checks.json이 필수 검사의 유일한 목록이다. tests/run-all.mjs(npm test)가 정적 검사·3D 검사·단위·브라우저 검사를 모두 돌려 test-results/results.json을 쓴다. CI 세 개(test·verify·verify-m2)가 이를 돌린다",
+      "files": [
+        "tests/checks.json",
+        "tests/run-all.mjs",
+        "tests/support/node-reporter.mjs",
+        "tests/support/static-server.mjs",
+        "tests/support/m2-browser-result.mjs",
+        "tests/browser/ui-helpers.mjs",
+        "tests/browser/m2-helpers.mjs",
+        "tests/browser/m2-battle.spec.mjs",
+        "tests/unit/ui-helpers.mjs",
+        "playwright.config.mjs",
+        "verify.mjs",
+        "package.json",
+        "package-lock.json",
+        ".github/workflows/test.yml",
+        ".github/workflows/verify.yml"
+      ],
+      "validators": [
+        {
+          "path": ".github/workflows/test.yml",
+          "kind": "CI"
+        },
+        {
+          "path": ".github/workflows/verify.yml",
+          "kind": "CI"
+        },
+        {
+          "path": ".github/workflows/m2-verify.yml",
+          "kind": "CI"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "harness-01",
+          "risk": "검사 제목이 [id]로 시작하지 않거나 checks.json에 없으면 npm test가 실패한다. 목록에서 지우면 검사가 조용히 빠진다",
+          "trigger": "tests/checks.json 또는 검사 제목 변경",
+          "preWriteRule": "검사를 지울 때는 대신하는 검사를 같은 변경에 넣고 npm test 결과의 개수를 확인한다",
+          "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
+        },
+        {
+          "id": "harness-02",
+          "risk": "SwiftShader 설정을 2D 검사에도 쓰면 2D 캔버스가 몇 초씩 멈춰(약 7fps) 시간 기반 검사가 실패한다",
+          "trigger": "playwright.config.mjs의 projects·launchOptions 변경",
+          "preWriteRule": "3D(m2-*.spec.mjs)만 webgl 프로젝트에 두고, 바꾼 뒤 CI와 같은 기본 브라우저로 npm test를 돌린다",
+          "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
+        },
+        {
+          "id": "harness-03",
+          "risk": "CI가 지운 파일을 가리키면 검사가 아닌 이유로 빨간불이 된다(갈아끼우기 PR에서 실제로 났음)",
+          "trigger": "검사 파일 이름 바꾸기·삭제",
+          "preWriteRule": ".github/workflows와 package.json scripts에서 그 이름을 찾아 함께 고친다",
+          "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
+        }
+      ]
+    },
+    {
+      "id": "bellum-docs",
+      "title": "문서",
+      "owner": "README.md가 실행·검사 방법을, docs/REWRITE.md가 src 아래 코드 규칙을 적는다. 코드를 바꾼 사람이 같이 고친다",
+      "files": [
+        "README.md",
+        "docs/REWRITE.md"
+      ],
+      "validators": [],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "docs-01",
+          "risk": "docs/REWRITE.md 첫 문단은 아직 \"옛 루트 파일이 남아 돌아간다\"고 적혀 있으나 갈아끼우기(f1faa8e)로 이미 지워졌다",
+          "trigger": "문서를 근거로 구조를 판단할 때",
+          "preWriteRule": "문서보다 코드와 이 지도를 먼저 믿고, 문서를 고칠 때 이 문단을 함께 고친다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        }
+      ]
+    },
+    {
+      "id": "bellum-vendor-three",
+      "title": "three.js 라이브러리(r184)",
+      "owner": "vendor/three/r184가 3D 전투가 쓰는 three.js를 고정된 판으로 담는다. 판을 바꾸는 것은 사용자 승인으로만 한다",
+      "files": [
+        "vendor/three/r184/LICENSE",
+        "vendor/three/r184/MANIFEST.json",
+        "vendor/three/r184/three.core.min.js",
+        "vendor/three/r184/three.module.min.js"
+      ],
+      "validators": [
+        {
+          "path": "m2_verify.mjs",
+          "kind": "SCRIPT"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "three-01",
+          "risk": "three.js 판을 바꾸면 3D 렌더러가 깨질 수 있다",
+          "trigger": "vendor/three 아래 파일 변경",
+          "preWriteRule": "판을 바꾸지 말고, 꼭 필요하면 사용자에게 묻고 verify-m2를 돌린다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "from": "index.html",
+      "to": "src/main.js",
+      "kind": "uses",
+      "at": "index.html:13",
+      "note": "HTML script 태그로 불러온다"
+    },
+    {
+      "from": "index.html",
+      "to": "src/ui/ui.css",
+      "kind": "uses",
+      "at": "index.html:8",
+      "note": "HTML link 태그로 불러온다"
+    },
+    {
+      "from": "battle2d.html",
+      "to": "src/battle2d/index.js",
+      "kind": "uses",
+      "at": "battle2d.html:29",
+      "note": "HTML 안 모듈 스크립트에서 불러온다"
+    },
+    {
+      "from": "src/ui/world-screen.js",
+      "to": "castle_icon.png",
+      "kind": "uses",
+      "at": "src/ui/world-screen.js:23",
+      "note": "new URL로 그림 경로를 만든다"
+    },
+    {
+      "from": "verify.mjs",
+      "to": "index.html",
+      "kind": "tests",
+      "at": "verify.mjs:28",
+      "note": "index.html의 스크립트와 그 모듈들을 읽어 검사한다"
+    },
+    {
+      "from": "tests/run-all.mjs",
+      "to": "tests/checks.json",
+      "kind": "uses",
+      "at": "tests/run-all.mjs:1",
+      "note": "검사 목록을 읽는다"
+    },
+    {
+      "from": "tests/run-all.mjs",
+      "to": "verify.mjs",
+      "kind": "uses",
+      "at": "tests/run-all.mjs:35",
+      "note": "정적 검사를 따로 실행한다"
+    },
+    {
+      "from": "tests/run-all.mjs",
+      "to": "m2_verify.mjs",
+      "kind": "uses",
+      "at": "tests/run-all.mjs:45",
+      "note": "3D 정적 검사를 따로 실행한다"
+    },
+    {
+      "from": "tests/run-all.mjs",
+      "to": "playwright.config.mjs",
+      "kind": "uses",
+      "at": "tests/run-all.mjs:82",
+      "note": "Playwright를 실행하면 이 설정을 읽는다"
+    },
+    {
+      "from": "playwright.config.mjs",
+      "to": "tests/support/static-server.mjs",
+      "kind": "uses",
+      "at": "playwright.config.mjs:37",
+      "note": "검사용 웹 서버를 띄운다"
+    },
+    {
+      "from": "tests/browser/ui-helpers.mjs",
+      "to": "index.html",
+      "kind": "tests",
+      "at": "tests/browser/ui-helpers.mjs:49",
+      "note": "브라우저로 게임 페이지를 연다"
+    },
+    {
+      "from": "tests/browser/ui-map.spec.mjs",
+      "to": "index.html",
+      "kind": "tests",
+      "at": "tests/browser/ui-map.spec.mjs:9",
+      "note": "브라우저로 게임 페이지를 연다"
+    },
+    {
+      "from": "tests/browser/battle2d.spec.mjs",
+      "to": "battle2d.html",
+      "kind": "tests",
+      "at": "tests/browser/battle2d.spec.mjs:1",
+      "note": "브라우저로 2D 전투 페이지를 연다"
+    },
+    {
+      "from": "tests/browser/m2-helpers.mjs",
+      "to": "m2_prototype.html",
+      "kind": "tests",
+      "at": "tests/browser/m2-helpers.mjs:1",
+      "note": "브라우저로 3D 전투 페이지를 연다"
+    },
+    {
+      "from": ".github/workflows/verify.yml",
+      "to": "verify.mjs",
+      "kind": "uses",
+      "at": ".github/workflows/verify.yml:23",
+      "note": "CI에서 실행"
+    },
+    {
+      "from": ".github/workflows/test.yml",
+      "to": "tests/run-all.mjs",
+      "kind": "uses",
+      "at": ".github/workflows/test.yml:22",
+      "note": "npm test가 run-all.mjs를 실행"
+    },
+    {
+      "from": "tests/unit/save.test.mjs",
+      "to": "tests/fixtures/v1-new-game-save.json",
+      "kind": "tests",
+      "at": "tests/unit/save.test.mjs:10",
+      "note": "옛 게임에서 만든 실제 저장으로 변환을 검사"
+    }
+  ],
+  "unassigned": [
+    {
+      "path": "M2_INIT_PLACEHOLDER",
+      "reason": "3D 첫 단계 때 만든 빈 표시 파일. 코드에서 쓰지 않는다"
+    },
+    {
+      "path": ".gitignore",
+      "reason": "git 설정. 게임·검사 동작과 무관"
+    }
+  ],
+  "replacesN0Groups": [
+    "group:bellum-battle-main",
+    "group:bellum-core",
+    "group:bellum-doc-assets",
+    "group:bellum-world"
+  ],
+  "keptN0Groups": {
+    "group:bellum-m2-candidate": [
+      ".github/workflows/m2-verify.yml",
+      "m2/M2_BattleRuntime.js",
+      "m2/M2_BattleSnapshot.js",
+      "m2/M2_BattleState.js",
+      "m2/M2_Bootstrap.js",
+      "m2/M2_CameraController.js",
+      "m2/M2_CombatProfiles.js",
+      "m2/M2_CombatSystem.js",
+      "m2/M2_CommandQueue.js",
+      "m2/M2_Config.js",
+      "m2/M2_Definitions.js",
+      "m2/M2_Diagnostics.js",
+      "m2/M2_FormationSystem.js",
+      "m2/M2_InputController.js",
+      "m2/M2_MoraleSystem.js",
+      "m2/M2_MovementSystem.js",
+      "m2/M2_RenderSnapshot.js",
+      "m2/M2_RendererThree.js",
+      "m2/M2_ResultSystem.js",
+      "m2/M2_SpatialGrid.js",
+      "m2/fixtures/m2_technical_fixture_v1.js",
+      "m2_prototype.css",
+      "m2_prototype.html",
+      "m2_verify.mjs"
+    ]
+  }
+}
