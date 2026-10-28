@@ -541,6 +541,276 @@
       "title": "the map data is valid, frozen, and bad data is refused",
       "kind": "unit",
       "source": "tests/unit/world-terrain.test.mjs"
+    },
+    {
+      "id": "settlements.construction.enqueue-pays",
+      "title": "queueing a building pays its cost at once and records the job",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.enqueue-refused",
+      "title": "a job that cannot be queued changes nothing and pays nothing",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.chain-levels",
+      "title": "queued levels of one building follow each other and cost more each time",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.cancel-refund",
+      "title": "a job that has not started gets everything back, a started one half",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.cancel-cascade",
+      "title": "cancelling a level also cancels the later levels of that building",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.cancel-refused",
+      "title": "only a job that is waiting or running can be cancelled",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.workforce-input",
+      "title": "the crew size must be a whole number of at least zero",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.no-labor-no-progress",
+      "title": "with nobody assigned a building makes no progress, however long it waits",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.progress-per-laborer",
+      "title": "each laborer adds one unit of work a day, up to the laborers the settlement has free",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.completion-once",
+      "title": "a finished job raises the building by exactly one level, once",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.levels-in-order",
+      "title": "queued levels are built one after another and none is skipped",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.construction.stale-job-cancelled",
+      "title": "a job whose building changed level some other way is cancelled and refunded, not built",
+      "kind": "unit",
+      "source": "tests/unit/settlements.construction.test.mjs"
+    },
+    {
+      "id": "settlements.daily.step-order",
+      "title": "the steps run construction, effects, labor, production, consumption, spoilage, finance, population",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.order-effects",
+      "title": "a building that finishes today already raises capacity and jobs today, and food made today is eaten today",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.deterministic",
+      "title": "the same start and the same days give the same state, also across a save and load",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.catch-up-equals-single-days",
+      "title": "processing 30 days one at a time equals processing them in one catch-up",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.failed-day-changes-nothing",
+      "title": "if a later step fails the whole day is discarded, including every settlement step",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.no-negatives",
+      "title": "after hundreds of days of hunger, debt and heavy upkeep no stock, money or count is below zero",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.daily.unknown-resource-kept",
+      "title": "a resource id the catalog does not know is never dropped, spoiled or eaten",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.production.farm-output",
+      "title": "a farm makes its recipe amount per level, and idle peasants add a little subsistence grain",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.production.labor-limited",
+      "title": "too few workers slow a building down, and below its minimum rate it stops",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.production.inputs",
+      "title": "a processing building uses its inputs, runs at the rate they allow and stops without them",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.production.switched-off",
+      "title": "a switched-off building produces nothing, offers no jobs and still costs upkeep",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.consumption.eats-in-order",
+      "title": "people eat perishable food first and grain last, and a full meal means full satisfaction",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.consumption.shortage",
+      "title": "with no food nobody eats, satisfaction falls to zero and deaths become more likely",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.spoilage.rates",
+      "title": "perishable goods lose their daily share, warehouses reduce the loss, unknown goods and non-perishables stay",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.production.goods-balance",
+      "title": "every day, goods at the start plus made minus used, eaten and spoiled equals goods at the end",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.finance.maintenance-charged",
+      "title": "every building costs its upkeep from the treasury each day, paid to private wealth, and only what the treasury holds",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.finance.wages-taxes",
+      "title": "the treasury pays wages to its staff and crew, and private wealth pays tax on production and wages",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.population.base-rates-stay",
+      "title": "the base birth and death rates do not shrink from day to day",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.population.capacity-limits",
+      "title": "a crowded settlement gets no arrivals, loses people, and its demography stays whole",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.labor.employment-balance",
+      "title": "everyone in the workforce is either employed or not, and construction work counts as laborer jobs",
+      "kind": "unit",
+      "source": "tests/unit/settlements.daily.test.mjs"
+    },
+    {
+      "id": "settlements.cost.all-or-nothing",
+      "title": "a cost that cannot be paid in full takes nothing, even when part of it is affordable",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.cost.unknown-resource",
+      "title": "a cost that names a resource nobody defined is refused whole",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.cost.invalid-input",
+      "title": "bad costs, amounts, rates and settlement ids are refused",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.cost.refund-rate",
+      "title": "a refund gives back the given share of gold and goods",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.stock.no-negative",
+      "title": "goods and gold cannot be taken below zero",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.settings.limits",
+      "title": "tax rate, wage index and building switches only accept valid values",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.seed.creates-all",
+      "title": "seeding the map data creates consistent records for every settlement",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.seed.idempotent",
+      "title": "seeding again changes nothing, not even a settlement that has since changed",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.seed.all-or-nothing",
+      "title": "one bad entry means no settlement is created at all",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.seed.invalid-entries",
+      "title": "every kind of bad map entry is named and refused",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.seed.unknown-resource-kept",
+      "title": "a resource id the catalog does not know survives seeding and every read",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.check.rejects-bad-records",
+      "title": "the state check refuses negative, missing or inconsistent settlement data",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "settlements.catalog.consistent",
+      "title": "every id the tables mention exists, shares add up, formulas refuse levels that do not exist",
+      "kind": "unit",
+      "source": "tests/unit/settlements.stock.test.mjs"
     }
   ]
 }
