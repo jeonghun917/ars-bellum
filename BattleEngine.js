@@ -343,6 +343,10 @@ class BattleEngine {
                 let u2 =
                     allSoldiers[j];
 
+                // A soldier killed earlier this frame (by arrows or an earlier pair) neither strikes,
+                // charges, is struck nor pushes others.
+                if (u1.hp <= 0 || u2.hp <= 0) continue;
+
                 let dx =
                     u2.x -
                     u1.x;
@@ -401,7 +405,7 @@ class BattleEngine {
                                 ? 1.5
                                 : 1.0;
 
-                        if (isU1Charge) {
+                        if (isU1Charge && u1.hp > 0 && u2.hp > 0) {
                             let blockMult =
                                 this.getDamageMultiplier(
                                     u1,
@@ -439,7 +443,7 @@ class BattleEngine {
                             }
                         }
 
-                        if (isU2Charge) {
+                        if (isU2Charge && u1.hp > 0 && u2.hp > 0) {
                             let blockMult =
                                 this.getDamageMultiplier(
                                     u2,
@@ -479,7 +483,9 @@ class BattleEngine {
 
                         if (
                             u1.attackCooldown <=
-                            0
+                                0 &&
+                            u1.hp > 0 &&
+                            u2.hp > 0
                         ) {
                             let blockMult =
                                 this.getDamageMultiplier(
@@ -558,7 +564,9 @@ class BattleEngine {
 
                         if (
                             u2.attackCooldown <=
-                            0
+                                0 &&
+                            u2.hp > 0 &&
+                            u1.hp > 0
                         ) {
                             let blockMult =
                                 this.getDamageMultiplier(
