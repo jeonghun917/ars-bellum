@@ -7,7 +7,7 @@
   "scripts": {
     "verify": "node verify.mjs",
     "verify:m2": "node m2_verify.mjs",
-    "test:battle2d": "node --test tests/unit/battle2d.test.mjs",
+    "test:battle2d": "node --test tests/unit/battle2d-sim.test.mjs tests/unit/battle2d-battle.test.mjs tests/unit/ui-battle.test.mjs",
     "test:browser": "playwright test",
     "test": "node tests/run-all.mjs"
   },
