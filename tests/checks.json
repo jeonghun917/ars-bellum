@@ -445,6 +445,102 @@
       "title": "two living soldiers in reach both strike",
       "kind": "unit",
       "source": "tests/unit/battle2d.test.mjs"
+    },
+    {
+      "id": "world.move.arrival-once",
+      "title": "a group arrives at its destination exactly once, and stays put afterwards",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.move.one-commit-per-step",
+      "title": "a frame is one commit however far it goes, and an idle frame is none",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.move.terrain-speed",
+      "title": "speed follows the ground under the group: road faster, forest slower",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.move.blocked-result",
+      "title": "impassable ground ends the order with a blocked event instead of freezing the group",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.command.manual-cancels-route",
+      "title": "a manual order replaces the road route",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.command.cancel-only-given-group",
+      "title": "cancelling a route touches that group and no other",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.order.road-or-direct",
+      "title": "a settlement order uses the roads when it can and walks straight when it cannot",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.rules.failed-changes-nothing",
+      "title": "a rule that fails changes nothing, in the draft or in the store",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.check.state-shape",
+      "title": "saved movement is checked, and the earlier version's whole-node targetNode is accepted",
+      "kind": "unit",
+      "source": "tests/unit/world-movement.test.mjs"
+    },
+    {
+      "id": "world.route.shortest-road-path",
+      "title": "the route follows the cheapest roads, not the fewest",
+      "kind": "unit",
+      "source": "tests/unit/world-routes.test.mjs"
+    },
+    {
+      "id": "world.route.deterministic-ties",
+      "title": "equal-cost routes are settled by id, whatever order the data is listed in",
+      "kind": "unit",
+      "source": "tests/unit/world-routes.test.mjs"
+    },
+    {
+      "id": "world.route.unreachable",
+      "title": "a route that cannot be made says why, and nothing is invented",
+      "kind": "unit",
+      "source": "tests/unit/world-routes.test.mjs"
+    },
+    {
+      "id": "world.terrain.profile-values-match-old",
+      "title": "every base, route and feature combination gives the earlier version's travel profile",
+      "kind": "unit",
+      "source": "tests/unit/world-terrain.test.mjs"
+    },
+    {
+      "id": "world.terrain.cell-rules",
+      "title": "the ground is plain unless a zone or a road says otherwise, and outside the map is sea",
+      "kind": "unit",
+      "source": "tests/unit/world-terrain.test.mjs"
+    },
+    {
+      "id": "world.terrain.road-geometry",
+      "title": "a road is one polyline through its bends, used for both the road cell and the route length",
+      "kind": "unit",
+      "source": "tests/unit/world-terrain.test.mjs"
+    },
+    {
+      "id": "world.data.static-valid",
+      "title": "the map data is valid, frozen, and bad data is refused",
+      "kind": "unit",
+      "source": "tests/unit/world-terrain.test.mjs"
     }
   ]
 }
