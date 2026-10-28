@@ -4,66 +4,87 @@
   background: #10151a;
   color: #eef2f4;
 }
-
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 body { background: #10151a; }
-button { font: inherit; }
-
+button, select { font: inherit; color: inherit; }
+button { touch-action: none; user-select: none; }
 .m2-app { position: relative; width: 100%; height: 100%; background: #10151a; }
 #m2Canvas { width: 100%; height: 100%; display: block; touch-action: none; }
 
 .m2-header {
-  position: absolute; top: 0; left: 0; right: 0;
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
   display: flex; justify-content: space-between; gap: 16px;
   padding: 18px 20px;
-  background: linear-gradient(180deg, rgba(9, 13, 17, .92), rgba(9, 13, 17, 0));
+  background: linear-gradient(180deg, rgba(9,13,17,.92), rgba(9,13,17,0));
   pointer-events: none;
 }
-.m2-header h1 { margin: 2px 0 0; font-size: clamp(24px, 4vw, 42px); letter-spacing: .12em; }
+.m2-header h1 { margin: 2px 0 0; font-size: clamp(24px,4vw,42px); letter-spacing: .12em; }
 .m2-header p { margin: 6px 0 0; color: #aebac2; font-size: 13px; }
-.m2-kicker { color: #d7b85b; font-size: 11px; font-weight: 800; letter-spacing: .16em; }
-.m2-status {
-  align-self: flex-start; padding: 8px 12px; border: 1px solid rgba(255,255,255,.18);
-  border-radius: 999px; background: rgba(12,18,23,.76); font-size: 12px; white-space: nowrap;
-}
+.m2-kicker { color: #d7b85b; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.m2-status { align-self: flex-start; padding: 8px 12px; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; background: rgba(12,18,23,.76); font-size: 12px; white-space: nowrap; }
 
-.m2-controls {
-  position: absolute; left: 16px; bottom: 18px; z-index: 3;
-  display: flex; flex-wrap: wrap; gap: 8px;
+.m2-controls, .m2-combat-controls, .m2-tactical-panel {
+  position: absolute; z-index: 5; display: flex; gap: 7px;
 }
-.m2-controls button {
-  min-width: 76px; padding: 10px 14px; border: 1px solid rgba(255,255,255,.17);
-  border-radius: 8px; background: rgba(20,29,36,.9); color: #f3f5f6; cursor: pointer;
+.m2-runtime-controls { left: 14px; bottom: 14px; flex-wrap: wrap; }
+.m2-combat-controls { right: 14px; bottom: 14px; }
+.m2-tactical-panel {
+  left: 14px; top: 104px; width: 230px; padding: 10px; flex-direction: column;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 9px; background: rgba(8,12,15,.78);
 }
-.m2-controls button:hover { background: rgba(39,52,61,.96); }
-.m2-controls button:disabled { opacity: .45; cursor: default; }
+.m2-tactical-panel label { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 6px; font-size: 11px; }
+.m2-tactical-panel select { width: 100%; background: rgba(20,29,36,.95); border: 1px solid rgba(255,255,255,.17); border-radius: 6px; padding: 6px; }
+.m2-button-row { display: flex; gap: 5px; }
+.m2-button-row button { flex: 1; min-width: 0; }
+
+.m2-controls button, .m2-combat-controls button, .m2-tactical-panel button {
+  min-width: 68px; padding: 9px 11px; border: 1px solid rgba(255,255,255,.17);
+  border-radius: 8px; background: rgba(20,29,36,.92); cursor: pointer;
+}
+button:hover { background: rgba(39,52,61,.96); }
+button:disabled { opacity: .45; cursor: default; }
+
+.m2-virtual-stick {
+  position: absolute; z-index: 7; left: 20px; bottom: 74px;
+  width: 112px; height: 112px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.24); background: rgba(20,29,36,.38);
+  touch-action: none;
+}
+.m2-virtual-stick span {
+  position: absolute; left: 50%; top: 50%; width: 42px; height: 42px; transform: translate(-50%,-50%);
+  border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(215,184,91,.18);
+}
 
 .m2-legend {
-  position: absolute; right: 16px; bottom: 18px; z-index: 3;
-  display: grid; gap: 6px; padding: 10px 12px; min-width: 190px;
+  position: absolute; right: 14px; bottom: 66px; z-index: 3;
+  display: grid; gap: 5px; padding: 9px 11px; min-width: 180px;
   border: 1px solid rgba(255,255,255,.13); border-radius: 8px;
-  background: rgba(9,14,18,.82); color: #c9d2d7; font-size: 11px;
+  background: rgba(9,14,18,.82); color: #c9d2d7; font-size: 10px;
+  pointer-events: none;
 }
-.m2-legend span { display: flex; align-items: center; gap: 8px; }
-.m2-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.m2-legend span { display: flex; align-items: center; gap: 7px; }
+.m2-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .m2-legend .ally { background: #4f7fa4; }
 .m2-legend .enemy { background: #a4524c; }
-.m2-legend .player { background: #d7b85b; box-shadow: 0 0 0 2px rgba(215,184,91,.25); }
+.m2-legend .player { background: #d7b85b; }
 
 .m2-diagnostics {
-  position: absolute; top: 112px; right: 16px; z-index: 2;
-  width: min(310px, calc(100vw - 32px)); max-height: 42vh; margin: 0; padding: 12px;
+  position: absolute; top: 104px; right: 14px; z-index: 2;
+  width: min(330px, calc(100vw - 28px)); max-height: 46vh; margin: 0; padding: 11px;
   overflow: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 8px;
-  background: rgba(8,12,15,.78); color: #bfe1cc; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(8,12,15,.76); color: #bfe1cc; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
   pointer-events: none;
 }
 
-@media (max-width: 720px) {
-  .m2-header { padding: 14px; }
-  .m2-header p { max-width: 230px; }
-  .m2-diagnostics { top: 104px; right: 10px; width: 235px; max-height: 35vh; font-size: 10px; }
-  .m2-controls { left: 10px; bottom: 10px; max-width: calc(100vw - 20px); }
-  .m2-controls button { min-width: 68px; padding: 9px 10px; }
+@media (max-width: 760px) {
+  .m2-header { padding: 12px; }
+  .m2-header p { display: none; }
+  .m2-diagnostics { display: none; }
+  .m2-tactical-panel { top: 86px; left: 8px; width: min(218px, 58vw); }
+  .m2-runtime-controls { display: none; }
+  .m2-combat-controls { right: 8px; bottom: 8px; display: grid; grid-template-columns: repeat(2, minmax(72px,1fr)); }
+  .m2-combat-controls button { padding: 11px 8px; }
+  .m2-virtual-stick { left: 10px; bottom: 10px; }
   .m2-legend { display: none; }
 }

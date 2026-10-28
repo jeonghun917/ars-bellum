@@ -1,494 +1,112 @@
 name: Verify ARS BELLUM M2
-
 on:
   push:
-    branches:
-      - m2/3d-tech-prototype-v1
-    paths:
-      - m2_prototype.html
-      - m2_prototype.css
-      - m2/**
-      - vendor/three/r184/**
-      - m2_verify.mjs
-      - package.json
-      - .github/workflows/m2-verify.yml
-      - m2_ci_browser_verification_result.json
-      - m2_ci_m1_verification_result.json
-      - m2_ci_verification_result.json
+    branches: [m2/20v20-vertical-slice-v1]
+    paths: [m2_prototype.html,m2_prototype.css,m2/**,vendor/three/r184/**,m2_verify.mjs,.github/workflows/m2-verify.yml]
   pull_request:
     branches: [main]
-
-permissions:
-  contents: read
-
+permissions: {contents: read}
 jobs:
   verify-m2:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
-
+        with: {fetch-depth: 0}
       - name: Guard artifact-only run evidence
         shell: bash
         run: |
           set -euo pipefail
-          tracked_run_results="$(
-            git ls-files -- \
-              m2_ci_browser_verification_result.json \
-              m2_ci_m1_verification_result.json \
-              m2_ci_verification_result.json
-          )"
-
-          if [ -n "$tracked_run_results" ]; then
-            printf '%s\n' "Tracked run-result evidence is prohibited:" >&2
-            printf '%s\n' "$tracked_run_results" >&2
-            exit 1
-          fi
-
-      - name: Initialize run-bound verification evidence
+          tracked="$(git ls-files -- m2_ci_browser_verification_result.json m2_ci_m1_verification_result.json m2_ci_verification_result.json)"
+          test -z "$tracked" || { echo "$tracked" >&2; exit 1; }
+      - name: Initialize run-bound identity
         shell: bash
         run: |
           set -euo pipefail
-          rm -f \
-            m2_ci_m1_verification_result.json \
-            m2_ci_verification_result.json \
-            m2_ci_browser_verification_result.json
-
-          tested_head="$(git rev-parse HEAD)"
-          printf 'M2_TESTED_HEAD=%s\n' "$tested_head" >> "$GITHUB_ENV"
-          export TESTED_HEAD="$tested_head"
-
-          python3 <<'PY'
-          import datetime
-          import json
-          import os
-          from pathlib import Path
-
-          evidence = {
-              "schema": "ARS_BELLUM_M2_BROWSER_EVIDENCE_V1",
-              "testedHead": os.environ["TESTED_HEAD"],
-              "workflowRunId": os.environ["GITHUB_RUN_ID"],
-              "workflowRunAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
-              "scope": "M2_0_ACTUAL_CHROME_WEBGL2",
-              "result": "NOT_TESTED",
-              "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
-          }
-          Path("m2_ci_browser_verification_result.json").write_text(
-              json.dumps(evidence, indent=2) + "\n",
-              encoding="utf-8",
-          )
-          print(json.dumps(evidence, indent=2))
-          PY
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
+          rm -f m2_ci_*_verification_result.json m2_browser_probe_result.json
+          echo "M2_TESTED_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
       - name: Verify M1 baseline
         shell: bash
         run: |
           set -euo pipefail
-          node verify.mjs | tee m2_ci_m1_verification_result.json
-
-      - name: Verify M2 contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          marker="$(mktemp)"
-          set +e
-          node m2_verify.mjs
-          m2_exit=$?
-          set -e
-          if python3 - "$marker" m2_verification_result.json <<'PY'
-          import os
-          import sys
-          marker, result = sys.argv[1:3]
-          raise SystemExit(0 if os.path.exists(result) and os.stat(result).st_mtime_ns > os.stat(marker).st_mtime_ns else 1)
-          PY
-          then
-            cp m2_verification_result.json m2_ci_verification_result.json
-          fi
-          rm -f "$marker"
-          exit "$m2_exit"
-
-      - name: Verify actual Chrome WebGL2 lifecycle
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f m2_browser_probe_result.json
-
-          cat > m2_browser_probe.html <<'HTML'
-          <!DOCTYPE html>
-          <html><head><meta charset="utf-8"><title>M2_BROWSER_PENDING</title></head>
-          <body data-status="PENDING"><canvas id="probe" width="960" height="540"></canvas><pre id="result"></pre>
-          <script type="module">
-          import { M2BattleRuntime } from './m2/M2_BattleRuntime.js';
-          import { M2Diagnostics } from './m2/M2_Diagnostics.js';
-          import { createCombatProfileCatalog } from './m2/M2_CombatProfiles.js';
-          import { M2_TECHNICAL_COMBAT_PROFILES, M2_TECHNICAL_SNAPSHOT } from './m2/fixtures/m2_technical_fixture_v1.js';
-
-          const output = document.getElementById('result');
-          const canvas = document.getElementById('probe');
-          const asyncErrors = [];
-          const unhandledRejections = [];
-          const pageFrames = {
-            pageRafCount: 0,
-            firstPageRafAt: null
-          };
-
-          window.addEventListener('error', (event) => {
-            asyncErrors.push({
-              message: String(event.message || 'window_error'),
-              filename: String(event.filename || ''),
-              lineno: Number(event.lineno || 0),
-              colno: Number(event.colno || 0)
-            });
-          });
-
-          window.addEventListener('unhandledrejection', (event) => {
-            unhandledRejections.push(String(event.reason?.message || event.reason || 'unhandled_rejection'));
-          });
-
-          const trackPageRaf = (timeMs) => {
-            pageFrames.pageRafCount += 1;
-            if (pageFrames.firstPageRafAt === null) pageFrames.firstPageRafAt = timeMs;
-            requestAnimationFrame(trackPageRaf);
-          };
-          requestAnimationFrame(trackPageRaf);
-
-          class EvidenceError extends Error {
-            constructor(classification, message) {
-              super(message);
-              this.classification = classification;
-            }
-          }
-
-          const assert = (condition, message) => {
-            if (!condition) throw new Error(message);
-          };
-
-          const publishResult = async (result) => {
-            output.textContent = JSON.stringify(result);
-            document.body.dataset.status = result.result;
-            document.title = result.result === 'PASS' ? 'M2_BROWSER_PASS' : 'M2_BROWSER_FAIL';
-            const response = await fetch('/__m2_result', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(result),
-              cache: 'no-store'
-            });
-            if (!response.ok) {
-              throw new Error(`browser_probe_publish_failed:${response.status}`);
-            }
-          };
-
-          const installFrameInstrumentation = (diagnostics) => {
-            const metrics = {
-              runtimeFrameCount: 0,
-              firstRuntimeFrameAt: null,
-              sumRuntimeFrameDeltaMs: 0
-            };
-            const originalSampleFrame = diagnostics.sampleFrame.bind(diagnostics);
-            diagnostics.sampleFrame = (frameMs, rendererInfo = {}) => {
-              metrics.runtimeFrameCount += 1;
-              if (metrics.firstRuntimeFrameAt === null) metrics.firstRuntimeFrameAt = performance.now();
-              metrics.sumRuntimeFrameDeltaMs += Number(frameMs || 0);
-              originalSampleFrame(frameMs, rendererInfo);
-            };
-            return metrics;
-          };
-
-          const makeRuntime = () => {
-            const diagnostics = new M2Diagnostics();
-            const frameMetrics = installFrameInstrumentation(diagnostics);
-            const combatProfiles = createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES);
-            const runtime = new M2BattleRuntime({ canvas, diagnostics, combatProfiles });
-            const loaded = runtime.loadSnapshot(M2_TECHNICAL_SNAPSHOT);
-            assert(loaded.ok, loaded.error || 'load_failed');
-            return { runtime, diagnostics, combatProfiles, frameMetrics };
-          };
-
-          const frameEvidence = (entry) => {
-            if (!entry) return null;
-            const snapshot = entry.diagnostics.getSnapshot();
-            return {
-              runtimeFrameCount: entry.frameMetrics.runtimeFrameCount,
-              firstRuntimeFrameAt: entry.frameMetrics.firstRuntimeFrameAt,
-              sumRuntimeFrameDeltaMs: entry.frameMetrics.sumRuntimeFrameDeltaMs,
-              fixedTickCount: snapshot.fixedTickCount
-            };
-          };
-
-          const waitForRuntimeEvidence = async (phase, entry, timeoutMs = 5000) => {
-            const pageRafStart = pageFrames.pageRafCount;
-            const deadline = performance.now() + timeoutMs;
-
-            while (performance.now() < deadline) {
-              const snapshot = entry.diagnostics.getSnapshot();
-              if (
-                pageFrames.pageRafCount > pageRafStart &&
-                entry.frameMetrics.runtimeFrameCount > 0 &&
-                snapshot.fixedTickCount > 0
-              ) {
-                return snapshot;
-              }
-              await new Promise((resolve) => setTimeout(resolve, 25));
-            }
-
-            const snapshot = entry.diagnostics.getSnapshot();
-            if (pageFrames.pageRafCount <= pageRafStart) {
-              throw new EvidenceError(`${phase}_page_raf_missing`, `${phase}_page_raf_missing`);
-            }
-            if (entry.frameMetrics.runtimeFrameCount <= 0) {
-              throw new EvidenceError(`${phase}_runtime_frame_missing`, `${phase}_runtime_frame_missing`);
-            }
-            if (snapshot.fixedTickCount <= 0) {
-              throw new EvidenceError(`${phase}_tick_missing`, `${phase}_tick_missing`);
-            }
-            throw new EvidenceError(`${phase}_watchdog_timeout`, `${phase}_watchdog_timeout`);
-          };
-
-          let first = null;
-          let second = null;
-
-          try {
-            first = makeRuntime();
-            assert(first.combatProfiles.sourceScope === 'M2_TEST_ONLY', 'profile_scope_mismatch');
-            assert(first.runtime.start().ok, 'first_start_failed');
-            const firstSnapshot = await waitForRuntimeEvidence('first_runtime', first);
-            assert(firstSnapshot.animationOwner === 'M2BattleRuntime', 'owner_mismatch');
-            assert(firstSnapshot.persistenceAccess === false, 'persistence_boundary_broken');
-            assert(first.runtime.pause().ok, 'pause_failed');
-            assert(first.runtime.dispose().ok, 'first_dispose_failed');
-            assert(first.runtime.issueCommand({}).error === 'm2_runtime_disposed', 'disposed_guard_missing');
-
-            second = makeRuntime();
-            assert(second.runtime.start().ok, 'second_start_failed');
-            const secondSnapshot = await waitForRuntimeEvidence('second_runtime', second);
-            assert(second.runtime.dispose().ok, 'second_dispose_failed');
-
-            if (asyncErrors.length > 0) {
-              throw new EvidenceError('browser_async_error', 'browser_async_error');
-            }
-            if (unhandledRejections.length > 0) {
-              throw new EvidenceError('browser_unhandled_rejection', 'browser_unhandled_rejection');
-            }
-
-            const result = {
-              result: 'PASS',
-              scope: 'M2_0_ACTUAL_CHROME_WEBGL2',
-              actualWebGL2: true,
-              profileCount: first.combatProfiles.size,
-              profileScope: first.combatProfiles.sourceScope,
-              activeCharacters: firstSnapshot.activeCharacters,
-              animationOwner: firstSnapshot.animationOwner,
-              persistenceAccess: firstSnapshot.persistenceAccess,
-              startPauseDispose: 'PASS',
-              restartOnSameCanvas: 'PASS',
-              pageRafCount: pageFrames.pageRafCount,
-              firstPageRafAt: pageFrames.firstPageRafAt,
-              firstRuntime: frameEvidence(first),
-              secondRuntime: frameEvidence(second),
-              asyncErrors,
-              unhandledRejections
-            };
-            await publishResult(result);
-          } catch (error) {
-            try {
-              if (first && !first.runtime.getStatus().disposed) first.runtime.dispose();
-            } catch {}
-            try {
-              if (second && !second.runtime.getStatus().disposed) second.runtime.dispose();
-            } catch {}
-
-            const result = {
-              result: 'FAIL',
-              scope: 'M2_0_ACTUAL_CHROME_WEBGL2',
-              error: String(error?.message || error),
-              errorClassification: String(error?.classification || 'browser_probe_error'),
-              pageRafCount: pageFrames.pageRafCount,
-              firstPageRafAt: pageFrames.firstPageRafAt,
-              firstRuntime: frameEvidence(first),
-              secondRuntime: frameEvidence(second),
-              asyncErrors,
-              unhandledRejections
-            };
-            try {
-              await publishResult(result);
-            } catch (publishError) {
-              output.textContent = JSON.stringify({
-                ...result,
-                publishError: String(publishError?.message || publishError)
-              });
-              document.body.dataset.status = 'FAIL';
-              document.title = 'M2_BROWSER_PUBLISH_FAILED';
-            }
-          }
-          </script></body></html>
-          HTML
-
-          cat > m2_browser_result_server.py <<'PY'
-          import json
-          import os
-          from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-          from pathlib import Path
-
-          RESULT_PATH = Path("m2_browser_probe_result.json")
-
-          class Handler(SimpleHTTPRequestHandler):
-              def do_POST(self):
-                  if self.path != "/__m2_result":
-                      self.send_error(404)
-                      return
-
-                  try:
-                      length = int(self.headers.get("Content-Length", "0"))
-                  except ValueError:
-                      self.send_error(400, "invalid content length")
-                      return
-
-                  try:
-                      payload = json.loads(self.rfile.read(length).decode("utf-8"))
-                  except Exception:
-                      self.send_error(400, "invalid JSON")
-                      return
-
-                  if not isinstance(payload, dict):
-                      self.send_error(400, "JSON object required")
-                      return
-
-                  temp_path = RESULT_PATH.with_suffix(".json.tmp")
-                  temp_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-                  os.replace(temp_path, RESULT_PATH)
-                  self.send_response(204)
-                  self.end_headers()
-
-          ThreadingHTTPServer(("127.0.0.1", 4173), Handler).serve_forever()
-          PY
-
-          chrome_bin="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
-          chrome_executed=0
-          chrome_exit=127
-          chrome_terminated_after_result=0
-          transport_classification=""
-          server_pid=""
-          chrome_pid=""
-
-          : > m2_browser_chrome.log
-          python3 -u m2_browser_result_server.py > m2_browser_server.log 2>&1 &
-          server_pid=$!
-          trap 'if [ -n "${chrome_pid:-}" ]; then kill "$chrome_pid" 2>/dev/null || true; fi; if [ -n "${server_pid:-}" ]; then kill "$server_pid" 2>/dev/null || true; fi' EXIT
-          sleep 1
-
-          if ! kill -0 "$server_pid" 2>/dev/null; then
-            transport_classification="browser_result_receiver_unavailable"
-          elif [ -z "$chrome_bin" ]; then
-            transport_classification="chrome_binary_missing"
-            printf '%s\n' 'Chrome executable not found on runner.' > m2_browser_chrome.log
-          else
-            set +e
-            "$chrome_bin" \
-              --headless=new \
-              --no-sandbox \
-              --disable-dev-shm-usage \
-              --use-angle=swiftshader \
-              --enable-unsafe-swiftshader \
-              --enable-webgl \
-              --ignore-gpu-blocklist \
-              http://127.0.0.1:4173/m2_browser_probe.html \
-              > /dev/null \
-              2> m2_browser_chrome.log &
-            chrome_pid=$!
-            set -e
-            chrome_executed=1
-
-            deadline=$((SECONDS + 35))
-            while true; do
-              if [ -s m2_browser_probe_result.json ]; then
-                chrome_terminated_after_result=1
-                kill "$chrome_pid" 2>/dev/null || true
-                set +e
-                wait "$chrome_pid"
-                chrome_exit=$?
-                set -e
-                break
-              fi
-
-              if ! kill -0 "$chrome_pid" 2>/dev/null; then
-                set +e
-                wait "$chrome_pid"
-                chrome_exit=$?
-                set -e
-                transport_classification="browser_process_exited_before_result"
-                break
-              fi
-
-              if [ "$SECONDS" -ge "$deadline" ]; then
-                transport_classification="browser_probe_result_timeout"
-                kill "$chrome_pid" 2>/dev/null || true
-                set +e
-                wait "$chrome_pid"
-                chrome_exit=$?
-                set -e
-                break
-              fi
-
-              sleep 0.1
-            done
-          fi
-
-          if [ -n "$server_pid" ]; then
-            kill "$server_pid" 2>/dev/null || true
-            wait "$server_pid" 2>/dev/null || true
-          fi
-
-          export M2_BROWSER_CHROME_EXIT="$chrome_exit"
-          export M2_BROWSER_CHROME_EXECUTED="$chrome_executed"
-          export M2_BROWSER_CHROME_TERMINATED_AFTER_RESULT="$chrome_terminated_after_result"
-          export M2_BROWSER_TRANSPORT_CLASSIFICATION="$transport_classification"
-
+          set +e; node verify.mjs > m1.log 2>&1; code=$?; set -e; export CODE="$code"
           python3 <<'PY'
-          import datetime
-          import json
-          import os
-          from pathlib import Path
-
-          evidence_path = Path("m2_ci_browser_verification_result.json")
-          evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-          result_path = Path("m2_browser_probe_result.json")
-          transport_classification = os.environ.get("M2_BROWSER_TRANSPORT_CLASSIFICATION", "")
-
-          if result_path.exists() and result_path.stat().st_size > 0:
-              try:
-                  probe = json.loads(result_path.read_text(encoding="utf-8"))
-              except Exception as exc:
-                  evidence["result"] = "NOT_TESTED"
-                  evidence["errorClassification"] = "browser_probe_result_invalid"
-                  evidence["error"] = str(exc)
-              else:
-                  if not isinstance(probe, dict) or probe.get("result") not in {"PASS", "FAIL"}:
-                      evidence["result"] = "NOT_TESTED"
-                      evidence["errorClassification"] = "browser_probe_result_invalid"
-                  else:
-                      evidence.update(probe)
-          else:
-              evidence["result"] = "NOT_TESTED"
-              evidence["errorClassification"] = transport_classification or "browser_probe_result_timeout"
-
-          evidence["chromeExecuted"] = os.environ["M2_BROWSER_CHROME_EXECUTED"] == "1"
-          evidence["chromeExitCode"] = int(os.environ["M2_BROWSER_CHROME_EXIT"])
-          evidence["chromeTerminatedAfterResult"] = os.environ["M2_BROWSER_CHROME_TERMINATED_AFTER_RESULT"] == "1"
-          evidence["browser"] = "GitHub-hosted Ubuntu headless Chrome with SwiftShader"
-          evidence["generatedAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
-
-          evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
-          print(json.dumps(evidence, indent=2))
+          import json,os,datetime;from pathlib import Path
+          try:r=json.loads(Path('m1.log').read_text())
+          except Exception as e:r={'status':'UNPARSEABLE','error':str(e)}
+          ok=os.environ['CODE']=='0' and r.get('status')=='PASS'
+          out={'testedHead':os.environ['M2_TESTED_HEAD'],'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'scope':'M2_1_03_M1_REGRESSION','generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'result':'PASS' if ok else 'FAIL','rawResult':r}
+          Path('m2_ci_m1_verification_result.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out,indent=2));raise SystemExit(0 if ok else 1)
           PY
-
+      - name: Verify M2 static and deterministic
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e; node m2_verify.mjs > m2.log 2>&1; code=$?; set -e; export CODE="$code"
+          python3 <<'PY'
+          import json,os,datetime;from pathlib import Path
+          r=json.loads(Path('m2_verification_result.json').read_text()) if Path('m2_verification_result.json').exists() else {'status':'MISSING'}
+          ok=os.environ['CODE']=='0' and r.get('status')=='PASS' and r.get('phase')=='M2-1/03'
+          out={'testedHead':os.environ['M2_TESTED_HEAD'],'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'scope':'M2_1_03_STATIC_DETERMINISTIC','generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'result':'PASS' if ok else 'FAIL','rawResult':r}
+          Path('m2_ci_verification_result.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out,indent=2));raise SystemExit(0 if ok else 1)
+          PY
+      - name: Verify actual m2_prototype Chrome WebGL2
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > m2_browser_harness.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><iframe id="p" src="/m2_prototype.html" style="width:1280px;height:720px"></iframe><script type="module">
+          const o={},pe=[],pr=[],sleep=m=>new Promise(r=>setTimeout(r,m)),clone=x=>JSON.parse(JSON.stringify(x));addEventListener('error',e=>pe.push(String(e.message)));addEventListener('unhandledrejection',e=>pr.push(String(e.reason)));
+          const A=(c,n,d=null)=>{o[n]={pass:!!c,detail:d};if(!c)throw Error(n)},f=document.getElementById('p');await new Promise((r,j)=>{let t=setTimeout(()=>j(Error('load_timeout')),15000);f.onload=()=>{clearTimeout(t);r()}});const w=f.contentWindow,d=f.contentDocument,fe=[],fr=[];w.addEventListener('error',e=>fe.push(String(e.message)));w.addEventListener('unhandledrejection',e=>fr.push(String(e.reason)));for(let i=0;i<100&&(!w.ArsM2Battle||!w.ArsM2Diagnostics);i++)await sleep(50);
+          const ptr=(el,type,x={})=>el.dispatchEvent(new w.PointerEvent(type,{bubbles:true,cancelable:true,pointerId:x.pointerId??1,pointerType:x.pointerType??'touch',clientX:x.clientX??0,clientY:x.clientY??0,button:x.button??0,buttons:type==='pointerup'?0:1})),tap=(el,x={})=>{ptr(el,'pointerdown',x);ptr(el,'pointerup',x)},ticks=async n=>{let s=w.ArsM2Diagnostics.getSnapshot().fixedTickCount;for(let i=0;i<300&&w.ArsM2Diagnostics.getSnapshot().fixedTickCount<s+n;i++)await sleep(20);A(w.ArsM2Diagnostics.getSnapshot().fixedTickCount>=s+n,`WAIT_${s}_${n}`)},U=id=>w.ArsM2Battle.getSnapshot().units.find(x=>x.unitId===id),F=id=>w.ArsM2Battle.getSnapshot().formations.find(x=>x.formationId===id),diff=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z)>1e-4;
+          const {M2_TECHNICAL_SNAPSHOT:S}=await import('/m2/fixtures/m2_technical_fixture_v1.js');async function load(s){let r=w.ArsM2Battle.loadSnapshot(s);A(r.ok,'LOAD',r);r=w.ArsM2Battle.start();A(r.ok,'START',r);await ticks(1)}async function mode(m){if(w.ArsM2Diagnostics.getSnapshot().cameraMode!==m){tap(d.getElementById('m2Tactical'));await ticks(1)}}
+          try{
+            let s=w.ArsM2Battle.getSnapshot(),g=w.ArsM2Diagnostics.getSnapshot(),c=d.getElementById('m2Canvas'),gl=c.getContext('webgl2'),pid=s.playerCharacterId;
+            A(!!gl,'M21-02-BROWSER-001');A(s.totalUnits===40&&g.renderedUnits===40,'M21-02-BROWSER-002',{total:s.totalUnits,rendered:g.renderedUnits});A(g.cameraMode==='third_person'&&g.inputListenerCount>0,'M21-02-BROWSER-003',g);
+            let p0=clone(U(pid).position);w.dispatchEvent(new w.KeyboardEvent('keydown',{code:'KeyW',bubbles:true}));await ticks(2);let p1=clone(U(pid).position);w.dispatchEvent(new w.KeyboardEvent('keyup',{code:'KeyW',bubbles:true}));A(diff(p0,p1),'M21-02-BROWSER-004',{p0,p1});
+            tap(d.getElementById('m2Attack'));await ticks(1);A(U(pid).attackCooldownTicks>0,'M21-02-BROWSER-005',{cooldown:U(pid).attackCooldownTicks});
+            await ticks(10);ptr(d.getElementById('m2Block'),'pointerdown');await ticks(1);let b=U(pid).blocking;ptr(d.getElementById('m2Block'),'pointerup');await ticks(1);A(b&&!U(pid).blocking,'M21-02-BROWSER-006');
+            let l0=w.ArsM2Diagnostics.getSnapshot().projectileLaunchCount;tap(d.getElementById('m2Bow'));await ticks(1);A(w.ArsM2Diagnostics.getSnapshot().projectileLaunchCount>l0,'M21-02-BROWSER-007');
+            let r0=w.ArsM2Diagnostics.getSnapshot().inputContextRevision;await mode('tactical');A(w.ArsM2Diagnostics.getSnapshot().inputContextRevision===r0+1,'M21-02-BROWSER-008');
+            let sel=d.getElementById('m2FriendlyFormation').value,rect=c.getBoundingClientRect();tap(c,{pointerId:701,pointerType:'mouse',clientX:rect.left+rect.width*.7,clientY:rect.top+rect.height*.55});await ticks(1);A(F(sel).order.type==='move','M21-02-BROWSER-009',F(sel).order);
+            tap(d.getElementById('m2AttackOrder'));await ticks(1);A(F(sel).order.type==='attack_target','M21-02-BROWSER-010',F(sel).order);
+            for(const[id,t]of[['m2Line','line'],['m2Column','column'],['m2Loose','loose']]){tap(d.getElementById(id));await ticks(1);A(F(sel).formationTypeId===t,`FT_${t}`)}o['M21-02-BROWSER-011']={pass:true};
+            tap(d.getElementById('m2Time0'));let t0=w.ArsM2Diagnostics.getSnapshot().fixedTickCount;await sleep(220);let t1=w.ArsM2Diagnostics.getSnapshot().fixedTickCount;tap(d.getElementById('m2Time1'));await ticks(1);A(t0===t1,'M21-02-BROWSER-012',{t0,t1});
+            // B013: touch-only mobile gesture probe retained for /02 regression source guard.
+            const st=d.getElementById('m2VirtualStick'),sr=st.getBoundingClientRect();ptr(st,'pointerdown',{pointerId:801,pointerType:'touch',clientX:sr.left+sr.width/2,clientY:sr.top+sr.height/2});ptr(st,'pointermove',{pointerId:801,pointerType:'touch',clientX:sr.right-2,clientY:sr.top+sr.height/2});await ticks(1);ptr(st,'pointerup',{pointerId:801,pointerType:'touch'});ptr(c,'pointerdown',{pointerId: 803, pointerType: "touch",clientX:rect.left+400,clientY:rect.top+300});ptr(c,'pointermove',{pointerId: 803, pointerType: "touch",clientX:rect.left+500,clientY:rect.top+300});ptr(c,'pointerup',{pointerId: 803, pointerType: "touch",clientX:rect.left+500,clientY:rect.top+300});await sleep(80);A(w.ArsM2Diagnostics.getSnapshot().activePointerCount===0,'M21-02-BROWSER-013');
+            // B014: dispose must release runtime/controller ownership.
+            d.getElementById('m2Dispose').click();await sleep(80);g=w.ArsM2Diagnostics.getSnapshot();A(w.ArsM2Battle.getSnapshot()===null&&g.inputListenerCount===0&&g.activePointerCount===0&&g.cameraMode==='disposed','M21-02-BROWSER-014',g);
+            let canvas=d.getElementById('m2Canvas');d.getElementById('m2Restart').click();await sleep(250);await ticks(1);let lc=w.ArsM2Diagnostics.getSnapshot().inputListenerCount;A(d.getElementById('m2Canvas')===canvas&&w.ArsM2Battle.getSnapshot().totalUnits===40&&lc>0,'M21-02-BROWSER-015',{lc});
+            // /03 actual prototype gates.
+            s=w.ArsM2Battle.getSnapshot();g=w.ArsM2Diagnostics.getSnapshot();A(!!c.getContext('webgl2')&&s.totalUnits===40&&!!w.ArsM2Battle.getResult,'M21-03-BROWSER-001');await sleep(250);g=w.ArsM2Diagnostics.getSnapshot();A(Number(d.getElementById('m2MoraleAlly').textContent)===g.moraleSummary.ally&&Number(d.getElementById('m2RoutingAlly').textContent)===g.routingCounts.ally,'M21-03-BROWSER-002',g);
+            await mode('tactical');sel=d.getElementById('m2FriendlyFormation').value;tap(d.getElementById('m2Retreat'));await ticks(1);let ru=F(sel).memberUnitIds.map(U).filter(x=>x.state==='routing');A(F(sel).order.type==='withdraw'&&ru.length>0,'M21-03-BROWSER-003',{order:F(sel).order,routing:ru.length});let z0=ru[0].position.z;await ticks(2);let z1=U(ru[0].unitId).position.z;A(z1>z0,'M21-03-BROWSER-004',{z0,z1});let rc0=w.ArsM2Diagnostics.getSnapshot().routingCounts.ally;tap(d.getElementById('m2Rally'));await ticks(2);let rc1=w.ArsM2Diagnostics.getSnapshot().routingCounts.ally;A(rc1<rc0,'M21-03-BROWSER-005',{rc0,rc1});g=w.ArsM2Diagnostics.getSnapshot();A(g.animationOwner==='M2BattleRuntime'&&!g.runtimeNetworkImport&&!g.persistenceAccess&&g.inputListenerCount===lc,'M21-03-BROWSER-006',g);
+            let q=clone(S);q.battleId='m203_browser_retreat';for(const x of q.characters)x.spawn={...x.spawn,z:x.sideId==='ally'?17.7:-30,heading:x.sideId==='ally'?0:Math.PI};for(const x of q.formations){x.anchor={...x.anchor,z:x.sideId==='ally'?17.7:-30};x.order='hold';delete x.target}await load(q);for(const [i,x]of w.ArsM2Battle.getSnapshot().formations.filter(x=>x.sideId==='ally').entries())A(w.ArsM2Battle.issueCommand({commandId:`ret${i}`,type:'formation_retreat',formationId:x.formationId}).ok,`RET${i}`);let deadline=performance.now()+7000;while(!w.ArsM2Battle.getResult()&&performance.now()<deadline)await sleep(25);let res=w.ArsM2Battle.getResult();A(res?.outcome==='ally_retreat','M21-03-BROWSER-007',res);await sleep(250);A(d.getElementById('m2Result').textContent===res.outcome&&w.ArsM2Diagnostics.getSnapshot().status==='finalized','M21-03-BROWSER-008');
+            let snap0=JSON.stringify(w.ArsM2Battle.getSnapshot()),rej=w.ArsM2Battle.issueCommand({commandId:'after',type:'formation_hold',formationId:w.ArsM2Battle.getSnapshot().formations.find(x=>x.sideId==='ally').formationId});A(!rej.ok&&rej.error==='m2_command_battle_finalized'&&snap0===JSON.stringify(w.ArsM2Battle.getSnapshot()),'M21-03-BROWSER-009',rej);let rb=JSON.stringify(res);try{res.outcome='enemy_victory'}catch{}A(rb===JSON.stringify(w.ArsM2Battle.getResult())&&Object.isFrozen(w.ArsM2Battle.getResult()),'M21-03-BROWSER-010');let ft=w.ArsM2Diagnostics.getSnapshot().fixedTickCount,st=w.ArsM2Battle.start(),ts=w.ArsM2Battle.setTimeScale(1);await sleep(300);A(ft===w.ArsM2Diagnostics.getSnapshot().fixedTickCount&&!st.ok&&st.error==='m2_runtime_finalized'&&!ts.ok&&ts.error==='m2_runtime_finalized','M21-03-BROWSER-013',{ft,st,ts});
+            let fc=d.getElementById('m2Canvas'),fl=w.ArsM2Diagnostics.getSnapshot().inputListenerCount;d.getElementById('m2Restart').click();await sleep(250);await ticks(1);A(d.getElementById('m2Canvas')===fc&&w.ArsM2Battle.getResult()===null&&w.ArsM2Battle.getSnapshot().totalUnits===40&&w.ArsM2Diagnostics.getSnapshot().inputListenerCount===fl,'M21-03-BROWSER-011');
+            q=clone(S);q.battleId='m203_zero_enemy';q.characters=q.characters.filter(x=>x.sideId==='ally');let ids=new Set(q.characters.map(x=>x.characterId));q.formations=q.formations.filter(x=>x.sideId==='ally').map(x=>({...x,memberUnitIds:x.memberUnitIds.filter(id=>ids.has(id))}));await load(q);deadline=performance.now()+2000;while(!w.ArsM2Battle.getResult()&&performance.now()<deadline)await sleep(20);await sleep(220);g=w.ArsM2Diagnostics.getSnapshot();A(w.ArsM2Battle.getResult()?.outcome==='ally_victory'&&g.moraleSummary.enemy===0&&Number.isFinite(g.moraleSummary.enemy)&&Number(d.getElementById('m2MoraleEnemy').textContent)===0,'M21-03-BROWSER-014',{result:w.ArsM2Battle.getResult(),morale:g.moraleSummary});
+            A(!pe.length&&!pr.length&&!fe.length&&!fr.length,'M21-02-BROWSER-016',{pe,pr,fe,fr});A(!pe.length&&!pr.length&&!fe.length&&!fr.length,'M21-03-BROWSER-012',{pe,pr,fe,fr});
+            const need=[...Array.from({length:16},(_,i)=>`M21-02-BROWSER-${String(i+1).padStart(3,'0')}`),...Array.from({length:14},(_,i)=>`M21-03-BROWSER-${String(i+1).padStart(3,'0')}`)],ok=need.every(k=>o[k]?.pass===true);await fetch('/__m2_result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({result:ok?'PASS':'FAIL',scope:'M2_1_03_ACTUAL_CHROME_WEBGL2',actualWebGL2:!!gl,browserObservations:o})});
+          }catch(e){await fetch('/__m2_result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({result:'FAIL',scope:'M2_1_03_ACTUAL_CHROME_WEBGL2',error:String(e.message||e),browserObservations:o,pe,pr,fe,fr})})}
+          </script>
+          HTML
+          cat > m2_server.py <<'PY'
+          import json,os;from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer;from pathlib import Path
+          class H(SimpleHTTPRequestHandler):
+            def do_POST(self):
+              if self.path!='/__m2_result':self.send_error(404);return
+              x=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))));p=Path('m2_browser_probe_result.json.tmp');p.write_text(json.dumps(x,indent=2)+'\n');os.replace(p,'m2_browser_probe_result.json');self.send_response(204);self.end_headers()
+          ThreadingHTTPServer(('127.0.0.1',4173),H).serve_forever()
+          PY
+          python3 -u m2_server.py > m2_browser_server.log 2>&1 & server=$!; trap 'kill $server 2>/dev/null||true; test -z "${chrome:-}"||kill $chrome 2>/dev/null||true' EXIT; sleep 1
+          bin="$(command -v google-chrome-stable||command -v google-chrome||command -v chromium||true)"; test -n "$bin" || { echo '{"result":"NOT_TESTED","errorClassification":"chrome_binary_missing"}' > m2_browser_probe_result.json; }
+          if [ -n "$bin" ]; then "$bin" --headless=new --no-sandbox --disable-dev-shm-usage --use-angle=swiftshader --enable-unsafe-swiftshader --enable-webgl --ignore-gpu-blocklist http://127.0.0.1:4173/m2_browser_harness.html >/dev/null 2>m2_browser_chrome.log & chrome=$!; deadline=$((SECONDS+75));while [ ! -s m2_browser_probe_result.json ]&&[ $SECONDS -lt $deadline ]&&kill -0 $chrome 2>/dev/null;do sleep .1;done;kill $chrome 2>/dev/null||true;wait $chrome 2>/dev/null||true;fi
+          test -s m2_browser_probe_result.json || echo '{"result":"NOT_TESTED","errorClassification":"browser_probe_result_timeout"}' > m2_browser_probe_result.json
+          python3 <<'PY'
+          import json,os,datetime;from pathlib import Path
+          r=json.loads(Path('m2_browser_probe_result.json').read_text());out={'testedHead':os.environ['M2_TESTED_HEAD'],'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'scope':'M2_1_03_ACTUAL_CHROME_WEBGL2','generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'result':r.get('result','NOT_TESTED'),'rawResult':r,'browserObservations':r.get('browserObservations',{})};Path('m2_ci_browser_verification_result.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out,indent=2))
+          PY
       - name: Upload M2 verification result
         if: always()
         uses: actions/upload-artifact@v4
@@ -499,25 +117,14 @@ jobs:
             m2_ci_verification_result.json
             m2_ci_browser_verification_result.json
             m2_browser_probe_result.json
-            m2_browser_probe.html
             m2_browser_chrome.log
             m2_browser_server.log
-          if-no-files-found: warn
-
       - name: Enforce browser PASS gate
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           python3 <<'PY'
-          import json
-          from pathlib import Path
-
-          path = Path("m2_ci_browser_verification_result.json")
-          if not path.exists():
-              raise SystemExit("browser evidence missing")
-          result = json.loads(path.read_text(encoding="utf-8"))
-          if result.get("result") != "PASS":
-              raise SystemExit(json.dumps(result, sort_keys=True))
-          print(json.dumps(result, indent=2))
+          import json;from pathlib import Path
+          x=json.loads(Path('m2_ci_browser_verification_result.json').read_text());o=x.get('browserObservations',{});need=[*[f'M21-02-BROWSER-{i:03d}' for i in range(1,17)],*[f'M21-03-BROWSER-{i:03d}' for i in range(1,15)]];bad=[k for k in need if not isinstance(o.get(k),dict) or o[k].get('pass') is not True];assert x.get('result')=='PASS' and not bad,(x.get('result'),bad);print(json.dumps({'result':'PASS','required02':16,'required03':14}))
           PY
