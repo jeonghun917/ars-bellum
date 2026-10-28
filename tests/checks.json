@@ -1,0 +1,370 @@
+{
+  "format": "ars-bellum-checks/v1",
+  "note": "The one list of required checks. Every id must get a result; tests/run-all.mjs fails on a missing or unlisted id.",
+  "checks": [
+    {
+      "id": "m1.source.static",
+      "title": "Main game scripts listed in index.html exist, are unique and parse",
+      "kind": "node",
+      "source": "verify.mjs"
+    },
+    {
+      "id": "m2.static.m21-03-static-001",
+      "title": "m2_verify.mjs check M21-03-STATIC-001",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-STATIC-001"
+    },
+    {
+      "id": "m2.static.m21-02-static",
+      "title": "m2_verify.mjs check M21-02-STATIC",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-02-STATIC"
+    },
+    {
+      "id": "m2.static.public_globals",
+      "title": "m2_verify.mjs check PUBLIC_GLOBALS",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "PUBLIC_GLOBALS"
+    },
+    {
+      "id": "m2.static.entrypoint",
+      "title": "m2_verify.mjs check ENTRYPOINT",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "ENTRYPOINT"
+    },
+    {
+      "id": "m2.static.protected_source_hashes",
+      "title": "m2_verify.mjs check PROTECTED_SOURCE_HASHES",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "PROTECTED_SOURCE_HASHES"
+    },
+    {
+      "id": "m2.static.m21-03-definitions",
+      "title": "m2_verify.mjs check M21-03-DEFINITIONS",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-DEFINITIONS"
+    },
+    {
+      "id": "m2.static.m21-03-static-stateless",
+      "title": "m2_verify.mjs check M21-03-STATIC-STATELESS",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-STATIC-STATELESS"
+    },
+    {
+      "id": "m2.static.m21-03-static-phases",
+      "title": "m2_verify.mjs check M21-03-STATIC-PHASES",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-STATIC-PHASES"
+    },
+    {
+      "id": "m2.static.m21-03-result-owner",
+      "title": "m2_verify.mjs check M21-03-RESULT-OWNER",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-RESULT-OWNER"
+    },
+    {
+      "id": "m2.static.m21-02-regression-move",
+      "title": "m2_verify.mjs check M21-02-REGRESSION-MOVE",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-02-REGRESSION-MOVE"
+    },
+    {
+      "id": "m2.static.m21-02-regression-formation",
+      "title": "m2_verify.mjs check M21-02-REGRESSION-FORMATION",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-02-REGRESSION-FORMATION"
+    },
+    {
+      "id": "m2.static.m21-02-regression-epoch",
+      "title": "m2_verify.mjs check M21-02-REGRESSION-EPOCH",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-02-REGRESSION-EPOCH"
+    },
+    {
+      "id": "m2.static.m21-02-regression-determinism",
+      "title": "m2_verify.mjs check M21-02-REGRESSION-DETERMINISM",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-02-REGRESSION-DETERMINISM"
+    },
+    {
+      "id": "m2.static.m21-03-sim-001",
+      "title": "m2_verify.mjs check M21-03-SIM-001",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-SIM-001"
+    },
+    {
+      "id": "m2.static.m21-03-sim-002",
+      "title": "m2_verify.mjs check M21-03-SIM-002",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-SIM-002"
+    },
+    {
+      "id": "m2.static.m21-03-sim-003",
+      "title": "m2_verify.mjs check M21-03-SIM-003",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-SIM-003"
+    },
+    {
+      "id": "m2.static.m21-03-sim-004",
+      "title": "m2_verify.mjs check M21-03-SIM-004",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-SIM-004"
+    },
+    {
+      "id": "m2.static.m21-03-sim-005",
+      "title": "m2_verify.mjs check M21-03-SIM-005",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-SIM-005"
+    },
+    {
+      "id": "m2.static.m21-03-sim-006",
+      "title": "m2_verify.mjs check M21-03-SIM-006",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-SIM-006"
+    },
+    {
+      "id": "m2.static.m21-03-sim-007",
+      "title": "m2_verify.mjs check M21-03-SIM-007",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-SIM-007"
+    },
+    {
+      "id": "m2.static.m21-03-sim-008",
+      "title": "m2_verify.mjs check M21-03-SIM-008",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-SIM-008"
+    },
+    {
+      "id": "m2.static.m21-03-sim-009",
+      "title": "m2_verify.mjs check M21-03-SIM-009",
+      "kind": "node",
+      "source": "m2_verify.mjs",
+      "legacyId": "M21-03-SIM-009"
+    },
+    {
+      "id": "battle2d.melee.dead-cannot-strike",
+      "title": "a soldier already dead this frame deals no damage",
+      "kind": "unit",
+      "source": "tests/unit/battle2d.test.mjs"
+    },
+    {
+      "id": "battle2d.melee.killed-cannot-strike-back",
+      "title": "a soldier killed by a blow does not strike back in the same exchange",
+      "kind": "unit",
+      "source": "tests/unit/battle2d.test.mjs"
+    },
+    {
+      "id": "battle2d.melee.both-alive-trade-blows",
+      "title": "two living soldiers in reach both strike",
+      "kind": "unit",
+      "source": "tests/unit/battle2d.test.mjs"
+    },
+    {
+      "id": "m1.battle.practice-no-reward",
+      "title": "winning a practice battle records no gold or territory",
+      "kind": "browser",
+      "source": "tests/browser/m1-battle.spec.mjs"
+    },
+    {
+      "id": "m1.battle.campaign-win-rewards",
+      "title": "winning a main-game battle saves the gold reward once",
+      "kind": "browser",
+      "source": "tests/browser/m1-battle.spec.mjs"
+    },
+    {
+      "id": "m1.battle.failed-win-save-stops",
+      "title": "if saving a win fails, the game says so once and does not retry",
+      "kind": "browser",
+      "source": "tests/browser/m1-battle.spec.mjs"
+    },
+    {
+      "id": "m1.page.boots-clean",
+      "title": "the main game page loads to its menu with no page errors",
+      "kind": "browser",
+      "source": "tests/browser/m1-boot.spec.mjs"
+    },
+    {
+      "id": "m2.render.webgl2",
+      "title": "the battle canvas gets a WebGL2 context",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.render.all-units",
+      "title": "all 40 units exist and are drawn",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.camera.starts-third-person",
+      "title": "the camera starts behind the player with input attached",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.player.move-key",
+      "title": "holding W moves the player",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.player.melee-cooldown-on-miss",
+      "title": "a sword swing with no enemy in reach still starts the cooldown",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.player.melee-hit",
+      "title": "a sword swing with an enemy in reach damages it",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.player.block",
+      "title": "block holds while pressed and ends on release",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.player.bow",
+      "title": "the bow button launches an arrow",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.camera.tactical-switch",
+      "title": "switching to the tactical view starts a new input context",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.orders.move-by-click",
+      "title": "in tactical view a click on the field orders the selected formation to move",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.orders.attack",
+      "title": "the attack order targets the enemy",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.orders.formation-shape",
+      "title": "line, column and loose buttons change the formation shape",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.time.pause",
+      "title": "time scale 0 stops the simulation and 1 resumes it",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.input.touch-release",
+      "title": "touch stick and camera drag release every pointer",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.lifecycle.dispose",
+      "title": "dispose releases the battle, input and pointers",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.lifecycle.restart-same-canvas",
+      "title": "restart after dispose reuses the same canvas and reattaches input",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.hud.morale-matches-state",
+      "title": "the morale and routing numbers on screen match the battle state",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.orders.retreat-routs",
+      "title": "the retreat order makes the formation withdraw and its units run away",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.orders.rally",
+      "title": "the rally order brings routing units back",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.runtime.isolation",
+      "title": "the runtime owns the animation loop and touches no network or saved data",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.result.retreat-outcome",
+      "title": "a full ally retreat ends the battle as ally_retreat and shows it",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.result.rejects-commands",
+      "title": "after the result, commands are refused and nothing changes",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.result.immutable",
+      "title": "the final result cannot be changed",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.result.stops-simulation",
+      "title": "after the result, start and time-scale are refused and ticks stop",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.lifecycle.restart-after-result",
+      "title": "restart after a result clears it on the same canvas",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.result.no-enemies-victory",
+      "title": "a battle with no enemies is an ally victory with enemy morale 0",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.page.no-errors",
+      "title": "loading and playing the battle raises no page errors",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    }
+  ]
+}
