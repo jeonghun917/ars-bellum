@@ -1915,6 +1915,360 @@
       "title": "the ledger stays valid after each of many enqueue and run calls, failed or not",
       "kind": "unit",
       "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "politics.definitions.built-in",
+      "title": "every built-in kind is known and unknown ids are not",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.definitions.custom-approved-only",
+      "title": "only an approved, well-formed custom definition counts",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.definitions.domain-specs",
+      "title": "the specs for the definitions area accept the defaults and name the problems",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.order-candidates",
+      "title": "designated candidates keep their order and appear once",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.eligibility",
+      "title": "the dead, the incapacitated and the released are not eligible",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.allocation-conserves",
+      "title": "a lot is split without losing or making up a unit",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.allocation-refused",
+      "title": "impossible lots are refused with a reason",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.pact-then-legal",
+      "title": "pacts decide the assets they name; the rest follows the expected shares and the first legal heir",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.policies.run-isolated",
+      "title": "a policy runs on a copy of its input and a faulty one fails the caller",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.pacts.structure",
+      "title": "a pact must be well formed and an active one fully consented and approved",
+      "kind": "unit",
+      "source": "tests/unit/politics-policies.test.mjs"
+    },
+    {
+      "id": "politics.clan.create",
+      "title": "a clan is stored in the earlier record shape with nothing derived kept on it",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.create-refused",
+      "title": "a clan with a bad id, derived field, rule-owned field or bad value is refused whole",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.metrics",
+      "title": "the head power and standing change by patch, each value finite, a repeat is no change",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.laws",
+      "title": "a succession law and inheritance custom must be known definitions",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.successors-keep-order",
+      "title": "designated successors keep the priority they were given",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.branches",
+      "title": "branch clans must exist and may not loop back to the clan",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.pacts",
+      "title": "inheritance pacts are stored only when well formed and allowed by the clan's custom",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.clan.view",
+      "title": "the clan view lists members, titles and the settlements it holds or claims on the day",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.faction.create",
+      "title": "a faction is stored in the earlier record shape with its four axes",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.faction.power-axes",
+      "title": "the four axes are set within 0..100 or adjusted and stopped at the ends",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.faction.laws-and-view",
+      "title": "laws are kept sorted and the view derives member clans and held settlements",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.faction.obedience-input",
+      "title": "the obedience input joins the four axes with the target's side and is frozen",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.affiliation.join-leave",
+      "title": "joining takes the clan's faction along, leaving clears both, and a head cannot leave",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.affiliation.link-faction",
+      "title": "a clan changing faction takes every member along; the ruling clan cannot leave",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.affiliation.head-and-ruler",
+      "title": "heads are living members, a ruling clan belongs to the faction, treasuries belong to their owner",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.create",
+      "title": "a title is stored in the earlier record shape with the type's default status",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.create-refused",
+      "title": "a title with a bad id, type, status, holder, parent or law is refused whole",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.hierarchy",
+      "title": "a parent must exist, be of an allowed type, not loop, and a root title must be allowed",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.status-rules",
+      "title": "holders and statuses change only along the statuses' rules",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.transfer-and-inherit-flags",
+      "title": "a title that cannot be transferred still passes by inheritance unless it is not inheritable",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.title.holders",
+      "title": "clans and factions may hold titles; the type decides which holders are allowed; succession laws must be known",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.create",
+      "title": "a right is stored in the earlier record shape; a single share is 1 and the start day is today",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.create-refused",
+      "title": "a right with a bad id, type, reference, share or day is refused whole",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.overlap-modes",
+      "title": "each kind allows or refuses overlapping rights on one settlement as its mode says",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.transfer",
+      "title": "a transferable right passes to a new holder; a claim cannot be given away; nothing else moves",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.recognition-and-dispute",
+      "title": "factions recognizing a right and the disputed flag change only on rights in force",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.terminate-supersede",
+      "title": "a right ends on a day; a superseded right is linked to its successor and both stay consistent",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.share-units",
+      "title": "shares are whole millionths, rounded before they are compared",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.split",
+      "title": "a fractional right is split in whole millionths; the original keeps a positive remainder",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rights.queries",
+      "title": "settlements are found by holder, by recognizing faction and as the rights in force on a day",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.checks.valid-state",
+      "title": "a consistent world passes the area check and the whole-state check, also after a save round trip",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.checks.registered",
+      "title": "the area check is part of whole-state validation, so a broken record cannot be stored or loaded",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.checks.rejects-corruption",
+      "title": "each broken link between politics records is named by the area check",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.clan-head",
+      "title": "the first eligible designated successor becomes head, in the order designated",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.eligibility",
+      "title": "the dead, the incapacitated, the released, non-members and the decedent are passed over",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.legal-heirs",
+      "title": "the legal heirs follow the designated candidates in the order the caller gives",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.titles",
+      "title": "each named title goes to its own heir; the title indexes of old and new holders follow",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.titles-refused",
+      "title": "a title that is not the decedent's, not inheritable or has no heir stops the whole succession",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.titles-not-transferable",
+      "title": "a title that cannot be given away still passes to an heir",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.land-rights",
+      "title": "rights pass whole, are split, end or are replaced as planned; kinds that cannot be inherited are refused",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.land-rights-refused",
+      "title": "a right that is not the decedent's, ended, not inheritable or badly planned stops the whole succession",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.faction-ruler",
+      "title": "the ruler of a faction is replaced while its ruling clan stays",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.everything-at-once",
+      "title": "clan, titles, rights and ruler are resolved together and the world stays consistent",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.deterministic",
+      "title": "the same state and plan always give the same result and no random number is drawn",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.pacts",
+      "title": "an active pact that does not apply yet does not block, a malformed active pact does",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.input-refused",
+      "title": "a succession with an unusable plan is refused and changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.succession.estate-plan",
+      "title": "the estate split follows the clan's effective pacts and expected shares and loses nothing",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rules.junk-input",
+      "title": "every rule refuses empty or nonsensical input without throwing or changing anything",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "politics.rules.every-change-raises-revision",
+      "title": "a record changed by a rule gets one more revision, and records not named do not",
+      "kind": "unit",
+      "source": "tests/unit/politics.test.mjs"
     }
   ]
 }
