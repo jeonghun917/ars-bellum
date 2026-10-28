@@ -59,6 +59,27 @@ test.describe('3D battle', () => {
     expect((await player(page)).attackCooldownTicks).toBeGreaterThan(0);
   });
 
+  test('[m2.player.melee-hit] a sword swing with an enemy in reach damages it', async ({ page }) => {
+    // Put the nearest enemy one metre in front of the player, inside the 1.6 m reach and the 120 degree arc.
+    await loadVariant(page, `
+      snapshot.battleId = 'test_melee_hit';
+      const me = snapshot.characters.find((c) => c.characterId === snapshot.playerCharacterId);
+      const foe = snapshot.characters.find((c) => c.sideId === 'enemy');
+      const heading = me.spawn.heading ?? 0;
+      foe.spawn = { ...foe.spawn, x: me.spawn.x + Math.sin(heading), z: me.spawn.z + Math.cos(heading) };
+      window.__foeId = foe.characterId;
+    `);
+    const foeId = await page.evaluate(() => window.__foeId);
+    const hp = async () => page.evaluate((id) => window.ArsM2Battle.getSnapshot().units.find((u) => u.unitId === id).hp, foeId);
+    const before = await hp();
+    await page.evaluate(() => window.ArsM2Battle.setTimeScale(0));
+    await tap(page, '#m2Attack');
+    await page.evaluate(() => window.ArsM2Battle.setTimeScale(1));
+    await waitTicks(page, 2);
+    expect((await player(page)).attackCooldownTicks).toBeGreaterThan(0);
+    expect(await hp()).toBeLessThan(before);
+  });
+
   test('[m2.player.block] block holds while pressed and ends on release', async ({ page }) => {
     await pointer(page, '#m2Block', 'pointerdown');
     await waitTicks(page, 1);
