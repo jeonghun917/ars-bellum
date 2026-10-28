@@ -23,6 +23,15 @@ async function finishByRetreat(page) {
   return page.evaluate(() => window.ArsM2Battle.getResult());
 }
 
+// The sword cooldown lasts only half a second (10 ticks), so it is watched on every animation frame;
+// sampling it after a tick wait can miss it on a slow machine.
+async function swingCooldownSeen(page) {
+  await page.waitForFunction(() => {
+    const s = window.ArsM2Battle.getSnapshot();
+    return s.units.find((u) => u.unitId === s.playerCharacterId).attackCooldownTicks > 0;
+  }, null, { polling: 'raf', timeout: 5_000 });
+}
+
 test.describe('3D battle', () => {
   let errors;
   test.beforeEach(async ({ page }) => { errors = await openBattle(page); });
@@ -55,8 +64,7 @@ test.describe('3D battle', () => {
   // Decision 2026-10-28: a sword swing costs its cooldown even when it hits nothing.
   test('[m2.player.melee-cooldown-on-miss] a sword swing with no enemy in reach still starts the cooldown', async ({ page }) => {
     await tap(page, '#m2Attack');
-    await waitTicks(page, 1);
-    expect((await player(page)).attackCooldownTicks).toBeGreaterThan(0);
+    await swingCooldownSeen(page);
   });
 
   test('[m2.player.melee-hit] a sword swing with an enemy in reach damages it', async ({ page }) => {
@@ -85,8 +93,7 @@ test.describe('3D battle', () => {
     expect(Math.hypot(foe.position.x - me.position.x, foe.position.z - me.position.z)).toBeLessThan(1.6);
     await tap(page, '#m2Attack');
     await page.evaluate(() => window.ArsM2Battle.setTimeScale(1));
-    await waitTicks(page, 2);
-    expect((await player(page)).attackCooldownTicks).toBeGreaterThan(0);
+    await swingCooldownSeen(page);
     expect((await unit(foeId)).hp).toBeLessThan(foe.hp);
   });
 
