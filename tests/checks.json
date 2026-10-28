@@ -295,6 +295,102 @@
       "title": "loading and playing the battle raises no page errors",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "core.store.all-or-nothing",
+      "title": "a failed change leaves every area and the revision untouched",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "core.store.revision",
+      "title": "a successful change applies everything and raises the revision by one",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "core.store.read-only",
+      "title": "state read from the store cannot be changed in place",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "core.store.json-only",
+      "title": "values that cannot be saved as plain JSON are refused",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "core.calendar.days",
+      "title": "advancing time lists every day that ended, in order",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "core.rng.repeatable",
+      "title": "the same seed always gives the same numbers",
+      "kind": "unit",
+      "source": "tests/unit/core.test.mjs"
+    },
+    {
+      "id": "persist.new-game.valid",
+      "title": "a new game passes the state checks",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.round-trip",
+      "title": "what is saved loads back exactly",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.failed-write-keeps-old",
+      "title": "a write that fails leaves the previous save in place",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.conflict",
+      "title": "a save made elsewhere meanwhile is not overwritten",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.newer-version-kept",
+      "title": "a save from a newer game version is neither loaded nor overwritten",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.damage-detected",
+      "title": "a changed or broken save is reported, and kept unless replacing is asked for",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.v1.imports-earlier-save",
+      "title": "a new-game save of the earlier version loads as the same game",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.v1.key-untouched",
+      "title": "loading and saving never changes the earlier version's save",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.save.readback-restores",
+      "title": "if the final save does not read back intact, the previous save is put back",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "persist.v1.no-catch-up-flood",
+      "title": "an earlier-version save on a later day does not replay every past day",
+      "kind": "unit",
+      "source": "tests/unit/save.test.mjs"
     }
   ]
 }

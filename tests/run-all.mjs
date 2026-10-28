@@ -54,7 +54,26 @@ const firstLine = (text) => String(text || '').split('\n').map((line) => line.tr
   for (const name of Object.keys(report?.checks || {})) if (!known.has(name)) unlisted.push(`m2_verify:${name}`);
 }
 
-// 3. Browser checks (Playwright JSON report; a test title starts with "[check.id]").
+// 3. Unit checks for the rewritten code (node:test; a test name starts with "[check.id]").
+{
+  const file = path.join(outDir, 'unit.jsonl');
+  fs.rmSync(file, { force: true });
+  const files = fs.readdirSync(path.join(root, 'tests/unit')).filter((f) => f.endsWith('.test.mjs')).map((f) => `tests/unit/${f}`);
+  const proc = run('unit', process.execPath, ['--test', '--test-reporter=./tests/support/node-reporter.mjs', `--test-reporter-destination=${file}`, ...files]);
+  let lines = null;
+  try { lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)); } catch { /* handled below */ }
+  if (!lines) {
+    for (const check of checks.filter((c) => c.kind === 'unit')) record(check.id, 'NOT_TESTED', `harness_error:${proc.error?.message || firstLine(proc.stderr || proc.stdout)}`);
+  } else {
+    for (const line of lines) {
+      const id = /^\[([^\]]+)\]/.exec(line.name)?.[1];
+      if (!id) { unlisted.push(`untagged:${line.name}`); continue; }
+      record(id, line.status === 'pass' ? 'PASS' : 'FAIL', line.status === 'pass' ? null : `assertion_failed:${line.message}`);
+    }
+  }
+}
+
+// 4. Browser checks (Playwright JSON report; a test title starts with "[check.id]").
 {
   const file = path.join(outDir, 'playwright.json');
   fs.rmSync(file, { force: true });
