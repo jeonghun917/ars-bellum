@@ -811,6 +811,822 @@
       "title": "every id the tables mention exists, shares add up, formulas refuse levels that do not exist",
       "kind": "unit",
       "source": "tests/unit/settlements.stock.test.mjs"
+    },
+    {
+      "id": "definitions.new-game.valid",
+      "title": "a new game and an earlier version's new-game save pass the definition checks",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.registry.domain-rules",
+      "title": "a domain is registered once, with valid ids and valid built-in definitions",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.registry.built-in-copy",
+      "title": "a built-in definition read from the registry cannot be changed by the reader",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.propose.stores-pending",
+      "title": "a proposal is stored as pending in the earlier record shape and is not usable yet",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.propose.rejects-bad-input",
+      "title": "a proposal with bad or conflicting input is refused and changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.propose.pending-not-known",
+      "title": "a proposal that is still pending does not count as a known definition for others that need it",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.approve.makes-known",
+      "title": "an approved definition is known everywhere, built in ones stay, and the record is kept",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.reject.stays-unknown",
+      "title": "a rejected proposal never becomes known and cannot be decided again",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.decide.rejects-bad-input",
+      "title": "approving or rejecting needs an existing pending proposal, its current revision and a real approver",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.decide.rechecks-data",
+      "title": "approval fails if the definition no longer fits its domain when it is decided",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.check.rejects-bad-records",
+      "title": "a saved game with a damaged definition record is refused",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.check.unknown-domain-kept",
+      "title": "records of a domain no area has registered yet are kept as they are",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.refs.targets",
+      "title": "a reference is found when its record exists, for every reference type",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "definitions.refs.check-ref",
+      "title": "a reference is checked for shape, type, target and the capability its type needs",
+      "kind": "unit",
+      "source": "tests/unit/definitions.test.mjs"
+    },
+    {
+      "id": "characters.new-game.valid",
+      "title": "a new game and an earlier version's new-game save pass the character checks",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.catalog.built-in",
+      "title": "the built-in skills, aptitudes, growth sources and ratings are complete and refer to each other",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.create.new-character",
+      "title": "a new character gets the default record, today as birth day, and the custom skills approved so far",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.create.rejects-bad-input",
+      "title": "a character with bad input, a taken id, or fields owned by other areas is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.create.links-existing-assets",
+      "title": "a new character may point at an existing personal account and inventory",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.profile.updates",
+      "title": "only the given profile fields change, the revision goes up once, and asking for nothing new changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.profile.rejects-bad-input",
+      "title": "a profile change with bad input or for a missing character is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.revision.expected",
+      "title": "a change made against an out-of-date revision is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.affiliation.sets-and-rejects",
+      "title": "clan and faction can be set to existing ones, and a missing one or a bad request is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.index.title-and-claim",
+      "title": "the title and claim lists are stored sorted without repeats, and bad lists are refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.assets.personal",
+      "title": "the personal account and inventory can be pointed at existing records and cleared; missing ones are refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.location.settlement",
+      "title": "a character outside any group can be placed in a settlement or nowhere, but not one who travels with a group",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.location.group-side",
+      "title": "the character side of a group link is set only to a group that exists, with a matching mode",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.condition.clamps-and-flags",
+      "title": "health and fatigue stay within 0 to 100, injuries make a character wounded, and exhaustion incapacitates",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.condition.rejects-bad-patch",
+      "title": "a condition change with bad values, unknown fields or for a missing character is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.condition.modifiers",
+      "title": "health, fatigue, injuries and old age each scale what a character can do, within their limits",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.experience.levels-up",
+      "title": "experience adds up per skill and source, and every full 100 points raise the level by one",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.experience.modifiers",
+      "title": "a gain is scaled by difficulty, repetition, failure and aptitude, with their floors",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.experience.max-level",
+      "title": "a skill never goes above its maximum level, although experience keeps adding up",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.experience.custom-definitions",
+      "title": "an approved custom skill, aptitude and growth source work like built-in ones, with their own limits",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.experience.rejects-bad-input",
+      "title": "experience with bad input, for a dead or missing character, or too easy a task is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.ratings.derived",
+      "title": "a rating is the weighted average of its skills, scaled by the character's condition",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.death.records",
+      "title": "a death sets the day and leaves the character dead, once, within their lifetime",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.check.rejects-bad-records",
+      "title": "a saved game with a damaged character record is refused, naming the problem",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.check.group-link-two-way",
+      "title": "a character in a group must be listed by that group, and the checks run on every change",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.default-profile",
+      "title": "a character without a stored profile has the default one, and a missing character has none",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.tier-changes",
+      "title": "a character moves up freely, but down only when eligible and never below a role, a pin or a post",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.historical-blocked",
+      "title": "a character becomes historical only when no role, pin or post refers to them",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.tier-change-input",
+      "title": "tier changes with bad input, a stale revision or one bad entry among good ones change nothing",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.replay-no-op",
+      "title": "asking again for what is already so succeeds without a new revision, even with an old revision number",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.role-effects",
+      "title": "gaining a role makes a character at least named, clears planned demotion and brings processing forward",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.processing",
+      "title": "a character is processed once a day when due, and the next time is set by their tier",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.due-list",
+      "title": "the due characters come most important first, limited by the budget, without historical or already processed ones",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.due-order-ties",
+      "title": "equally important characters are taken in the order they have waited, then by id; one processed today is not due again today",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "characters.activity.check-rejects-bad-records",
+      "title": "a saved game with a damaged activity profile is refused",
+      "kind": "unit",
+      "source": "tests/unit/characters.test.mjs"
+    },
+    {
+      "id": "groups.new-game.valid",
+      "title": "a new game and an earlier version's new-game save pass the group checks",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.catalog.built-in",
+      "title": "the built-in group types and command structures are known, and an approved custom type is usable once approved",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.create.with-members",
+      "title": "a new group takes its members from where they were, with defaults for what is not given",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.create.rejects-bad-input",
+      "title": "a group with bad input, a taken id, unusable members or a commander who is not a member is refused",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.link.adds-member",
+      "title": "a living free character joins a group on both sides at once, and joining again changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.link.rejects",
+      "title": "joining is refused for a missing or dead character, one already in another group, or a stale revision",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.unlink.removes-member",
+      "title": "a member leaves on both sides at once, and the commanders cannot leave",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.commanders.appoints",
+      "title": "commanders must be living members, can be cleared, and the command structure must be a known one",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.allegiance.sets-refs",
+      "title": "owner, employer, paymaster, command authority and loyalty anchors must point at existing records",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.cohesion.limits",
+      "title": "cohesion is set between 0 and 100 and nothing else is accepted",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.members.counted",
+      "title": "counted members (troops, assets) are set to a whole number, and zero removes them",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.update.fields",
+      "title": "a group can be renamed, retyped or given free data, but not through this rule's other fields",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.attach.inventory-and-treasury",
+      "title": "an inventory or account is attached only if it exists and is owned by the group",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.split.moves-parts",
+      "title": "a split moves the named characters, counted members and assets to a new group that starts where the source is",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.split.rejects",
+      "title": "a split with bad input, a bad allocation, a taken id or the wrong commanders is refused and changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.split.all-or-nothing",
+      "title": "a split that fails at the last step leaves no half-moved characters, counted members or new group",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.check.rejects-bad-records",
+      "title": "a saved game with a damaged group record is refused, naming the problem",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "groups.check.two-way-link",
+      "title": "a one-sided link between a character and a group is refused when a change would leave it",
+      "kind": "unit",
+      "source": "tests/unit/groups.test.mjs"
+    },
+    {
+      "id": "control.new-game.valid",
+      "title": "a new game and an earlier version's new-game save pass the player control checks",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.death",
+      "title": "when the played character has died, control passes to the chosen living character and the old one is released for good",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.retirement",
+      "title": "a formal retirement of a living character, decided and approved, passes control on",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.abdication",
+      "title": "an approved abdication that gives something up, decided by the player, passes control on",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.rejects",
+      "title": "control does not pass on without a death, an approved retirement or abdication, and an eligible successor",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.never-replay",
+      "title": "a character the player has left can never be played again, not even as a successor",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.transition.end-of-campaign",
+      "title": "with no one to switch to the campaign ends, keeping the last character, and stays ended",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.end-campaign.by-decision",
+      "title": "the player can end the campaign by a recorded decision while the character is alive",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.only-way-to-switch",
+      "title": "no other rule changes who the player plays, whatever happens to the characters",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.successors.set-and-prune",
+      "title": "successors are chosen among living, unplayed characters; one who dies later is allowed to stay until pruned",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.campaign-clan.set",
+      "title": "the campaign clan is chosen by a recorded decision among existing clans",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.bind-initial.unbound",
+      "title": "a campaign with no character yet is bound to a living one, once, with an existing clan",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "control.check.rejects-bad-records",
+      "title": "a saved game with a damaged player control record is refused, naming the problem",
+      "kind": "unit",
+      "source": "tests/unit/control.test.mjs"
+    },
+    {
+      "id": "finance.records.new-game-valid",
+      "title": "the new-game finance records pass the finance check",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.records.v1-save-valid",
+      "title": "the finance records of an earlier-version save pass the finance check unchanged",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.records.bad-records-refused",
+      "title": "records the earlier version would not save are refused",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.account.create",
+      "title": "an account opens empty for an owner that exists and may hold it",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.account.create-refused",
+      "title": "a bad account is refused and nothing changes",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.account.owner-change",
+      "title": "ownership moves only to an existing record that may own an account of that type",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.account.frozen",
+      "title": "a frozen account neither pays nor receives until it is unfrozen",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.account.spenders",
+      "title": "only the owner or an authorized spender may move money out of an account",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.moves-money",
+      "title": "a transfer moves the amount, keeps the total and leaves one record",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.all-or-nothing",
+      "title": "a transfer that cannot complete changes no account and writes no record",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.no-negative-balance",
+      "title": "an account can pay out everything it has but never more",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.currency-match",
+      "title": "money never moves between accounts of different currencies",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.reserve-emergency",
+      "title": "an account keeps its reserve unless the payment is marked an emergency",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.idempotent",
+      "title": "repeating a request with the same key pays once, a different request under that key is refused",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.budget-policy",
+      "title": "a budget policy given by the caller can refuse a payment, and a failing policy refuses it too",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.transfer.overflow-refused",
+      "title": "an account cannot be pushed past the largest whole number",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.mint.reason-recorded",
+      "title": "minted and spent money leaves a record naming its reason and the account",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.mint.invalid-refused",
+      "title": "minting or spending without a valid account, amount or reason changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.metrics.change",
+      "title": "manpower and territory change by whole numbers, never below zero, in the stored shape",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.metrics.follow-control",
+      "title": "when control passes to another character the metrics move to that character's account",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.victory.all-or-nothing",
+      "title": "a battle victory adds loot, manpower and territory together or not at all",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.create",
+      "title": "a debt records who owes whom and how much, and starts unpaid",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.create-refused",
+      "title": "a debt with a bad amount, party or type is refused and nothing changes",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.payment",
+      "title": "paying a debt moves the money and lowers what is owed; the last payment marks it paid",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.payment-all-or-nothing",
+      "title": "a payment that cannot be both made and recorded changes neither the accounts nor the debt",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.payment-parties",
+      "title": "a guarantor may pay for the debtor, and a debt held in an account is paid from that account",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.record-payment",
+      "title": "an earlier transfer counts as a payment once, for the right parties and currency",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.currency-match",
+      "title": "a debt is paid only in its own currency",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.overdue",
+      "title": "a debt becomes overdue only after its due day, and a paid debt never does",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.renegotiate",
+      "title": "only the terms of an unpaid debt can change",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.debt.daily-overdue",
+      "title": "the daily step marks debts overdue once their due day has ended",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "finance.definitions.custom-account-type",
+      "title": "an approved custom account type can be used, a merely proposed one cannot",
+      "kind": "unit",
+      "source": "tests/unit/finance.test.mjs"
+    },
+    {
+      "id": "inventory.records.new-game-valid",
+      "title": "the new-game inventory passes the inventory check",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.records.v1-save-valid",
+      "title": "the inventory records of an earlier-version save pass the inventory check unchanged",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.records.bad-records-refused",
+      "title": "records the earlier version would not save are refused",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.create",
+      "title": "an inventory opens empty for an owner that exists",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.create-refused",
+      "title": "a bad inventory is refused and nothing changes",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.owner-change",
+      "title": "an inventory changes hands only to an existing owner",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.bulk.add-remove",
+      "title": "bulk goods are added and removed by whole units, and an empty entry disappears",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.bulk.invalid-refused",
+      "title": "bad quantities, unknown goods and missing inventories change nothing",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.equipment.add-remove-slot",
+      "title": "equipment is added with its own weight, equipped in a slot and removed whole",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.equipment.invalid-refused",
+      "title": "bad equipment, duplicates and unknown slots change nothing",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.cargo.add-remove",
+      "title": "cargo is carried for a purpose and handed over as a whole lot",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.cargo.invalid-refused",
+      "title": "bad cargo, duplicates and unknown purposes change nothing",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.loss.all-or-nothing",
+      "title": "losses are applied together, a lot that is used up is removed, and an unaffordable loss changes nothing",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.load.calculation",
+      "title": "load adds bulk goods, equipment and cargo, taking cargo weight from the lot or else the resource",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.capacity.limits",
+      "title": "an inventory takes nothing past its weight limit, and a limit of 0 is no limit",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.capacity.decimal-sums",
+      "title": "decimal weights that add up to the limit exactly are not refused for rounding",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.records.rules-keep-records-valid",
+      "title": "a rule never writes an inventory that would not pass the record checks",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.capacity.volume-limit",
+      "title": "the volume limit is held for bulk goods, equipment and cargo alike",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.capacity.overload-and-relief",
+      "title": "an overloaded inventory can be unloaded, and a caller may knowingly overload it",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.food.summary",
+      "title": "food is counted by nutrition and turned into days of supply",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.transfer.moves-all",
+      "title": "goods, equipment and cargo move together and keep their owner and assignment",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.transfer.all-or-nothing",
+      "title": "a move that cannot complete leaves both inventories as they were",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.transfer.destination-capacity",
+      "title": "a move that would overload the receiving inventory is refused whole",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "inventory.definitions.custom-resource",
+      "title": "an approved custom resource can be stored, a merely proposed one cannot",
+      "kind": "unit",
+      "source": "tests/unit/inventory.test.mjs"
     }
   ]
 }
