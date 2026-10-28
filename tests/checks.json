@@ -1627,6 +1627,294 @@
       "title": "an approved custom resource can be stored, a merely proposed one cannot",
       "kind": "unit",
       "source": "tests/unit/inventory.test.mjs"
+    },
+    {
+      "id": "relations.apply.creates-record-and-indexes",
+      "title": "the first effect creates one directed record listed under both characters",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.apply.accumulates-and-clamps",
+      "title": "later effects add to the values, which stay within -1000..1000",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.apply.directed-and-sorted-indexes",
+      "title": "a pair is directed and the indexes list ids in sorted order",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.apply.sparse-zero-pairs",
+      "title": "a pair that sums to zero gets no record, but an existing record is kept",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.apply.replay-is-a-noop",
+      "title": "the same effect delivered twice changes nothing; a different input under the same key is refused",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.apply.bad-input-changes-nothing",
+      "title": "invalid effects are refused and leave the whole state as it was",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.ids.match-earlier-version",
+      "title": "ids are the earlier version's sha256 digests and capitalised character ids still work",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.check.detects-corruption",
+      "title": "the area check rejects index, value, tag, id and effect problems",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "relations.state.consistent-after-every-rule",
+      "title": "records, indexes and effects agree after each of many rule calls, failed or not",
+      "kind": "unit",
+      "source": "tests/unit/relations.test.mjs"
+    },
+    {
+      "id": "memories.create.record-and-owner-index",
+      "title": "creating a memory stores an unresolved record listed under its owner",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.create.targets-and-ids",
+      "title": "targets are de-duplicated and sorted; ids match the earlier version; one memory per owner, type and event",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.create.replay-and-conflict",
+      "title": "re-delivering an event is a no-op, also after the memory was closed; different content is refused",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.create.bad-input-changes-nothing",
+      "title": "invalid memories are refused and leave the state as it was",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.definitions.approved-custom-only",
+      "title": "custom memory types and decay policies count only once approved",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.resolve.transitions",
+      "title": "an open memory closes once; repeating the decision is a no-op, a different one is refused",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.resolve.permanent-never-expires",
+      "title": "a permanent memory cannot be expired, even when it is already closed",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.resolve.bad-input-changes-nothing",
+      "title": "invalid or unknown resolutions are refused and leave the state as it was",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.list.filters",
+      "title": "an owner's memories can be filtered by status, type and target",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.check.detects-corruption",
+      "title": "the area check rejects index, id, target, type and resolution problems",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "memories.state.consistent-after-every-rule",
+      "title": "records and owner index agree after each of many rule calls, failed or not",
+      "kind": "unit",
+      "source": "tests/unit/memories.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.title-event-makes-records",
+      "title": "a title change gets an activity and a memory record with the exact effects",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.other-event-kinds",
+      "title": "each event kind gets the records the earlier version made for it",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.replay-and-conflict",
+      "title": "the same event again is a no-op; the same event with other content quarantines what was not applied",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.bad-header-is-quarantined",
+      "title": "an event whose header disagrees with its delta is kept as a quarantined record and never applied",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.header-mismatches-are-quarantined",
+      "title": "each way an event can disagree with its own delta ends as one quarantined record",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.bad-input-changes-nothing",
+      "title": "malformed events and follow-up input are refused and leave the ledger as it was",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.same-event-later-day-conflict",
+      "title": "conflicting input that names an earlier day still leaves a valid quarantined record",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.events.normalize-direct",
+      "title": "normalizeFromEvent refuses handlers an event does not need, wrong headers and bad days",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.enqueue.capacity-is-enforced",
+      "title": "a full ledger refuses new records, all-or-nothing, and still accepts repeats",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.applies-effects-once",
+      "title": "due records apply their effects on the day change and are never applied again",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.relationship-handler",
+      "title": "a relationship follow-up record changes the relationship and is applied once",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.failed-record-rolls-back-and-retries",
+      "title": "a record whose effect fails changes nothing else, is retried with a growing delay, and applies once fixed",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.retry-delay-is-capped",
+      "title": "the delay between retries doubles up to 30 days",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.failed-effect-restores-touched-areas",
+      "title": "when an effect fails or throws, the areas it may touch and the random generator are restored",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.missing-effect-handler-retries",
+      "title": "an effect type nobody handles yet fails the record for a later retry instead of dropping it",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.invalid-record-is-quarantined",
+      "title": "a stored record that fails its checks is quarantined and the day carries on",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.inconsistent-stored-record-is-quarantined",
+      "title": "a stored record whose handler or references no longer match its effects is quarantined",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.ledger-tampering-is-refused",
+      "title": "an effect that changes the ledger record it belongs to makes the whole run fail",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.order-is-by-day-event-handler",
+      "title": "records are handled by due day, then event id, then handler, in plain character order",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.budget-and-cursor",
+      "title": "one day handles at most 64 records, remembers where it stopped, and finishes on the next call",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.cursor-restarts-for-records-behind-it",
+      "title": "a record that became due behind the cursor is still handled on that day",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.catch-up-is-limited-and-resumes",
+      "title": "a long gap is worked off 30 days per call, each day at its own date, and can be extended",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.activity-phase-budget",
+      "title": "the per-character phase handles each character once per day, 128 at a time",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.step-failure-keeps-the-day-unprocessed",
+      "title": "when the activity phase fails the whole day change is discarded and resumes later",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.bad-input-changes-nothing",
+      "title": "a bad day or a bad context is refused and leaves the state as it was",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.daily.runs-in-the-daily-runner",
+      "title": "the daily step is registered once, in the late slot, and works through the game runner",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.check.detects-corruption",
+      "title": "the area check rejects root, cursor and record problems; the digest check finds altered input",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
+    },
+    {
+      "id": "followups.state.consistent-after-every-rule",
+      "title": "the ledger stays valid after each of many enqueue and run calls, failed or not",
+      "kind": "unit",
+      "source": "tests/unit/followups.test.mjs"
     }
   ]
 }
