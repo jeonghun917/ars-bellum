@@ -248,7 +248,12 @@ export class M2CombatSystem {
       if (command.type !== "player_melee_attack") continue;
       const actor = battleState.getUnit(command.actorUnitId);
       if (!actor || !actor.isPlayer || !isM2UnitActive(actor) || actor.attackCooldownTicks !== 0) continue;
+      // A swing costs its cooldown whether or not it reaches anyone (owner decision 2026-10-28),
+      // the same as the bow; otherwise tapping attack out of reach could be repeated every tick.
       actor.heading = command.aimHeading;
+      actor.attackCooldownTicks = M2_MELEE_DEFINITION.cooldownTicks;
+      actor.state = "attacking";
+      actor.revision += 1;
       const targetId = byCommandId.get(command.commandId)?.selectedTargetUnitId || null;
       const target = targetId ? battleState.getUnit(targetId) : null;
       if (!isM2UnitActive(target) || target.sideId === actor.sideId) continue;
@@ -259,9 +264,6 @@ export class M2CombatSystem {
         targetUnitId: target.unitId,
         damage
       });
-      actor.attackCooldownTicks = M2_MELEE_DEFINITION.cooldownTicks;
-      actor.state = "attacking";
-      actor.revision += 1;
       this.#attackEventCount += 1;
     }
   }
