@@ -391,6 +391,18 @@
       "title": "an earlier-version save on a later day does not replay every past day",
       "kind": "unit",
       "source": "tests/unit/save.test.mjs"
+    },
+    {
+      "id": "game.daily.in-order",
+      "title": "each ended day runs once, steps in their order",
+      "kind": "unit",
+      "source": "tests/unit/daily.test.mjs"
+    },
+    {
+      "id": "game.daily.failure-stops",
+      "title": "a failing step leaves that day unprocessed and keeps earlier days",
+      "kind": "unit",
+      "source": "tests/unit/daily.test.mjs"
     }
   ]
 }
