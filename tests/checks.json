@@ -409,6 +409,42 @@
       "title": "a failing step leaves that day unprocessed and keeps earlier days",
       "kind": "unit",
       "source": "tests/unit/daily.test.mjs"
+    },
+    {
+      "id": "m1.battle.practice-no-reward",
+      "title": "winning a practice battle records no gold or territory",
+      "kind": "browser",
+      "source": "tests/browser/m1-battle.spec.mjs"
+    },
+    {
+      "id": "m1.battle.campaign-win-rewards",
+      "title": "winning a main-game battle saves the gold reward once",
+      "kind": "browser",
+      "source": "tests/browser/m1-battle.spec.mjs"
+    },
+    {
+      "id": "m1.battle.failed-win-save-stops",
+      "title": "if saving a win fails, the game says so once and does not retry",
+      "kind": "browser",
+      "source": "tests/browser/m1-battle.spec.mjs"
+    },
+    {
+      "id": "battle2d.melee.dead-cannot-strike",
+      "title": "a soldier already dead this frame deals no damage",
+      "kind": "unit",
+      "source": "tests/unit/battle2d.test.mjs"
+    },
+    {
+      "id": "battle2d.melee.killed-cannot-strike-back",
+      "title": "a soldier killed by a blow does not strike back in the same exchange",
+      "kind": "unit",
+      "source": "tests/unit/battle2d.test.mjs"
+    },
+    {
+      "id": "battle2d.melee.both-alive-trade-blows",
+      "title": "two living soldiers in reach both strike",
+      "kind": "unit",
+      "source": "tests/unit/battle2d.test.mjs"
     }
   ]
 }
