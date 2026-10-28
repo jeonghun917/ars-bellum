@@ -5,9 +5,14 @@
   "description": "ARS BELLUM HTML/CSS/JavaScript strategy game",
   "scripts": {
     "verify": "node verify.mjs",
-    "verify:m2": "node m2_verify.mjs"
+    "verify:m2": "node m2_verify.mjs",
+    "test:battle2d": "node --test tests/unit/battle2d.test.mjs",
+    "test:browser": "playwright test"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
   }
 }

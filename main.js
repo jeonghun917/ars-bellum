@@ -13,6 +13,8 @@ const terrain = new MapManager(2000, 2000, 40);
 
 window.isWaypointMode = false;
 let gameMode = 'none'; // 'practice' | 'maingame'
+// Read-only view for the victory code in index.html: practice battles must not pay out rewards.
+window.getGameMode = () => gameMode;
 let squads = [];
 
 function bindSaveButtonOnce() {
