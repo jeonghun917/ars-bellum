@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ARS BELLUM 2D battle (dev page)</title>
+  <link rel="icon" href="data:,">
+  <style>
+    html, body { margin: 0; height: 100%; background: #0f171e; overflow: hidden; }
+    #battle { position: fixed; inset: 0; }
+    #dev-bar { position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%); z-index: 50; display: flex; gap: 8px; align-items: center;
+      font: 12px sans-serif; color: #dfe6e9; background: rgba(0, 0, 0, 0.55); padding: 4px 8px; border-radius: 6px; }
+    #dev-bar button { font: inherit; padding: 4px 8px; }
+    #dev-result { margin: 0; max-width: 40vw; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <!-- A practice battle in a full-page container. Query: seed, mode, enemy, ally (strengths), allySquads and
+       enemySquads (comma lists such as shield,pike), terrain, soldiers, timeScale, confirmEnd=1, autostart=0
+       (wait for the restart button). -->
+  <div id="battle"><div id="battle-box" style="width:100%;height:100%"></div></div>
+  <div id="dev-bar">
+    <span>2D battle dev page</span>
+    <button id="dev-restart" type="button">restart</button>
+    <button id="dev-dispose" type="button">dispose</button>
+    <pre id="dev-result"></pre>
+  </div>
+  <script type="module">
+    import { startBattle } from './src/battle2d/index.js';
+
+    const params = new URLSearchParams(location.search);
+    const list = (name) => (params.has(name) ? params.get(name).split(',').filter(Boolean) : undefined);
+    const number = (name) => (params.has(name) ? Number(params.get(name)) : undefined);
+    const container = document.getElementById('battle-box');
+    const resultBox = document.getElementById('dev-result');
+    let handle = null;
+
+    function begin() {
+      resultBox.textContent = '';
+      document.body.dataset.endCount = '0';
+      document.body.dataset.state = 'running';
+      handle = startBattle({
+        container,
+        mode: params.get('mode') || 'practice',
+        seed: number('seed') ?? 1,
+        enemyStrength: number('enemy'),
+        allyStrength: number('ally'),
+        onEnd(result) {
+          document.body.dataset.endCount = String(Number(document.body.dataset.endCount) + 1);
+          document.body.dataset.result = JSON.stringify(result);
+          resultBox.textContent = JSON.stringify(result);
+        },
+        options: {
+          terrain: params.get('terrain') || undefined,
+          allySquads: list('allySquads'),
+          enemySquads: list('enemySquads'),
+          soldiersPerSquad: number('soldiers'),
+          timeScale: number('timeScale'),
+          confirmEnd: params.get('confirmEnd') === '1',
+          economy: { gold: number('gold') ?? 500, food: number('food') ?? 10 },
+        },
+      });
+    }
+
+    function end() {
+      if (handle) handle.dispose();
+      handle = null;
+      document.body.dataset.state = 'disposed';
+    }
+
+    document.getElementById('dev-dispose').addEventListener('click', end);
+    document.getElementById('dev-restart').addEventListener('click', () => {
+      end();
+      begin();
+    });
+    if (params.get('autostart') !== '0') begin();
+    else document.body.dataset.state = 'idle';
+  </script>
+</body>
+</html>

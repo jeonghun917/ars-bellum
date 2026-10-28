@@ -33,8 +33,8 @@ const firstLine = (text) => String(text || '').split('\n').map((line) => line.tr
 // 1. Main game source check (one check).
 {
   const proc = run('m1-static', process.execPath, ['verify.mjs']);
-  if (proc.error) record('m1.source.static', 'NOT_TESTED', `harness_error:${proc.error.message}`);
-  else record('m1.source.static', proc.status === 0 ? 'PASS' : 'FAIL', proc.status === 0 ? null : firstLine(proc.stderr || proc.stdout));
+  if (proc.error) record('app.source.static', 'NOT_TESTED', `harness_error:${proc.error.message}`);
+  else record('app.source.static', proc.status === 0 ? 'PASS' : 'FAIL', proc.status === 0 ? null : firstLine(proc.stderr || proc.stdout));
 }
 
 // 2. 3D battle simulation checks (m2_verify.mjs writes one entry per legacy name).
