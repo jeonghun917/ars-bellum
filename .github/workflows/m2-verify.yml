@@ -1,494 +1,66 @@
 name: Verify ARS BELLUM M2
-
 on:
   push:
-    branches:
-      - m2/3d-tech-prototype-v1
-    paths:
-      - m2_prototype.html
-      - m2_prototype.css
-      - m2/**
-      - vendor/three/r184/**
-      - m2_verify.mjs
-      - package.json
-      - .github/workflows/m2-verify.yml
-      - m2_ci_browser_verification_result.json
-      - m2_ci_m1_verification_result.json
-      - m2_ci_verification_result.json
+    branches: [m2/20v20-vertical-slice-v1]
+    paths: [m2_prototype.html,m2_prototype.css,m2/**,vendor/three/r184/**,m2_verify.mjs,.github/workflows/m2-verify.yml]
   pull_request:
     branches: [main]
-
-permissions:
-  contents: read
-
+permissions: {contents: read}
 jobs:
   verify-m2:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
-
+        with: {fetch-depth: 0}
       - name: Guard artifact-only run evidence
         shell: bash
         run: |
           set -euo pipefail
-          tracked_run_results="$(
-            git ls-files -- \
-              m2_ci_browser_verification_result.json \
-              m2_ci_m1_verification_result.json \
-              m2_ci_verification_result.json
-          )"
-
-          if [ -n "$tracked_run_results" ]; then
-            printf '%s\n' "Tracked run-result evidence is prohibited:" >&2
-            printf '%s\n' "$tracked_run_results" >&2
-            exit 1
-          fi
-
-      - name: Initialize run-bound verification evidence
+          tracked="$(git ls-files -- m2_ci_browser_verification_result.json m2_ci_m1_verification_result.json m2_ci_verification_result.json)"
+          test -z "$tracked" || { echo "$tracked" >&2; exit 1; }
+      - name: Initialize run-bound identity
         shell: bash
         run: |
           set -euo pipefail
-          rm -f \
-            m2_ci_m1_verification_result.json \
-            m2_ci_verification_result.json \
-            m2_ci_browser_verification_result.json
-
-          tested_head="$(git rev-parse HEAD)"
-          printf 'M2_TESTED_HEAD=%s\n' "$tested_head" >> "$GITHUB_ENV"
-          export TESTED_HEAD="$tested_head"
-
-          python3 <<'PY'
-          import datetime
-          import json
-          import os
-          from pathlib import Path
-
-          evidence = {
-              "schema": "ARS_BELLUM_M2_BROWSER_EVIDENCE_V1",
-              "testedHead": os.environ["TESTED_HEAD"],
-              "workflowRunId": os.environ["GITHUB_RUN_ID"],
-              "workflowRunAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
-              "scope": "M2_0_ACTUAL_CHROME_WEBGL2",
-              "result": "NOT_TESTED",
-              "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
-          }
-          Path("m2_ci_browser_verification_result.json").write_text(
-              json.dumps(evidence, indent=2) + "\n",
-              encoding="utf-8",
-          )
-          print(json.dumps(evidence, indent=2))
-          PY
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
+          rm -f m2_ci_*_verification_result.json m2_browser_probe_result.json
+          echo "M2_TESTED_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
       - name: Verify M1 baseline
         shell: bash
         run: |
           set -euo pipefail
-          node verify.mjs | tee m2_ci_m1_verification_result.json
-
-      - name: Verify M2 contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          marker="$(mktemp)"
-          set +e
-          node m2_verify.mjs
-          m2_exit=$?
-          set -e
-          if python3 - "$marker" m2_verification_result.json <<'PY'
-          import os
-          import sys
-          marker, result = sys.argv[1:3]
-          raise SystemExit(0 if os.path.exists(result) and os.stat(result).st_mtime_ns > os.stat(marker).st_mtime_ns else 1)
-          PY
-          then
-            cp m2_verification_result.json m2_ci_verification_result.json
-          fi
-          rm -f "$marker"
-          exit "$m2_exit"
-
-      - name: Verify actual Chrome WebGL2 lifecycle
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f m2_browser_probe_result.json
-
-          cat > m2_browser_probe.html <<'HTML'
-          <!DOCTYPE html>
-          <html><head><meta charset="utf-8"><title>M2_BROWSER_PENDING</title></head>
-          <body data-status="PENDING"><canvas id="probe" width="960" height="540"></canvas><pre id="result"></pre>
-          <script type="module">
-          import { M2BattleRuntime } from './m2/M2_BattleRuntime.js';
-          import { M2Diagnostics } from './m2/M2_Diagnostics.js';
-          import { createCombatProfileCatalog } from './m2/M2_CombatProfiles.js';
-          import { M2_TECHNICAL_COMBAT_PROFILES, M2_TECHNICAL_SNAPSHOT } from './m2/fixtures/m2_technical_fixture_v1.js';
-
-          const output = document.getElementById('result');
-          const canvas = document.getElementById('probe');
-          const asyncErrors = [];
-          const unhandledRejections = [];
-          const pageFrames = {
-            pageRafCount: 0,
-            firstPageRafAt: null
-          };
-
-          window.addEventListener('error', (event) => {
-            asyncErrors.push({
-              message: String(event.message || 'window_error'),
-              filename: String(event.filename || ''),
-              lineno: Number(event.lineno || 0),
-              colno: Number(event.colno || 0)
-            });
-          });
-
-          window.addEventListener('unhandledrejection', (event) => {
-            unhandledRejections.push(String(event.reason?.message || event.reason || 'unhandled_rejection'));
-          });
-
-          const trackPageRaf = (timeMs) => {
-            pageFrames.pageRafCount += 1;
-            if (pageFrames.firstPageRafAt === null) pageFrames.firstPageRafAt = timeMs;
-            requestAnimationFrame(trackPageRaf);
-          };
-          requestAnimationFrame(trackPageRaf);
-
-          class EvidenceError extends Error {
-            constructor(classification, message) {
-              super(message);
-              this.classification = classification;
-            }
-          }
-
-          const assert = (condition, message) => {
-            if (!condition) throw new Error(message);
-          };
-
-          const publishResult = async (result) => {
-            output.textContent = JSON.stringify(result);
-            document.body.dataset.status = result.result;
-            document.title = result.result === 'PASS' ? 'M2_BROWSER_PASS' : 'M2_BROWSER_FAIL';
-            const response = await fetch('/__m2_result', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(result),
-              cache: 'no-store'
-            });
-            if (!response.ok) {
-              throw new Error(`browser_probe_publish_failed:${response.status}`);
-            }
-          };
-
-          const installFrameInstrumentation = (diagnostics) => {
-            const metrics = {
-              runtimeFrameCount: 0,
-              firstRuntimeFrameAt: null,
-              sumRuntimeFrameDeltaMs: 0
-            };
-            const originalSampleFrame = diagnostics.sampleFrame.bind(diagnostics);
-            diagnostics.sampleFrame = (frameMs, rendererInfo = {}) => {
-              metrics.runtimeFrameCount += 1;
-              if (metrics.firstRuntimeFrameAt === null) metrics.firstRuntimeFrameAt = performance.now();
-              metrics.sumRuntimeFrameDeltaMs += Number(frameMs || 0);
-              originalSampleFrame(frameMs, rendererInfo);
-            };
-            return metrics;
-          };
-
-          const makeRuntime = () => {
-            const diagnostics = new M2Diagnostics();
-            const frameMetrics = installFrameInstrumentation(diagnostics);
-            const combatProfiles = createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES);
-            const runtime = new M2BattleRuntime({ canvas, diagnostics, combatProfiles });
-            const loaded = runtime.loadSnapshot(M2_TECHNICAL_SNAPSHOT);
-            assert(loaded.ok, loaded.error || 'load_failed');
-            return { runtime, diagnostics, combatProfiles, frameMetrics };
-          };
-
-          const frameEvidence = (entry) => {
-            if (!entry) return null;
-            const snapshot = entry.diagnostics.getSnapshot();
-            return {
-              runtimeFrameCount: entry.frameMetrics.runtimeFrameCount,
-              firstRuntimeFrameAt: entry.frameMetrics.firstRuntimeFrameAt,
-              sumRuntimeFrameDeltaMs: entry.frameMetrics.sumRuntimeFrameDeltaMs,
-              fixedTickCount: snapshot.fixedTickCount
-            };
-          };
-
-          const waitForRuntimeEvidence = async (phase, entry, timeoutMs = 5000) => {
-            const pageRafStart = pageFrames.pageRafCount;
-            const deadline = performance.now() + timeoutMs;
-
-            while (performance.now() < deadline) {
-              const snapshot = entry.diagnostics.getSnapshot();
-              if (
-                pageFrames.pageRafCount > pageRafStart &&
-                entry.frameMetrics.runtimeFrameCount > 0 &&
-                snapshot.fixedTickCount > 0
-              ) {
-                return snapshot;
-              }
-              await new Promise((resolve) => setTimeout(resolve, 25));
-            }
-
-            const snapshot = entry.diagnostics.getSnapshot();
-            if (pageFrames.pageRafCount <= pageRafStart) {
-              throw new EvidenceError(`${phase}_page_raf_missing`, `${phase}_page_raf_missing`);
-            }
-            if (entry.frameMetrics.runtimeFrameCount <= 0) {
-              throw new EvidenceError(`${phase}_runtime_frame_missing`, `${phase}_runtime_frame_missing`);
-            }
-            if (snapshot.fixedTickCount <= 0) {
-              throw new EvidenceError(`${phase}_tick_missing`, `${phase}_tick_missing`);
-            }
-            throw new EvidenceError(`${phase}_watchdog_timeout`, `${phase}_watchdog_timeout`);
-          };
-
-          let first = null;
-          let second = null;
-
-          try {
-            first = makeRuntime();
-            assert(first.combatProfiles.sourceScope === 'M2_TEST_ONLY', 'profile_scope_mismatch');
-            assert(first.runtime.start().ok, 'first_start_failed');
-            const firstSnapshot = await waitForRuntimeEvidence('first_runtime', first);
-            assert(firstSnapshot.animationOwner === 'M2BattleRuntime', 'owner_mismatch');
-            assert(firstSnapshot.persistenceAccess === false, 'persistence_boundary_broken');
-            assert(first.runtime.pause().ok, 'pause_failed');
-            assert(first.runtime.dispose().ok, 'first_dispose_failed');
-            assert(first.runtime.issueCommand({}).error === 'm2_runtime_disposed', 'disposed_guard_missing');
-
-            second = makeRuntime();
-            assert(second.runtime.start().ok, 'second_start_failed');
-            const secondSnapshot = await waitForRuntimeEvidence('second_runtime', second);
-            assert(second.runtime.dispose().ok, 'second_dispose_failed');
-
-            if (asyncErrors.length > 0) {
-              throw new EvidenceError('browser_async_error', 'browser_async_error');
-            }
-            if (unhandledRejections.length > 0) {
-              throw new EvidenceError('browser_unhandled_rejection', 'browser_unhandled_rejection');
-            }
-
-            const result = {
-              result: 'PASS',
-              scope: 'M2_0_ACTUAL_CHROME_WEBGL2',
-              actualWebGL2: true,
-              profileCount: first.combatProfiles.size,
-              profileScope: first.combatProfiles.sourceScope,
-              activeCharacters: firstSnapshot.activeCharacters,
-              animationOwner: firstSnapshot.animationOwner,
-              persistenceAccess: firstSnapshot.persistenceAccess,
-              startPauseDispose: 'PASS',
-              restartOnSameCanvas: 'PASS',
-              pageRafCount: pageFrames.pageRafCount,
-              firstPageRafAt: pageFrames.firstPageRafAt,
-              firstRuntime: frameEvidence(first),
-              secondRuntime: frameEvidence(second),
-              asyncErrors,
-              unhandledRejections
-            };
-            await publishResult(result);
-          } catch (error) {
-            try {
-              if (first && !first.runtime.getStatus().disposed) first.runtime.dispose();
-            } catch {}
-            try {
-              if (second && !second.runtime.getStatus().disposed) second.runtime.dispose();
-            } catch {}
-
-            const result = {
-              result: 'FAIL',
-              scope: 'M2_0_ACTUAL_CHROME_WEBGL2',
-              error: String(error?.message || error),
-              errorClassification: String(error?.classification || 'browser_probe_error'),
-              pageRafCount: pageFrames.pageRafCount,
-              firstPageRafAt: pageFrames.firstPageRafAt,
-              firstRuntime: frameEvidence(first),
-              secondRuntime: frameEvidence(second),
-              asyncErrors,
-              unhandledRejections
-            };
-            try {
-              await publishResult(result);
-            } catch (publishError) {
-              output.textContent = JSON.stringify({
-                ...result,
-                publishError: String(publishError?.message || publishError)
-              });
-              document.body.dataset.status = 'FAIL';
-              document.title = 'M2_BROWSER_PUBLISH_FAILED';
-            }
-          }
-          </script></body></html>
-          HTML
-
-          cat > m2_browser_result_server.py <<'PY'
-          import json
-          import os
-          from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-          from pathlib import Path
-
-          RESULT_PATH = Path("m2_browser_probe_result.json")
-
-          class Handler(SimpleHTTPRequestHandler):
-              def do_POST(self):
-                  if self.path != "/__m2_result":
-                      self.send_error(404)
-                      return
-
-                  try:
-                      length = int(self.headers.get("Content-Length", "0"))
-                  except ValueError:
-                      self.send_error(400, "invalid content length")
-                      return
-
-                  try:
-                      payload = json.loads(self.rfile.read(length).decode("utf-8"))
-                  except Exception:
-                      self.send_error(400, "invalid JSON")
-                      return
-
-                  if not isinstance(payload, dict):
-                      self.send_error(400, "JSON object required")
-                      return
-
-                  temp_path = RESULT_PATH.with_suffix(".json.tmp")
-                  temp_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-                  os.replace(temp_path, RESULT_PATH)
-                  self.send_response(204)
-                  self.end_headers()
-
-          ThreadingHTTPServer(("127.0.0.1", 4173), Handler).serve_forever()
-          PY
-
-          chrome_bin="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
-          chrome_executed=0
-          chrome_exit=127
-          chrome_terminated_after_result=0
-          transport_classification=""
-          server_pid=""
-          chrome_pid=""
-
-          : > m2_browser_chrome.log
-          python3 -u m2_browser_result_server.py > m2_browser_server.log 2>&1 &
-          server_pid=$!
-          trap 'if [ -n "${chrome_pid:-}" ]; then kill "$chrome_pid" 2>/dev/null || true; fi; if [ -n "${server_pid:-}" ]; then kill "$server_pid" 2>/dev/null || true; fi' EXIT
-          sleep 1
-
-          if ! kill -0 "$server_pid" 2>/dev/null; then
-            transport_classification="browser_result_receiver_unavailable"
-          elif [ -z "$chrome_bin" ]; then
-            transport_classification="chrome_binary_missing"
-            printf '%s\n' 'Chrome executable not found on runner.' > m2_browser_chrome.log
-          else
-            set +e
-            "$chrome_bin" \
-              --headless=new \
-              --no-sandbox \
-              --disable-dev-shm-usage \
-              --use-angle=swiftshader \
-              --enable-unsafe-swiftshader \
-              --enable-webgl \
-              --ignore-gpu-blocklist \
-              http://127.0.0.1:4173/m2_browser_probe.html \
-              > /dev/null \
-              2> m2_browser_chrome.log &
-            chrome_pid=$!
-            set -e
-            chrome_executed=1
-
-            deadline=$((SECONDS + 35))
-            while true; do
-              if [ -s m2_browser_probe_result.json ]; then
-                chrome_terminated_after_result=1
-                kill "$chrome_pid" 2>/dev/null || true
-                set +e
-                wait "$chrome_pid"
-                chrome_exit=$?
-                set -e
-                break
-              fi
-
-              if ! kill -0 "$chrome_pid" 2>/dev/null; then
-                set +e
-                wait "$chrome_pid"
-                chrome_exit=$?
-                set -e
-                transport_classification="browser_process_exited_before_result"
-                break
-              fi
-
-              if [ "$SECONDS" -ge "$deadline" ]; then
-                transport_classification="browser_probe_result_timeout"
-                kill "$chrome_pid" 2>/dev/null || true
-                set +e
-                wait "$chrome_pid"
-                chrome_exit=$?
-                set -e
-                break
-              fi
-
-              sleep 0.1
-            done
-          fi
-
-          if [ -n "$server_pid" ]; then
-            kill "$server_pid" 2>/dev/null || true
-            wait "$server_pid" 2>/dev/null || true
-          fi
-
-          export M2_BROWSER_CHROME_EXIT="$chrome_exit"
-          export M2_BROWSER_CHROME_EXECUTED="$chrome_executed"
-          export M2_BROWSER_CHROME_TERMINATED_AFTER_RESULT="$chrome_terminated_after_result"
-          export M2_BROWSER_TRANSPORT_CLASSIFICATION="$transport_classification"
-
+          set +e; node verify.mjs > m1.log 2>&1; code=$?; set -e; export CODE="$code"
           python3 <<'PY'
-          import datetime
-          import json
-          import os
-          from pathlib import Path
-
-          evidence_path = Path("m2_ci_browser_verification_result.json")
-          evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-          result_path = Path("m2_browser_probe_result.json")
-          transport_classification = os.environ.get("M2_BROWSER_TRANSPORT_CLASSIFICATION", "")
-
-          if result_path.exists() and result_path.stat().st_size > 0:
-              try:
-                  probe = json.loads(result_path.read_text(encoding="utf-8"))
-              except Exception as exc:
-                  evidence["result"] = "NOT_TESTED"
-                  evidence["errorClassification"] = "browser_probe_result_invalid"
-                  evidence["error"] = str(exc)
-              else:
-                  if not isinstance(probe, dict) or probe.get("result") not in {"PASS", "FAIL"}:
-                      evidence["result"] = "NOT_TESTED"
-                      evidence["errorClassification"] = "browser_probe_result_invalid"
-                  else:
-                      evidence.update(probe)
-          else:
-              evidence["result"] = "NOT_TESTED"
-              evidence["errorClassification"] = transport_classification or "browser_probe_result_timeout"
-
-          evidence["chromeExecuted"] = os.environ["M2_BROWSER_CHROME_EXECUTED"] == "1"
-          evidence["chromeExitCode"] = int(os.environ["M2_BROWSER_CHROME_EXIT"])
-          evidence["chromeTerminatedAfterResult"] = os.environ["M2_BROWSER_CHROME_TERMINATED_AFTER_RESULT"] == "1"
-          evidence["browser"] = "GitHub-hosted Ubuntu headless Chrome with SwiftShader"
-          evidence["generatedAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
-
-          evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
-          print(json.dumps(evidence, indent=2))
+          import json,os,datetime;from pathlib import Path
+          try:r=json.loads(Path('m1.log').read_text())
+          except Exception as e:r={'status':'UNPARSEABLE','error':str(e)}
+          ok=os.environ['CODE']=='0' and r.get('status')=='PASS'
+          out={'testedHead':os.environ['M2_TESTED_HEAD'],'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'scope':'M2_1_03_M1_REGRESSION','generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'result':'PASS' if ok else 'FAIL','rawResult':r}
+          Path('m2_ci_m1_verification_result.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out,indent=2));raise SystemExit(0 if ok else 1)
           PY
-
+      - name: Verify M2 static and deterministic
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e; node m2_verify.mjs > m2.log 2>&1; code=$?; set -e; export CODE="$code"
+          python3 <<'PY'
+          import json,os,datetime;from pathlib import Path
+          r=json.loads(Path('m2_verification_result.json').read_text()) if Path('m2_verification_result.json').exists() else {'status':'MISSING'}
+          ok=os.environ['CODE']=='0' and r.get('status')=='PASS' and r.get('phase')=='M2-1/03'
+          out={'testedHead':os.environ['M2_TESTED_HEAD'],'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'scope':'M2_1_03_STATIC_DETERMINISTIC','generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'result':'PASS' if ok else 'FAIL','rawResult':r}
+          Path('m2_ci_verification_result.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out,indent=2));raise SystemExit(0 if ok else 1)
+          PY
+      - name: Verify actual m2_prototype Chrome WebGL2
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          # The checks are real test files (tests/browser/m2-battle.spec.mjs); every check gets a result and a reason.
+          set +e; npx playwright test tests/browser/m2-battle.spec.mjs; set -e
+          node tests/support/m2-browser-result.mjs test-results/playwright.json m2_ci_browser_verification_result.json || true
       - name: Upload M2 verification result
         if: always()
         uses: actions/upload-artifact@v4
@@ -498,26 +70,10 @@ jobs:
             m2_ci_m1_verification_result.json
             m2_ci_verification_result.json
             m2_ci_browser_verification_result.json
-            m2_browser_probe_result.json
-            m2_browser_probe.html
-            m2_browser_chrome.log
-            m2_browser_server.log
-          if-no-files-found: warn
-
+            test-results/playwright.json
       - name: Enforce browser PASS gate
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          python3 <<'PY'
-          import json
-          from pathlib import Path
-
-          path = Path("m2_ci_browser_verification_result.json")
-          if not path.exists():
-              raise SystemExit("browser evidence missing")
-          result = json.loads(path.read_text(encoding="utf-8"))
-          if result.get("result") != "PASS":
-              raise SystemExit(json.dumps(result, sort_keys=True))
-          print(json.dumps(result, indent=2))
-          PY
+          node -e "const r=JSON.parse(require('fs').readFileSync('m2_ci_browser_verification_result.json','utf8'));console.log(r.result,r.reason||'');process.exit(r.result==='PASS'?0:1)"
