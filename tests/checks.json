@@ -2634,6 +2634,354 @@
       "id": "ui.battle.time-stops-during-battle",
       "title": "game time does not run while a battle is on and runs again afterwards",
       "kind": "browser"
+    },
+    {
+      "id": "battle2d.sim.dead-cannot-strike",
+      "title": "a soldier already dead this frame deals no damage",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.killed-cannot-strike-back",
+      "title": "a soldier killed by a blow does not strike back in the same exchange",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.trade-blows",
+      "title": "two living soldiers in reach both strike",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.dead-cannot-charge",
+      "title": "a dead rider deals no charge damage",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.cavalry-charge",
+      "title": "a charging horseman hits for 15 (x1.5 in a wedge), costs momentum and morale, and needs speed",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.shield-blocks-front",
+      "title": "a shield takes 80% off blows from its front and none from behind",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.pike-stops-light-cavalry",
+      "title": "light cavalry near a pike phalanx slows to a tenth and loses its momentum",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.ranged-height-bonus",
+      "title": "archers on higher ground reach further and hit harder",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.ranged-ammo",
+      "title": "a bowman stops shooting when the ammo runs out",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.ranged-needs-line-of-sight",
+      "title": "a wall between archer and target stops the arrows",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.deploy-no-combat",
+      "title": "nobody shoots, charges or strikes while the armies deploy",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.vision-line-of-sight",
+      "title": "an enemy is seen only inside an ally squad's sight range and with a clear line",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.pike-crossbow-fielded",
+      "title": "larger armies field pikes and crossbowmen with their own stats",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.strength-sets-army-size",
+      "title": "strength 1 is the six original squads, 0 is none, and explicit lists win",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.spawn-not-in-wall",
+      "title": "no soldier starts inside a wall or cliff, and the campaign enemy can move",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.practice-map-seeded",
+      "title": "the practice map is made from the seed: same seed same map, other seed other map",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-sim.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.morale-rout",
+      "title": "a first-tier squad breaks when morale falls under 30; sturdier squads never do",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.rout-to-edge",
+      "title": "routing soldiers run to their own map edge and leave alive, not killed",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.dead-do-not-fight-on",
+      "title": "soldiers killed during a step are gone from the squad next step",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.outcome-victory",
+      "title": "the battle is won when no enemy is left fighting, and the result counts everyone",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.outcome-victory-by-rout",
+      "title": "enemies who ran are counted as routed, not killed, and still win the battle",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.outcome-defeat",
+      "title": "the battle is lost when no ally is left, and a mutual wipe-out counts as a win",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.outcome-retreat",
+      "title": "when the surviving allies are all running, the battle ends as a retreat and they count as survivors",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.retreat-while-deploying",
+      "title": "a retreat ordered before the fight ends the battle at once, with nobody lost",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.outcome-surrender",
+      "title": "surrender ends the battle at once with the surrender outcome",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.ends-once",
+      "title": "after the end nothing changes the result: steps, orders, surrender and a second finish are ignored",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.deploy-ends-nothing",
+      "title": "while deploying, a missing enemy does not end the battle; it ends once the fight begins",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.deploy-enemy-holds",
+      "title": "while deploying the enemy stands still, your squads can be moved, and nobody is hurt",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.lord-capture-seeded",
+      "title": "the lord is captured by chance that grows with the enemy still running, drawn from the seeded generator",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.ai-uses-live-squads",
+      "title": "the enemy picks its target from the squads in the battle now, not from an old list",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.ai-roles",
+      "title": "flankers go for archers, skirmishers keep their distance, everyone else keeps a target",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.order-select-move",
+      "title": "a tap on your squad selects it; a tap on ground moves the selected squads side by side",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.order-line-and-box",
+      "title": "a dragged line spreads the selected squads along it; with none selected it is a selection box",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.order-attack",
+      "title": "attack on an enemy squad locks the target; a move order or facing order cancels it; selecting does not",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.order-formation",
+      "title": "a formation order changes the selected squads, \"special\" picks the squad's own, and idle squads re-form",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.diplomacy-offer-parse",
+      "title": "offers are read only when clear: one gold and/or one food amount, paid by the player",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.diplomacy-accepts-offer",
+      "title": "an offer worth enough ends the battle as a negotiated retreat; the offer is reported, no money moves here",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.diplomacy-refuses",
+      "title": "too little, more than you own, or nothing: the lord does not withdraw and the battle goes on",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.diplomacy-forced-retreat",
+      "title": "an enemy far outnumbered withdraws on its own, owing nothing; one far stronger turns aggressive",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.diplomacy-baseline-survives",
+      "title": "the enemy's losses are measured from the start of the battle, even after wiped squads leave the list",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.diplomacy-text-is-cosmetic",
+      "title": "a spoken line that contradicts the decision is replaced; a key goes in a header, never the address",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.same-seed-same-result",
+      "title": "the same seed and orders give exactly the same battle; another seed does not",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.events-do-not-change-fight",
+      "title": "collecting the effects events for a renderer does not change the battle",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.sim.no-math-random",
+      "title": "a whole battle, with a random map, shooting, charges and talks, never calls Math.random",
+      "kind": "unit",
+      "source": "tests/unit/battle2d-battle.test.mjs"
+    },
+    {
+      "id": "battle2d.page.loads-clean",
+      "title": "the dev page loads, draws the battlefield and its controls, and raises no errors",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.deploy-and-start",
+      "title": "squads can be moved while deploying, nothing fights, and the start button begins the battle",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.mouse-select-move",
+      "title": "a mouse click selects a squad, a click on ground moves it, dragging pans, a right drag selects a box",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.mouse-right-drag-box",
+      "title": "a right-button drag with nothing selected selects the squads inside the box",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.touch-select-move",
+      "title": "a tap selects a squad, a tap on ground moves it, one finger pans, two fingers zoom",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.win-calls-onend-once",
+      "title": "winning ends the battle in its own HUD and calls onEnd once with a victory, without any alert",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.end-waits-for-confirm",
+      "title": "with confirmEnd the end screen waits for its button before onEnd is called",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.surrender-no-reload",
+      "title": "surrender asks inside the battle, ends with \"surrender\", and does not reload the page",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.retreat-ends",
+      "title": "the retreat button ends the battle as a retreat with every ally counted as a survivor",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.diplomacy-offline",
+      "title": "the enemy lord answers by fixed rules and stock lines, with no network request and no key",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.diplomacy-offer-reported",
+      "title": "an accepted offer ends the battle as a negotiated retreat and is reported for the caller to charge",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.dispose-leaves-nothing",
+      "title": "dispose removes the canvas, HUD and styles and leaves no frame, timer or listener, and onEnd is not called",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.no-math-random",
+      "title": "a whole battle in the page, with the random map, never calls Math.random",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
+    },
+    {
+      "id": "battle2d.page.fits-phone",
+      "title": "on a phone screen the page does not scroll sideways and the controls are on screen",
+      "kind": "browser",
+      "source": "tests/browser/battle2d.spec.mjs"
     }
   ]
 }
