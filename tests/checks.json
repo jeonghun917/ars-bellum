@@ -2269,6 +2269,36 @@
       "title": "a record changed by a rule gets one more revision, and records not named do not",
       "kind": "unit",
       "source": "tests/unit/politics.test.mjs"
+    },
+    {
+      "id": "game.campaign.new-has-settlements",
+      "title": "a new campaign starts with the map's settlements and passes every area check",
+      "kind": "unit",
+      "source": "tests/unit/campaign.test.mjs"
+    },
+    {
+      "id": "game.campaign.daily-steps-wired",
+      "title": "settlements, finance and follow-ups each run in the day change, in that order",
+      "kind": "unit",
+      "source": "tests/unit/campaign.test.mjs"
+    },
+    {
+      "id": "game.campaign.days-pass",
+      "title": "ten game days pass: every day is processed once and the state stays valid",
+      "kind": "unit",
+      "source": "tests/unit/campaign.test.mjs"
+    },
+    {
+      "id": "game.campaign.save-and-reopen",
+      "title": "a campaign saved after some days reopens exactly as it was",
+      "kind": "unit",
+      "source": "tests/unit/campaign.test.mjs"
+    },
+    {
+      "id": "game.campaign.earlier-save-gets-settlements",
+      "title": "an earlier-version save opens with the map's settlements added",
+      "kind": "unit",
+      "source": "tests/unit/campaign.test.mjs"
     }
   ]
 }
