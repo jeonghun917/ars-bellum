@@ -5,6 +5,7 @@ What used to be caught by eye (and mostly by the user) is measured here, in ever
   through the body, the shield through the hand behind it, the scabbard through the surcoat skirt, ...);
 - contact: parts that must touch, in the guard (the shield boss on the shield face, the belt on the
   surcoat, each mitten on its sleeve, the scabbard at the belt): the gap between them, in millimetres;
+- holes: rays from inside the man (spine, neck, head) all meet some part on the way out;
 - direction: the knee never folds forwards; the shield's face bulges outwards; the spear and the sword point
   where the attack sends them.
 
@@ -114,6 +115,36 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label):
         for key, (first, last, most) in worst.items():
             entry = {"action": action.name, "pair": key, "frames": f"{first}-{last}", "triangles": most}
             log["clipping"].append(entry)
+    skeleton.animation_data.action = None
+
+    # Holes: from points on the spine, neck and head, rays outwards in every direction must meet some part of
+    # the soldier. One that gets out unmet has found a gap where the inside of the man shows (two layers that
+    # meet edge to edge, an opening wider than what fills it). In the guard and halfway through each action.
+    cores = {o for name in ("torso", "head", "forearm_l", "forearm_r") for o in parts.get(name, [])}
+    visible = [o for o in scene.objects if o.type == "MESH" and o not in cores]
+    for action in actions:
+        skeleton.animation_data.action = action
+        f0, f1 = action.frame_range
+        frames = [int(f0)] if action.name == "idle" else [int(f0 + (f1 - f0) / 2)]
+        for frame in frames:
+            scene.frame_set(frame)
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            trees = [_tree(o, depsgraph) for o in visible]
+            pb = skeleton.pose.bones
+            escaped = []
+            for bone in ("spine_02", "spine_03", "neck_01", "head"):
+                for k in (0.0, 0.5):
+                    start = pb[bone].head.lerp(pb[bone].tail, k)
+                    for el in range(-30, 90, 10):
+                        for az in range(0, 360, 10):
+                            e, a = math.radians(el), math.radians(az)
+                            d = Vector((math.cos(e) * math.sin(a), -math.cos(e) * math.cos(a), math.sin(e)))
+                            if not any(t.ray_cast(start, d, 1.0)[0] is not None for t in trees):
+                                escaped.append(f"{bone}+{k}:{el}/{az}")
+            if escaped:
+                log["holes"] = log.get("holes", []) + [{"action": action.name, "frame": frame, "rays": escaped}]
+                problems.append(f"hole: {len(escaped)} rays from inside get out in {action.name} frame {frame} "
+                                f"(first {escaped[0]}: bone+along, elevation/azimuth from the front)")
     skeleton.animation_data.action = None
 
     # Contact, in the guard pose (first frame of idle).

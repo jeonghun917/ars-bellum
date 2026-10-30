@@ -211,9 +211,11 @@ LEG_BONES = {"thigh_l", "thigh_r", "calf_l", "calf_r"}
 FOOT_BONES = {"foot_l", "foot_r", "ball_l", "ball_r"}
 
 
-def surface_layer(body, name, keep, offset, mat, decimate=None, smoothing=0):
+def surface_layer(body, name, keep, offset, mat, decimate=None, smoothing=0, edge_smoothing=0):
     """A copy of the body's faces where keep(vertex index) is true for all corners, pushed out along the
-    normals by offset. It keeps the body's skin weights, so it bends exactly like the body under it."""
+    normals by offset. It keeps the body's skin weights, so it bends exactly like the body under it.
+    edge_smoothing straightens its edges: the kept faces end in steps (a neckline like a saw), and each
+    pass moves every edge vertex halfway to the middle of its two neighbours along the edge."""
     obj = body.copy()
     obj.data = body.data.copy()
     obj.name = obj.data.name = name
@@ -228,6 +230,15 @@ def surface_layer(body, name, keep, offset, mat, decimate=None, smoothing=0):
     inner = [v for v in bm.verts if not v.is_boundary]
     for _ in range(smoothing):
         bmesh.ops.smooth_vert(bm, verts=inner, factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+    edge = [v for v in bm.verts if v.is_boundary]
+    for _ in range(edge_smoothing):
+        moved = {}
+        for v in edge:
+            along = [e.other_vert(v).co for e in v.link_edges if e.is_boundary]
+            if len(along) == 2:
+                moved[v] = v.co.lerp((along[0] + along[1]) / 2, 0.5)
+        for v, co in moved.items():
+            v.co = co
     bm.normal_update()
     for v in bm.verts:
         v.co += v.normal * offset(v.co)
@@ -1031,18 +1042,26 @@ def infantry(zf, f):
         return is_face(i) and c.z < chin_z + 0.062 and not mouth
 
     # Mail: a hauberk over the torso and arms with a skirt to the knee, and a coif over head and neck.
-    hauberk = surface_layer(body, "hauberk", lambda i: dom[i] in TORSO_BONES or dom[i] in ARM_BONES,
+    # It takes in the neck as well, so it overlaps the coif there: a face is kept only when all its corners
+    # are kept, so where two layers meet edge to edge the row of faces between them belongs to neither, and
+    # the inside of the man shows through.
+    hauberk = surface_layer(body, "hauberk", lambda i: dom[i] in TORSO_BONES or dom[i] in ARM_BONES or dom[i] == "neck_01",
                             lambda co: 0.022, mats["mail"], decimate=0.28, smoothing=2)
     mail_skirt, _ = skirt(body, dom, skeleton, "mail_skirt", hip_z + 0.02, knee_z + 0.01, 0.03, mats["mail"], flare=0.03)
     def is_face_inner(i):
         c = body.data.vertices[i].co
-        return is_face(i) and abs(c.x) < FACE_HALF_WIDTH - 0.008 and c.z < brow_z - 0.008
+        return is_face(i) and abs(c.x) < FACE_HALF_WIDTH - 0.016 and c.z < brow_z - 0.016 and c.z > chin_z + 0.012
 
     coif = surface_layer(body, "coif", lambda i: dom[i] == "neck_01" or (dom[i] == "head" and not is_face_inner(i)),
                          lambda co: 0.012, mats["mail"], decimate=0.32, smoothing=1)
+    # The coif stands 12 mm off the head, so round the face opening there is a gap between it and the skin
+    # (only the face is left of the body's skin). Seen from below, the inside of the head showed through it.
+    # A plain skin lining under the coif closes the head.
+    lining = surface_layer(body, "head_lining", lambda i: dom[i] in ("head", "neck_01") and not is_face_inner(i),
+                           lambda co: -0.004, mats["skin"], decimate=0.1)
     # Surcoat over the mail: sleeveless body and a longer, fuller skirt to mid-calf.
     surcoat = surface_layer(body, "surcoat", lambda i: dom[i] in TORSO_BONES, lambda co: 0.036, mats["cloth"], decimate=0.32,
-                            smoothing=3)
+                            smoothing=3, edge_smoothing=12)
     coat_skirt, _ = skirt(body, dom, skeleton, "coat_skirt", hip_z + 0.06, knee_z - 0.12, 0.05, mats["cloth"], flare=0.1)
     hose = surface_layer(body, "hose", lambda i: dom[i] in LEG_BONES, lambda co: 0.006, mats["hose"], decimate=0.2)
     shoes = surface_layer(body, "shoes", lambda i: dom[i] in FOOT_BONES, lambda co: 0.014, mats["leather"], decimate=0.12)
@@ -1183,7 +1202,10 @@ def infantry(zf, f):
     eyes = []
     for side in ("l", "r"):
         c = Vector(skeleton[f"eye_{side}"])
-        for radius, offset, mat in ((0.0125, 0.0, mats["eye"]), (0.0062, -0.0095, mats["iris"])):
+        # Eyeball, iris, and a dark socket behind them: the skin's eye opening is wider than the ball at its
+        # inner corner, and without it the inside of the head shows there.
+        for radius, offset, mat in ((0.0125, 0.0, mats["eye"]), (0.0062, -0.0095, mats["iris"]),
+                                    (0.022, 0.012, mats["iris"])):
             bm = bmesh.new()
             bmesh.ops.create_uvsphere(bm, u_segments=10, v_segments=8, radius=radius)
             o = mesh_obj("eye", bm, mat)
