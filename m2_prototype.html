@@ -2,64 +2,73 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ARS BELLUM M2-1/03 Vertical Slice</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1b2630">
+  <title>ARS BELLUM · 3D 전투</title>
   <link rel="stylesheet" href="m2_prototype.css">
 </head>
 <body>
   <main id="m2App" class="m2-app">
-    <canvas id="m2Canvas" aria-label="M2-1/03 20v20 전투 기술 슬라이스"></canvas>
+    <canvas id="m2Canvas" aria-label="20 대 20 3D 전투"></canvas>
 
     <section class="m2-header" aria-live="polite">
       <div>
-        <div class="m2-kicker">M2-1/03 · MORALE / ROUTING / RESULT</div>
+        <div class="m2-kicker">전투 시험판 · 20 대 20</div>
         <h1>ARS BELLUM</h1>
-        <p>20v20 · fixed 20 Hz · M2_TEST_ONLY technical combat</p>
       </div>
       <div id="m2Status" class="m2-status">초기화 중</div>
     </section>
 
-    <section class="m2-controls m2-runtime-controls" aria-label="런타임 제어">
+    <section class="m2-controls m2-runtime-controls" aria-label="전투 진행">
       <button id="m2Start" type="button">시작</button>
       <button id="m2Pause" type="button">일시정지</button>
       <button id="m2Restart" type="button">재시작</button>
-      <button id="m2Dispose" type="button">해제</button>
+      <button id="m2Dispose" type="button" class="m2-dev-only">해제</button>
+      <button id="m2DebugToggle" type="button" class="m2-dev-only" aria-pressed="false">진단</button>
     </section>
 
     <section class="m2-combat-controls" aria-label="플레이어 전투 제어">
-      <button id="m2Attack" type="button">ATTACK · J</button>
-      <button id="m2Block" type="button">BLOCK · K</button>
-      <button id="m2Bow" type="button">BOW · L</button>
-      <button id="m2Tactical" type="button">전술 · TAB</button>
+      <button id="m2Attack" type="button">공격<kbd>J</kbd></button>
+      <button id="m2Block" type="button">막기<kbd>K</kbd></button>
+      <button id="m2Bow" type="button">활<kbd>L</kbd></button>
+      <button id="m2Tactical" type="button">전술</button>
     </section>
 
-    <section class="m2-tactical-panel" aria-label="전술 명령">
-      <label>아군
-        <select id="m2FriendlyFormation"></select>
-      </label>
-      <label>적군
-        <select id="m2EnemyFormation"></select>
-      </label>
-      <button id="m2AttackOrder" type="button">ATTACK TARGET</button>
-      <div class="m2-button-row">
-        <button id="m2Rally" type="button">RALLY</button>
-        <button id="m2Retreat" type="button">RETREAT</button>
-      </div>
-      <div>ALLY MORALE <strong id="m2MoraleAlly">0</strong></div>
-      <div>ENEMY MORALE <strong id="m2MoraleEnemy">0</strong></div>
-      <div>ALLY ROUTING <strong id="m2RoutingAlly">0</strong></div>
-      <div>ENEMY ROUTING <strong id="m2RoutingEnemy">0</strong></div>
-      <div>RESULT <strong id="m2Result">—</strong></div>
-      <div class="m2-button-row">
-        <button id="m2Line" type="button">LINE · 1</button>
-        <button id="m2Column" type="button">COLUMN · 2</button>
-        <button id="m2Loose" type="button">LOOSE · 3</button>
-      </div>
-      <div class="m2-button-row">
-        <button id="m2Time0" type="button">0</button>
-        <button id="m2Time025" type="button">.25</button>
-        <button id="m2Time05" type="button">.5</button>
-        <button id="m2Time1" type="button">1</button>
+    <section id="m2TacticalPanel" class="m2-tactical-panel" aria-label="전술 명령">
+      <button id="m2PanelToggle" class="m2-panel-toggle" type="button" aria-expanded="true" aria-controls="m2PanelBody">
+        <span>명령 · 전황</span>
+        <span class="m2-panel-summary">아군 <b id="m2SummaryAlly">0</b> · 적군 <b id="m2SummaryEnemy">0</b></span>
+      </button>
+      <div id="m2PanelBody" class="m2-panel-body">
+        <label>아군
+          <select id="m2FriendlyFormation"></select>
+        </label>
+        <label>적군
+          <select id="m2EnemyFormation"></select>
+        </label>
+        <button id="m2AttackOrder" type="button">목표 공격</button>
+        <div class="m2-button-row">
+          <button id="m2Rally" type="button">재집결</button>
+          <button id="m2Retreat" type="button">후퇴</button>
+        </div>
+        <div class="m2-stats">
+          <div>아군 사기 <strong id="m2MoraleAlly">0</strong></div>
+          <div>적군 사기 <strong id="m2MoraleEnemy">0</strong></div>
+          <div>아군 도주 <strong id="m2RoutingAlly">0</strong></div>
+          <div>적군 도주 <strong id="m2RoutingEnemy">0</strong></div>
+          <div class="m2-stats-wide">결과 <strong id="m2Result">—</strong></div>
+        </div>
+        <div class="m2-button-row">
+          <button id="m2Line" type="button">횡대<kbd>1</kbd></button>
+          <button id="m2Column" type="button">종대<kbd>2</kbd></button>
+          <button id="m2Loose" type="button">산개<kbd>3</kbd></button>
+        </div>
+        <div class="m2-button-row m2-speed-row" aria-label="속도">
+          <button id="m2Time0" type="button">정지</button>
+          <button id="m2Time025" type="button">¼</button>
+          <button id="m2Time05" type="button">½</button>
+          <button id="m2Time1" type="button">1×</button>
+        </div>
       </div>
     </section>
 
@@ -68,14 +77,13 @@
     </section>
 
     <section class="m2-legend" aria-label="범례">
-      <span><i class="ally"></i>아군 fixture</span>
-      <span><i class="enemy"></i>적군 fixture</span>
-      <span><i class="player"></i>플레이어</span>
-      <span>M2_TEST_ONLY · canonical balance 아님</span>
+      <span><i class="ally"></i>아군</span>
+      <span><i class="enemy"></i>적군</span>
+      <span><i class="player"></i>나</span>
     </section>
 
-    <pre id="m2Diagnostics" class="m2-diagnostics">진단 준비 중</pre>
-    <noscript>이 프로토타입은 JavaScript가 필요합니다.</noscript>
+    <pre id="m2Diagnostics" class="m2-diagnostics" hidden>진단 준비 중</pre>
+    <noscript>이 페이지는 JavaScript가 필요합니다.</noscript>
   </main>
 
   <script type="module" src="m2/M2_Bootstrap.js"></script>

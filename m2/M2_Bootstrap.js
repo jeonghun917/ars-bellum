@@ -34,8 +34,16 @@ const elements = {
   moraleEnemy: document.getElementById("m2MoraleEnemy"),
   routingAlly: document.getElementById("m2RoutingAlly"),
   routingEnemy: document.getElementById("m2RoutingEnemy"),
-  result: document.getElementById("m2Result")
+  result: document.getElementById("m2Result"),
+  tacticalPanel: document.getElementById("m2TacticalPanel"),
+  panelToggle: document.getElementById("m2PanelToggle"),
+  summaryAlly: document.getElementById("m2SummaryAlly"),
+  summaryEnemy: document.getElementById("m2SummaryEnemy"),
+  debugToggle: document.getElementById("m2DebugToggle")
 };
+
+// Small screens: the command panel would cover the battle, so it starts folded to one line.
+const SMALL_SCREEN = "(max-width: 760px), (max-height: 500px)";
 
 const profileCatalog = createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES);
 let diagnostics = null;
@@ -78,12 +86,27 @@ function updateHud() {
     m9BridgeRequired: true
   }, null, 2);
   if (elements.tactical) elements.tactical.textContent = observation.cameraMode === "tactical" ? "3인칭" : "전술";
+  if (elements.summaryAlly) elements.summaryAlly.textContent = String(Math.round(observation.moraleSummary?.ally ?? 0));
+  if (elements.summaryEnemy) elements.summaryEnemy.textContent = String(Math.round(observation.moraleSummary?.enemy ?? 0));
+  if (result && elements.status && elements.status.textContent === "전투 중") setStatus("전투 끝");
   if (elements.moraleAlly) elements.moraleAlly.textContent = String(observation.moraleSummary?.ally ?? 0);
   if (elements.moraleEnemy) elements.moraleEnemy.textContent = String(observation.moraleSummary?.enemy ?? 0);
   if (elements.routingAlly) elements.routingAlly.textContent = String(observation.routingCounts?.ally ?? 0);
   if (elements.routingEnemy) elements.routingEnemy.textContent = String(observation.routingCounts?.enemy ?? 0);
   if (elements.result) elements.result.textContent = result?.outcome || "—";
   setCommandControlsDisabled(result !== null);
+}
+
+function setPanelCollapsed(collapsed) {
+  if (!elements.tacticalPanel) return;
+  elements.tacticalPanel.classList.toggle("is-collapsed", collapsed);
+  elements.panelToggle?.setAttribute("aria-expanded", collapsed ? "false" : "true");
+}
+
+// The diagnostics panel is for development: hidden unless asked for (button, or ?debug in the address).
+function setDiagnosticsVisible(visible) {
+  if (elements.diagnostics) elements.diagnostics.hidden = !visible;
+  elements.debugToggle?.setAttribute("aria-pressed", visible ? "true" : "false");
 }
 
 function destroyControllers() {
@@ -107,13 +130,13 @@ function createRuntime() {
     elements
   });
   runtime.attachControllers({ cameraController, inputController });
-  setStatus("준비됨 · M2-1/03 · MORALE / ROUTING / RESULT");
+  setStatus("준비됨");
   updateHud();
 }
 
 function start() {
   const receipt = runtime.start();
-  setStatus(receipt.ok ? "실행 중 · M2-1/03 vertical slice" : receipt.error);
+  setStatus(receipt.ok ? "전투 중" : receipt.error);
   updateHud();
   return receipt;
 }
@@ -154,6 +177,10 @@ try {
   elements.pause?.addEventListener("click", pause);
   elements.restart?.addEventListener("click", restart);
   elements.dispose?.addEventListener("click", dispose);
+  elements.panelToggle?.addEventListener("click", () => setPanelCollapsed(!elements.tacticalPanel.classList.contains("is-collapsed")));
+  elements.debugToggle?.addEventListener("click", () => setDiagnosticsVisible(elements.diagnostics?.hidden ?? false));
+  setPanelCollapsed(window.matchMedia?.(SMALL_SCREEN).matches ?? false);
+  setDiagnosticsVisible(new URLSearchParams(window.location.search).has("debug"));
 
   window.ArsM2Battle = Object.freeze({
     loadSnapshot,

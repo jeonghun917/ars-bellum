@@ -1,8 +1,13 @@
 import * as THREE from "../vendor/three/r184/three.module.min.js";
 import { M2_CONFIG } from "./M2_Config.js";
 
-function createHumanoid(material, markerMaterial, geometries) {
+// A soft round shadow under each soldier: much cheaper than real shadows and enough to ground them.
+function createHumanoid(material, markerMaterial, geometries, shadowMaterial) {
   const group = new THREE.Group();
+  const shadow = new THREE.Mesh(geometries.shadow, shadowMaterial);
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.015;
+  group.add(shadow);
   const body = new THREE.Mesh(geometries.body, material);
   body.position.y = 1.22;
   const head = new THREE.Mesh(geometries.head, material);
@@ -26,6 +31,45 @@ function createHumanoid(material, markerMaterial, geometries) {
   return group;
 }
 
+// Sky: a vertical gradient from deep blue overhead to a pale haze at the horizon (the fog colour).
+function createSkyTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 2;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  const gradient = ctx.createLinearGradient(0, 0, 0, 256);
+  gradient.addColorStop(0, "#3d6f9c");
+  gradient.addColorStop(0.55, "#8fb3cc");
+  gradient.addColorStop(1, "#" + M2_CONFIG.backgroundColor.toString(16).padStart(6, "0"));
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 2, 256);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+// Ground: a wide field with gentle patches of lighter and darker grass. The pattern is fixed (no random
+// numbers), so every load looks the same.
+function createGroundGeometry() {
+  const geometry = new THREE.PlaneGeometry(180, 180, 90, 90);
+  const base = new THREE.Color(M2_CONFIG.groundColor);
+  const dry = new THREE.Color(0x8a8a55);
+  const position = geometry.attributes.position;
+  const colors = new Float32Array(position.count * 3);
+  const color = new THREE.Color();
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i);
+    const y = position.getY(i);
+    const patch = Math.sin(x * 0.11) * Math.cos(y * 0.13) + Math.sin((x + y) * 0.047) * 0.8;
+    const fine = Math.sin(x * 0.9 + y * 0.37) * Math.cos(y * 0.83 - x * 0.21);
+    color.copy(base).lerp(dry, Math.max(0, patch) * 0.32);
+    color.multiplyScalar(0.94 + fine * 0.05 + Math.min(0, patch) * 0.06);
+    colors.set([color.r, color.g, color.b], i * 3);
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  return geometry;
+}
+
 export class M2RendererThree {
   #canvas;
   #renderer;
@@ -39,6 +83,7 @@ export class M2RendererThree {
   #resizeHandler;
   #raycaster = new THREE.Raycaster();
   #groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  #skyTexture = null;
   #disposed = false;
 
   constructor(canvas) {
@@ -52,14 +97,16 @@ export class M2RendererThree {
     this.#renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.#scene = new THREE.Scene();
-    this.#scene.fog = new THREE.Fog(M2_CONFIG.backgroundColor, 24, 65);
+    this.#skyTexture = createSkyTexture();
+    this.#scene.background = this.#skyTexture;
+    this.#scene.fog = new THREE.Fog(M2_CONFIG.backgroundColor, 45, 120);
     this.#camera = new THREE.PerspectiveCamera(M2_CONFIG.camera.fov, 1, M2_CONFIG.camera.near, M2_CONFIG.camera.far);
     this.#camera.position.set(M2_CONFIG.camera.x, M2_CONFIG.camera.y, M2_CONFIG.camera.z);
     this.#camera.lookAt(0, 0.9, 0);
 
-    const hemisphere = new THREE.HemisphereLight(0xbfd7e4, 0x3c4432, 1.8);
-    const sun = new THREE.DirectionalLight(0xfff1cf, 2.2);
-    sun.position.set(8, 14, 6);
+    const hemisphere = new THREE.HemisphereLight(0xcfe2f0, 0x4a5236, 1.9);
+    const sun = new THREE.DirectionalLight(0xffe6bf, 2.4);
+    sun.position.set(14, 18, 8);
     this.#scene.add(hemisphere, sun);
 
     this.#geometries = Object.freeze({
@@ -70,10 +117,12 @@ export class M2RendererThree {
       marker: new THREE.RingGeometry(0.48, 0.62, 24),
       projectile: new THREE.SphereGeometry(0.09, 8, 6),
       formation: new THREE.RingGeometry(0.72, 0.82, 24),
-      ground: new THREE.PlaneGeometry(42, 42)
+      shadow: new THREE.CircleGeometry(0.42, 16),
+      ground: createGroundGeometry()
     });
     this.#materials = Object.freeze({
-      ground: new THREE.MeshLambertMaterial({ color: M2_CONFIG.groundColor }),
+      ground: new THREE.MeshLambertMaterial({ vertexColors: true }),
+      shadow: new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false }),
       ally: new THREE.MeshLambertMaterial({ color: M2_CONFIG.allyColor }),
       enemy: new THREE.MeshLambertMaterial({ color: M2_CONFIG.enemyColor }),
       marker: new THREE.MeshBasicMaterial({ color: M2_CONFIG.playerMarkerColor, side: THREE.DoubleSide }),
@@ -85,9 +134,6 @@ export class M2RendererThree {
     const ground = new THREE.Mesh(this.#geometries.ground, this.#materials.ground);
     ground.rotation.x = -Math.PI / 2;
     this.#scene.add(ground);
-    const grid = new THREE.GridHelper(42, 42, 0x73806a, 0x596153);
-    grid.position.y = 0.012;
-    this.#scene.add(grid);
 
     this.#resizeHandler = () => this.resize();
     window.addEventListener("resize", this.#resizeHandler, { passive: true });
@@ -100,7 +146,7 @@ export class M2RendererThree {
     this.#units.clear();
     for (const unit of renderSnapshot.units) {
       const material = unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy;
-      const group = createHumanoid(material, unit.isPlayer ? this.#materials.marker : null, this.#geometries);
+      const group = createHumanoid(material, unit.isPlayer ? this.#materials.marker : null, this.#geometries, this.#materials.shadow);
       const profile = combatProfiles.get(unit.combatProfileId);
       group.scale.setScalar(0.9 + ((profile?.stats?.vitality || 0) / 100) * 0.18);
       this.#scene.add(group);
@@ -222,6 +268,8 @@ export class M2RendererThree {
     const height = Math.max(1, this.#canvas.clientHeight);
     this.#renderer.setSize(width, height, false);
     this.#camera.aspect = width / height;
+    // An upright phone screen is narrow: widen the view so the same soldiers stay in frame.
+    this.#camera.fov = this.#camera.aspect < 1 ? 76 : M2_CONFIG.camera.fov;
     this.#camera.updateProjectionMatrix();
   }
 
@@ -231,6 +279,7 @@ export class M2RendererThree {
     window.removeEventListener("resize", this.#resizeHandler);
     for (const geometry of Object.values(this.#geometries)) geometry.dispose();
     for (const material of Object.values(this.#materials)) material.dispose();
+    this.#skyTexture?.dispose();
     this.#renderer.dispose();
     this.#units.clear();
     this.#projectiles.clear();
