@@ -247,6 +247,8 @@ export class M2RendererThree {
       // Start each soldier's idle at a different point, so a rank does not breathe in step.
       group.userData.animator?.update(unit, (this.#units.size * 0.37) % 2);
     }
+    // Prepare every material's shader now, while the battle is loading, instead of stalling the first frame.
+    this.#renderer.compile(this.#scene, this.#camera);
   }
 
   setAnimationLoop(callback) {

@@ -13,6 +13,8 @@ export async function openBattle(page) {
   });
   await page.goto('/m2_prototype.html');
   await page.waitForFunction(() => window.ArsM2Battle && window.ArsM2Diagnostics, null, { timeout: 15_000 });
+  // Ready means the battle has drawn and ticked: the soldier models are loaded and their shaders built.
+  await page.waitForFunction(() => window.ArsM2Diagnostics.getSnapshot().fixedTickCount > 0, null, { timeout: 30_000 });
   await waitTicks(page, 1);
   return errors;
 }
@@ -26,10 +28,12 @@ export const player = (page) => page.evaluate(() => {
 export const formation = (page, id) => page.evaluate((formationId) =>
   window.ArsM2Battle.getSnapshot().formations.find((item) => item.formationId === formationId), id);
 
-// Waits until the fixed simulation tick has advanced by n.
+// Waits until the fixed simulation tick has advanced by n. CI draws with a software renderer (no GPU), where
+// a frame of the full soldier models can take a second or more, so the wait is generous; it measures that
+// the simulation advances, not how fast.
 export async function waitTicks(page, n) {
   const start = (await diagnostics(page)).fixedTickCount;
-  await expect.poll(async () => (await diagnostics(page)).fixedTickCount, { timeout: 6_000 }).toBeGreaterThanOrEqual(start + n);
+  await expect.poll(async () => (await diagnostics(page)).fixedTickCount, { timeout: 20_000 }).toBeGreaterThanOrEqual(start + n);
 }
 
 // Pointer helpers dispatch the same PointerEvents a touch screen or mouse would.
