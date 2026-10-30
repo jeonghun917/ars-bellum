@@ -556,6 +556,38 @@ def infantry(zf, f):
 
 # ---------------------------------------------------------------------------------------------------------
 
+def material_color(mat):
+    """The average colour of a material: its texture's mean, or its base colour."""
+    nodes = mat.node_tree.nodes
+    for node in nodes:
+        if node.type == "TEX_IMAGE" and node.image is not None:
+            px = np.empty(len(node.image.pixels), dtype=np.float32)
+            node.image.pixels.foreach_get(px)
+            return tuple(px.reshape(-1, 4)[:, :3].mean(axis=0))
+    return tuple(nodes.get("Principled BSDF").inputs["Base Color"].default_value[:3])
+
+
+def single_material(obj):
+    """Far away the textures cannot be seen: give each face its material's average colour as a vertex colour
+    and draw the whole soldier with one material (one draw call instead of one per material)."""
+    colors = [material_color(m) for m in obj.data.materials]
+    attr = obj.data.color_attributes.new(name="Color", type="BYTE_COLOR", domain="CORNER")
+    for poly in obj.data.polygons:
+        rgba = (*colors[poly.material_index], 1.0)
+        for li in poly.loop_indices:
+            attr.data[li].color = rgba
+        poly.material_index = 0
+    mat = bpy.data.materials.new("far")
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    node = mat.node_tree.nodes.new("ShaderNodeVertexColor")
+    node.layer_name = "Color"
+    mat.node_tree.links.new(node.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.75
+    obj.data.materials.clear()
+    obj.data.materials.append(mat)
+
+
 def bake_action(skeleton, name, length_s, pose_fn, loop=False, step=2):
     """Record pose_fn(t in 0..1) as an action with a key every `step` frames."""
     action = bpy.data.actions.new(name)
@@ -620,9 +652,22 @@ def main():
             o.select_set(True)
         bpy.context.view_layer.objects.active = meshes[0]
         bpy.ops.object.join()
-        bpy.context.view_layer.objects.active.name = "soldier"
+        soldier = bpy.context.view_layer.objects.active
+        soldier.name = soldier.data.name = "soldier"
+        # A simpler copy for soldiers far from the camera (about a fifth of the triangles), on the same
+        # skeleton, so the renderer can switch between them by distance.
+        far = soldier.copy()
+        far.data = soldier.data.copy()
+        far.name = far.data.name = "soldier_far"
+        bpy.context.collection.objects.link(far)
+        bpy.context.view_layer.objects.active = far
+        mod = far.modifiers.new("decimate", "DECIMATE")
+        mod.ratio = 0.2
+        far.modifiers.move(len(far.modifiers) - 1, 0)
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+        single_material(far)
         animate(skeleton)
-        tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in bpy.data.objects if o.type == "MESH")
+        tris = {o.name: sum(len(p.vertices) - 2 for p in o.data.polygons) for o in bpy.data.objects if o.type == "MESH"}
         path = os.path.join(OUT, f"infantry_{side}.glb")
         export(path)
         print(f"{os.path.basename(path)}: {tris} triangles, {os.path.getsize(path)} bytes, "

@@ -18,6 +18,16 @@ function createModelSoldier(model, markerMaterial, geometries, shadowMaterial) {
     // The bounds of a skinned mesh are those of its rest pose; a fallen soldier lies outside them.
     if (object.isSkinnedMesh) object.frustumCulled = false;
   });
+  // Near the camera the full model, further than FAR_MODEL_DISTANCE the simpler one. Both are bound to the
+  // same skeleton, so one animator moves whichever is shown.
+  const near = soldier.getObjectByName("soldier");
+  const far = soldier.getObjectByName("soldier_far");
+  if (near && far) {
+    const lod = new THREE.LOD();
+    near.parent.add(lod);
+    lod.addLevel(near, 0);
+    lod.addLevel(far, FAR_MODEL_DISTANCE);
+  }
   group.add(soldier);
   const shadow = new THREE.Mesh(geometries.shadow, shadowMaterial);
   shadow.rotation.x = -Math.PI / 2;
@@ -32,6 +42,9 @@ function createModelSoldier(model, markerMaterial, geometries, shadowMaterial) {
   group.userData.animator = new SoldierAnimator(soldier, model.clips);
   return group;
 }
+
+// Beyond this distance (metres) from the camera a soldier is drawn with the simpler model.
+const FAR_MODEL_DISTANCE = 14;
 
 // Picks a soldier's animation from its state each frame: idle, walk (faster when routing), block (held),
 // death (held), and an attack played once each time the attack cooldown restarts.
