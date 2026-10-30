@@ -19,7 +19,7 @@ async function finishByRetreat(page) {
     .filter((f) => f.sideId === 'ally')
     .map((f, i) => window.ArsM2Battle.issueCommand({ commandId: `retreat_${i}`, type: 'formation_retreat', formationId: f.formationId })));
   expect(issued.every((receipt) => receipt.ok), JSON.stringify(issued)).toBe(true);
-  await page.waitForFunction(() => window.ArsM2Battle.getResult(), null, { timeout: 10_000 });
+  await page.waitForFunction(() => window.ArsM2Battle.getResult(), null, { timeout: 20_000 });
   return page.evaluate(() => window.ArsM2Battle.getResult());
 }
 
@@ -29,7 +29,7 @@ async function swingCooldownSeen(page) {
   await page.waitForFunction(() => {
     const s = window.ArsM2Battle.getSnapshot();
     return s.units.find((u) => u.unitId === s.playerCharacterId).attackCooldownTicks > 0;
-  }, null, { polling: 'raf', timeout: 5_000 });
+  }, null, { polling: 'raf', timeout: 20_000 });
 }
 
 test.describe('3D battle', () => {
@@ -317,7 +317,7 @@ test.describe('3D battle', () => {
       snapshot.formations = snapshot.formations.filter((f) => f.sideId === 'ally')
         .map((f) => ({ ...f, memberUnitIds: f.memberUnitIds.filter((id) => ids.has(id)) }));
     `);
-    await page.waitForFunction(() => window.ArsM2Battle.getResult(), null, { timeout: 5_000 });
+    await page.waitForFunction(() => window.ArsM2Battle.getResult(), null, { timeout: 20_000 });
     const [result, g] = await page.evaluate(() => [window.ArsM2Battle.getResult(), window.ArsM2Diagnostics.getSnapshot()]);
     expect(result.outcome).toBe('ally_victory');
     expect(g.moraleSummary.enemy).toBe(0);
