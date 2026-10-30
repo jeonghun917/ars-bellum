@@ -132,6 +132,10 @@ def build(zf):
     body, remap = build_body(verts, uvs, groups)
     skeleton = build_armature(mh.rig(zf), verts, joints)
     skin(body, skeleton, mh.weights(zf), remap)
+    for side in ("l", "r"):
+        skeleton[f"eye_{side}"] = list(joints[f"joint-{side}-eye"])
+    for p in body.data.polygons:
+        p.use_smooth = True
     return body, skeleton
 
 
