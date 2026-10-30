@@ -112,6 +112,18 @@ def hair_texture(color, size=128, seed=31):
     return np.stack([np.clip(shade, 0, 1.3) * c for c in color], axis=2)
 
 
+def cross_mask(size, u0, u1, v0, v1, bars):
+    """1 inside the cross, 0 outside. bars: [(u_min, u_max, v_min, v_max)] in 0..1 texture space; u0..v1 is
+    the texture's extent in the same units, so bars can be given in metres."""
+    v, u = np.mgrid[0:size, 0:size] / (size - 1)
+    u = u0 + u * (u1 - u0)
+    v = v0 + v * (v1 - v0)
+    mask = np.zeros((size, size))
+    for a, b, c, d in bars:
+        mask = np.maximum(mask, ((u >= a) & (u <= b) & (v >= c) & (v <= d)).astype(float))
+    return mask[..., None]
+
+
 def normal_image(name, height, strength):
     """A tangent-space normal map from a height field (bumps stand out where height is high)."""
     dy, dx = np.gradient(height)
@@ -187,6 +199,8 @@ def dominant_bones(obj):
     return out
 
 
+EAR_X = 0.066            # half-width of the head at the ears, in metres
+FACE_HALF_WIDTH = 0.058  # the face opening of the coif
 ARM_BONES = {"clavicle_l", "clavicle_r", "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r"}
 TORSO_BONES = {"pelvis", "spine_01", "spine_02", "spine_03"}
 LEG_BONES = {"thigh_l", "thigh_r", "calf_l", "calf_r"}
@@ -270,6 +284,23 @@ def turn(skeleton, bone, axis, degrees):
     pb.matrix = Matrix.Translation(head) @ rot @ Matrix.Translation(-head) @ m
 
 
+# The spear's axis in the right hand's own frame, measured when the spear is bound (see infantry()).
+SPEAR_AXIS = {"local": None}
+
+
+def point_spear(skeleton, direction):
+    """Turn the right hand about its wrist so the spear points along direction (armature space)."""
+    if SPEAR_AXIS["local"] is None:
+        return
+    bpy.context.view_layer.update()
+    pb = skeleton.pose.bones["hand_r"]
+    m = pb.matrix.copy()
+    current = (m.to_3x3() @ SPEAR_AXIS["local"]).normalized()
+    rot = current.rotation_difference(Vector(direction).normalized())
+    head = m.translation.copy()
+    pb.matrix = Matrix.Translation(head) @ rot.to_matrix().to_4x4() @ Matrix.Translation(-head) @ m
+
+
 def rotated(v, axis, degrees):
     return Quaternion(Vector(axis).normalized(), math.radians(degrees)) @ Vector(v)
 
@@ -325,12 +356,14 @@ def span(t, a, b):
 
 
 def bend_leg(skeleton, side, forward_deg, knee_deg, foot_pitch=0.0, out=0.04):
-    """Thigh swung forward by forward_deg, knee bent by knee_deg, foot pitched down by foot_pitch."""
+    """Thigh swung forward by forward_deg, knee bent by knee_deg (the shin folds back, behind the knee),
+    toes lifted by foot_pitch (negative points them down).
+    Turning a downward vector about RIGHT by a positive angle moves it towards the front (-Y)."""
     sx = 1 if side == "l" else -1
-    aim(skeleton, f"thigh_{side}", rotated((out * sx, 0, -1), RIGHT, -forward_deg))
+    aim(skeleton, f"thigh_{side}", rotated((out * sx, 0, -1), RIGHT, forward_deg))
     bpy.context.view_layer.update()
     thigh = Vector(skeleton.pose.bones[f"thigh_{side}"].matrix.col[1][:3])
-    aim(skeleton, f"calf_{side}", rotated(thigh, RIGHT, knee_deg))
+    aim(skeleton, f"calf_{side}", rotated(thigh, RIGHT, -knee_deg))
     aim(skeleton, f"foot_{side}", rotated((0, -1, -0.3), RIGHT, foot_pitch))
 
 
@@ -402,9 +435,15 @@ def attack_pose(skeleton, t):
     turn(skeleton, "pelvis", UP, -10 * draw + 12 * reach)
     turn(skeleton, "spine_02", UP, -16 * draw + 16 * reach)
     turn(skeleton, "spine_02", RIGHT, -6 * reach)
+    # Underarm thrust: the spear comes down from upright to level as he gathers, then the arm drives it
+    # straight ahead, point first.
+    level = smooth(span(t, 0.0, 0.3)) * (1 - smooth(span(t, 0.7, 1.0)))
     aim(skeleton, "upperarm_r", (-0.28, -0.15 + 0.85 * draw - 0.75 * reach, -1 + 0.25 * draw + 0.75 * reach))
     aim(skeleton, "lowerarm_r", (-0.08 + 0.2 * reach, -1 + 0.3 * draw, 0.15 - 0.15 * reach))
     aim(skeleton, "hand_r", (0.0, -1, 0.0))
+    upright = Vector((0, -0.05, 1))
+    forward = Vector((0.04, -1, 0.06))
+    point_spear(skeleton, upright.lerp(forward, level).normalized())
     skeleton.pose.bones["Root"].location.y += -0.12 * reach
 
 
@@ -417,6 +456,9 @@ def block_pose(skeleton, t):
     aim(skeleton, "lowerarm_l", (-1, -0.12, 0.12 + 0.4 * up))
     turn(skeleton, "spine_02", RIGHT, -8 * up)
     turn(skeleton, "head", RIGHT, 8 * up)
+
+
+SHIELD_ROLL = -90
 
 
 def death_pose(skeleton, t):
@@ -438,9 +480,13 @@ def death_pose(skeleton, t):
     # The arms are flung out by the blow, then trail behind the fall and come to rest on the ground.
     fling = max(0.5 * hit, fall)
     aim(skeleton, "upperarm_l", (0.22 + 0.8 * fling, -0.45 + 0.6 * fall, -1 + 0.6 * fling))
-    aim(skeleton, "lowerarm_l", (-1 + 1.6 * fling, 0.2 * fall, 0.12 - 0.1 * fall))
+    # The shield arm rolls as it falls, so the shield ends up lying flat on the ground, not standing on its edge.
+    aim(skeleton, "lowerarm_l", (-1 + 1.6 * fling, 0.2 * fall, 0.12 - 0.1 * fall), roll=math.radians(SHIELD_ROLL) * fall)
     aim(skeleton, "upperarm_r", (-0.22 - 0.9 * fling, 0.5 * fall, -1 + 0.7 * fling))
     aim(skeleton, "lowerarm_r", (-0.05 - 0.9 * fling, -1 + 1.3 * fall, 0.1))
+    # The spear goes over with him. Directions here are before the whole body is tipped back (below), so
+    # "up along the body" ends up lying on the ground beside him, towards his head.
+    point_spear(skeleton, Vector((0, -0.05, 1)).lerp(Vector((-0.35, 0.05, 1)), smooth(span(t, 0.2, 0.85))).normalized())
     root = skeleton.pose.bones["Root"]
     bpy.context.view_layer.update()
     m = root.matrix.copy()
@@ -522,8 +568,8 @@ def italo_norman_helm(head_top, radius, mat):
     return [helm, band_obj, nasal]
 
 
-def kite_shield(mat_face, mat_mark, mat_rim):
-    """A kite shield 0.95 m tall, curved across, with a painted cross and a leather rim."""
+def kite_shield(f, mat_rim):
+    """A kite shield 0.95 m tall, curved across, with the faction cross painted on and a leather rim."""
     pts = []
     w, h = 0.27, 0.95
     for i in range(13):
@@ -533,6 +579,7 @@ def kite_shield(mat_face, mat_mark, mat_rim):
 
     def plate(outline, thick, inset, mat, name):
         bm = bmesh.new()
+        uv = bm.loops.layers.uv.new("UVMap")
         verts = [bm.verts.new((x, 0, y)) for x, y in outline]
         face = bm.faces.new(verts)
         bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=2)
@@ -544,19 +591,29 @@ def kite_shield(mat_face, mat_mark, mat_rim):
         for v in bm.verts:
             v.co.y += (v.co.x / w) ** 2 * 0.07 - inset  # curve back at the edges
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        for face in bm.faces:
+            for loop in face.loops:
+                c = loop.vert.co
+                loop[uv].uv = ((c.x + w) / (2 * w), (c.z + h * 0.72) / (h * 1.2))
         return mesh_obj(name, bm, mat, smooth=False)
 
+    size = 256
+    bars = [(-0.035, 0.035, -0.5, 0.32), (-0.2, 0.2, 0.1, 0.17)]
+    bars_uv = [((a + w) / (2 * w), (b + w) / (2 * w), (c + h * 0.72) / (h * 1.2), (d + h * 0.72) / (h * 1.2)) for a, b, c, d in bars]
+    mask = cross_mask(size, 0, 1, 0, 1, bars_uv)
+    paint = grain_texture(f["cloth"], size=size, seed=13, streak=3) * 1.12
+    mark = grain_texture(f["mark"], size=size, seed=14, streak=3)
+    face_mat = material("shield_paint", _image("shield_paint", paint * (1 - mask) + mark * mask), roughness=0.7)
+
     rim = plate([(x * 1.04, y * 1.03) for x, y in pts], 0.02, 0.0, mat_rim, "shield_rim")
-    face = plate(pts, 0.025, 0.006, mat_face, "shield")
-    bar_v = plate([(-0.035, 0.32), (0.035, 0.32), (0.035, -0.5), (-0.035, -0.5)], 0.004, 0.012, mat_mark, "cross_v")
-    bar_h = plate([(-0.2, 0.17), (0.2, 0.17), (0.2, 0.1), (-0.2, 0.1)], 0.004, 0.012, mat_mark, "cross_h")
+    face = plate(pts, 0.025, 0.006, face_mat, "shield")
     boss = bmesh.new()
     bmesh.ops.create_uvsphere(boss, u_segments=12, v_segments=6, radius=0.05)
     for v in boss.verts:
         v.co.y = -abs(v.co.y) * 0.5 - 0.01
         v.co.z += 0.12
     boss_obj = mesh_obj("boss", boss, mat_rim)
-    return [rim, face, bar_v, bar_h, boss_obj]
+    return [rim, face, boss_obj]
 
 
 def spear(mat_wood, mat_steel, length=2.6):
@@ -571,6 +628,32 @@ def spear(mat_wood, mat_steel, length=2.6):
 
 
 # ---------------------------------------------------------------------------------------------------------
+
+def paint_tabard(surcoat, f, chest_z, size=512):
+    """Give the surcoat a front/back projection and a texture with the cross at the centre of the chest
+    and of the back."""
+    width, top, height = 0.56, chest_z + 0.3, 0.75  # metres covered by the texture
+    # The cross stops above the belt (which crosses the surcoat about 0.17 m below the chest).
+    bars = [(-0.025, 0.025, chest_z - 0.12, chest_z + 0.13), (-0.12, 0.12, chest_z + 0.005, chest_z + 0.055)]
+    bars_uv = [((a + width / 2) / width, (b + width / 2) / width, (c - (top - height)) / height,
+                (d - (top - height)) / height) for a, b, c, d in bars]
+    mask = cross_mask(size, 0, 1, 0, 1, bars_uv)
+    cloth = weave_texture(f["cloth"], size=size)
+    mark = weave_texture(f["mark"], size=size, seed=5)
+    image = _image("tabard", cloth * (1 - mask) + mark * mask)
+    mat = material("tabard", image, roughness=0.9)
+    bm = bmesh.new()
+    bm.from_mesh(surcoat.data)
+    uv = bm.loops.layers.uv.get("UVMap") or bm.loops.layers.uv.new("UVMap")
+    for face in bm.faces:
+        for loop in face.loops:
+            c = loop.vert.co
+            loop[uv].uv = ((c.x + width / 2) / width, (c.z - (top - height)) / height)
+    bm.to_mesh(surcoat.data)
+    bm.free()
+    surcoat.data.materials.clear()
+    surcoat.data.materials.append(mat)
+
 
 def rigid(obj, skeleton, bone):
     """Bind an object, already in the rest pose, wholly to one bone."""
@@ -631,6 +714,12 @@ def infantry(zf, f):
     body, skeleton = bh.build(zf)
     mats = make_materials(f)
     dom = dominant_bones(body)
+    # Ears stand out from the head; under a mail coif and helmet they must not. Squash them in against the
+    # side of the head, so the coif (made from the head's surface) closes smoothly over them.
+    for v, b in zip(body.data.vertices, dom):
+        if b == "head" and abs(v.co.x) > EAR_X:
+            v.co.x = math.copysign(EAR_X + (abs(v.co.x) - EAR_X) * 0.15, v.co.x)
+    body.data.update()
     zs = [v.co.z for v in body.data.vertices]
     knee_z = skeleton.data.bones["calf_l"].head_local.z
     hip_z = skeleton.data.bones["pelvis"].head_local.z
@@ -641,10 +730,12 @@ def infantry(zf, f):
     head_r = (max(c.x for c in head_verts) - min(c.x for c in head_verts)) / 2
     brow_z = head_top - 0.085
 
+    head_cy = sum(c.y for c in head_verts) / len(head_verts)
+
     def is_face(i):
+        # By position, not by which way the surface faces: the sides of the nose face sideways but are face.
         c = body.data.vertices[i].co
-        n = body.data.vertices[i].normal
-        return dom[i] == "head" and n.y < -0.35 and c.z < brow_z + 0.005
+        return dom[i] == "head" and c.y < head_cy - 0.035 and c.z < brow_z + 0.005 and abs(c.x) < FACE_HALF_WIDTH
 
     face_z = [zs[i] for i in range(len(zs)) if is_face(i)]
     chin_z = min(face_z)
@@ -658,21 +749,24 @@ def infantry(zf, f):
     hauberk = surface_layer(body, "hauberk", lambda i: dom[i] in TORSO_BONES or dom[i] in ARM_BONES,
                             lambda co: 0.022, mats["mail"], decimate=0.28)
     mail_skirt, _ = skirt(body, dom, skeleton, "mail_skirt", hip_z + 0.02, knee_z + 0.01, 0.03, mats["mail"], flare=0.03)
-    coif = surface_layer(body, "coif", lambda i: dom[i] == "neck_01" or (dom[i] == "head" and not is_face(i)),
+    def is_face_inner(i):
+        c = body.data.vertices[i].co
+        return is_face(i) and abs(c.x) < FACE_HALF_WIDTH - 0.008 and c.z < brow_z - 0.008
+
+    coif = surface_layer(body, "coif", lambda i: dom[i] == "neck_01" or (dom[i] == "head" and not is_face_inner(i)),
                          lambda co: 0.012, mats["mail"], decimate=0.32)
     # Surcoat over the mail: sleeveless body and a longer, fuller skirt to mid-calf.
     surcoat = surface_layer(body, "surcoat", lambda i: dom[i] in TORSO_BONES, lambda co: 0.036, mats["cloth"], decimate=0.32)
-    coat_skirt, _ = skirt(body, dom, skeleton, "coat_skirt", hip_z + 0.06, knee_z - 0.12, 0.05, mats["cloth"], flare=0.06)
+    coat_skirt, _ = skirt(body, dom, skeleton, "coat_skirt", hip_z + 0.06, knee_z - 0.12, 0.05, mats["cloth"], flare=0.1)
     hose = surface_layer(body, "hose", lambda i: dom[i] in LEG_BONES, lambda co: 0.006, mats["hose"], decimate=0.2)
     shoes = surface_layer(body, "shoes", lambda i: dom[i] in FOOT_BONES, lambda co: 0.014, mats["leather"], decimate=0.12)
-    beard = surface_layer(body, "beard", is_beard, lambda co: 0.006, mats["hair"], decimate=0.6)
     # Only the face of the body stays visible; the hands are in mail mittens (below).
     remove_faces(body, lambda i: not is_face(i))
     body.data.materials.clear()
     body.data.materials.append(mats["skin"])
     for part in (hauberk, mail_skirt, coif):
         box_uvs(part, 0.18)
-    for part in (surcoat, coat_skirt, hose, shoes, beard):
+    for part in (coat_skirt, hose, shoes):
         box_uvs(part, 0.3)
 
     # Belt over the surcoat at the waist, with a buckle in front.
@@ -726,32 +820,24 @@ def infantry(zf, f):
             o.data.transform(Matrix.Translation(c + Vector((0, offset, 0))))
             eyes.append(rigid(o, skeleton, "head"))
 
-    # Cross on the chest and back of the surcoat: thin plates bound to the upper spine.
-    marks = []
+    # The faction cross is painted into the surcoat's own texture, front and back, so it moves with the cloth.
     chest = skeleton.data.bones["spine_03"].head_local
-    band = [v.co for v in surcoat.data.vertices if abs(v.co.x) < 0.05 and abs(v.co.z - chest.z) < 0.04]
-    for side in (-1, 1):
-        face_y = min(c.y for c in band) if side < 0 else max(c.y for c in band)
-        for size in ((0.05, 0.3), (0.24, 0.05)):
-            bm = bmesh.new()
-            bmesh.ops.create_cube(bm, size=1.0)
-            for v in bm.verts:
-                v.co = Vector((v.co.x * size[0], v.co.y * 0.004, v.co.z * size[1]))
-            o = mesh_obj("mark", bm, mats["mark"], smooth=False)
-            o.data.transform(Matrix.Translation((0, face_y + side * 0.006, chest.z - 0.02 + (0.03 if size[1] < 0.1 else 0))))
-            marks.append(rigid(o, skeleton, "spine_03"))
+    paint_tabard(surcoat, f, chest.z)
 
+    coif_band = [v.co for v in coif.data.vertices if abs(v.co.z - brow_z) < 0.03]
+    coif_r = max(max(abs(c.x) for c in coif_band), (max(c.y for c in coif_band) - min(c.y for c in coif_band)) / 2 / 1.08)
+    coif_cy = (max(c.y for c in coif_band) + min(c.y for c in coif_band)) / 2
     helm_parts = [rigid(p, skeleton, "head") for p in
-                  italo_norman_helm(Vector((0, head.head_local.y - 0.005, brow_z)), head_r + 0.012, mats["steel"])]
+                  italo_norman_helm(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["steel"])]
 
     # Shield on the left forearm, facing forward in the stance; spear upright in the right fist.
     stance(skeleton)
     bpy.context.view_layer.update()
     fore = skeleton.pose.bones["lowerarm_l"]
     mid = (fore.head + fore.tail) / 2
-    shield_parts = kite_shield(mats["paint"], mats["mark"], mats["leather"])
+    shield_parts = kite_shield(f, mats["leather"])
     for part in shield_parts:
-        part.data.transform(Matrix.Translation(mid + Vector((-0.04, -0.15, 0.02))) @ Matrix.Rotation(math.radians(-6), 4, "Z"))
+        part.data.transform(Matrix.Translation(mid + Vector((-0.04, -0.17, 0.02))) @ Matrix.Rotation(math.radians(-6), 4, "Z"))
     fists = {}
     for side in ("l", "r"):
         hand = skeleton.pose.bones[f"hand_{side}"]
@@ -776,8 +862,14 @@ def infantry(zf, f):
     for part in spear_parts:
         bind(part, skeleton, "hand_r", stance)
     for mitten, bone in mittens:
-        bind(mitten, skeleton, bone, stance)
-    for part in shield_parts + spear_parts + helm_parts + marks + [m for m, _ in mittens] + [belt, buckle, scabbard] + hilt_parts:
+        # The shield hand grips the shield's strap: it moves with the forearm, as the shield does.
+        bind(mitten, skeleton, "lowerarm_l" if bone == "hand_l" else bone, stance)
+    # Remember the spear's axis in the right hand's frame, for point_spear().
+    stance(skeleton)
+    bpy.context.view_layer.update()
+    SPEAR_AXIS["local"] = (skeleton.pose.bones["hand_r"].matrix.to_3x3().inverted() @ Vector((0, 0, 1))).normalized()
+    reset_pose(skeleton)
+    for part in spear_parts + helm_parts + [m for m, _ in mittens] + [belt, buckle, scabbard] + hilt_parts + shield_parts[:1] + shield_parts[2:]:
         box_uvs(part, 0.3)
     return body, skeleton
 
