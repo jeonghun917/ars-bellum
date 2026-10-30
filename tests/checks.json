@@ -176,7 +176,7 @@
     },
     {
       "id": "m2.render.soldier-models",
-      "title": "the soldiers are drawn with the Blender models, both sides",
+      "title": "the soldiers are drawn with the rigged Blender models, both sides, with their animations",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
     },

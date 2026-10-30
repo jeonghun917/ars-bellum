@@ -1,5 +1,6 @@
 import * as THREE from "../vendor/three/r184/three.module.min.js";
 import { M2_CONFIG } from "./M2_Config.js";
+import { clone as cloneSkinned } from "../vendor/three/r184/addons/utils/SkeletonUtils.js";
 
 // Soldier models made in Blender (see M2_SoldierModels.js), one per side. Set before the runtime starts;
 // without them the renderer draws the simple box soldiers below.
@@ -8,11 +9,15 @@ export function useSoldierModels(models) {
   soldierModels = models || null;
 }
 
-// A Blender soldier: a copy of the side's model (meshes and materials are shared, not copied), plus the
-// same ground shadow and player ring as the box soldier. Its parts turn at their joints like the box one's.
+// A Blender soldier: its own copy of the side's rigged model (the skeleton is copied, meshes and materials
+// are shared), the same ground shadow and player ring as the box soldier, and an animator.
 function createModelSoldier(model, markerMaterial, geometries, shadowMaterial) {
   const group = new THREE.Group();
-  const soldier = model.clone(true);
+  const soldier = cloneSkinned(model.scene);
+  soldier.traverse((object) => {
+    // The bounds of a skinned mesh are those of its rest pose; a fallen soldier lies outside them.
+    if (object.isSkinnedMesh) object.frustumCulled = false;
+  });
   group.add(soldier);
   const shadow = new THREE.Mesh(geometries.shadow, shadowMaterial);
   shadow.rotation.x = -Math.PI / 2;
@@ -24,10 +29,51 @@ function createModelSoldier(model, markerMaterial, geometries, shadowMaterial) {
     marker.position.y = 0.02;
     group.add(marker);
   }
-  const part = (name) => soldier.getObjectByName(name);
-  group.userData.parts = { body: part("body"), leftArm: part("arm_l"), rightArm: part("arm_r"), leftLeg: part("leg_l"), rightLeg: part("leg_r") };
-  group.userData.bodyBaseY = group.userData.parts.body.position.y;
+  group.userData.animator = new SoldierAnimator(soldier, model.clips);
   return group;
+}
+
+// Picks a soldier's animation from its state each frame: idle, walk (faster when routing), block (held),
+// death (held), and an attack played once each time the attack cooldown restarts.
+class SoldierAnimator {
+  #mixer;
+  #actions;
+  #base = null;
+  #attack;
+  #lastCooldown = 0;
+
+  constructor(root, clips) {
+    this.#mixer = new THREE.AnimationMixer(root);
+    this.#actions = Object.fromEntries(Object.entries(clips).map(([name, clip]) => [name, this.#mixer.clipAction(clip)]));
+    for (const name of ["block", "death"]) {
+      this.#actions[name].setLoop(THREE.LoopOnce, 1);
+      this.#actions[name].clampWhenFinished = true;
+    }
+    this.#attack = this.#actions.attack;
+    this.#attack.setLoop(THREE.LoopOnce, 1);
+    this.#play("idle");
+  }
+
+  #play(name) {
+    if (this.#base === name) return;
+    const next = this.#actions[name];
+    next.reset().play();
+    if (this.#base) next.crossFadeFrom(this.#actions[this.#base], name === "death" ? 0.12 : 0.25, false);
+    this.#base = name;
+  }
+
+  update(unit, deltaSeconds) {
+    const down = unit.state === "dead" || unit.state === "incapacitated";
+    if (down) this.#play("death");
+    else if (unit.blocking) this.#play("block");
+    else if (unit.state === "moving" || unit.state === "routing") this.#play("walk");
+    else this.#play("idle");
+    this.#actions.walk.timeScale = unit.state === "routing" ? 1.5 : 1;
+    const cooldown = unit.attackCooldownTicks || 0;
+    if (!down && cooldown > this.#lastCooldown) this.#attack.reset().setEffectiveWeight(1).fadeIn(0.06).play();
+    this.#lastCooldown = cooldown;
+    this.#mixer.update(deltaSeconds);
+  }
 }
 
 // A soft round shadow under each soldier: much cheaper than real shadows and enough to ground them.
@@ -114,6 +160,7 @@ export class M2RendererThree {
   #raycaster = new THREE.Raycaster();
   #groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   #skyTexture = null;
+  #lastElapsed = null;
   #disposed = false;
 
   constructor(canvas) {
@@ -184,6 +231,8 @@ export class M2RendererThree {
       group.scale.setScalar(0.9 + ((profile?.stats?.vitality || 0) / 100) * 0.18);
       this.#scene.add(group);
       this.#units.set(unit.unitId, { group, phaseOffset: this.#units.size * 0.73 });
+      // Start each soldier's idle at a different point, so a rank does not breathe in step.
+      group.userData.animator?.update(unit, (this.#units.size * 0.37) % 2);
     }
   }
 
@@ -264,6 +313,9 @@ export class M2RendererThree {
   render(renderSnapshot, interpolationAlpha, elapsedSeconds) {
     if (this.#disposed || !renderSnapshot) return;
     const alpha = Math.max(0, Math.min(1, Number(interpolationAlpha) || 0));
+    const now = Number(elapsedSeconds) || 0;
+    const deltaSeconds = this.#lastElapsed === null ? 0 : Math.max(0, Math.min(0.1, now - this.#lastElapsed));
+    this.#lastElapsed = now;
     for (const unit of renderSnapshot.units) {
       const actor = this.#units.get(unit.unitId);
       if (!actor) continue;
@@ -274,6 +326,12 @@ export class M2RendererThree {
         unit.previousPosition.z + (unit.position.z - unit.previousPosition.z) * alpha
       );
       group.rotation.y = unit.heading;
+      const animator = group.userData.animator;
+      if (animator) {
+        // A Blender soldier stays on the field when he falls; his animator plays the fall.
+        animator.update(unit, deltaSeconds);
+        continue;
+      }
       group.visible = unit.state !== "dead";
       const parts = group.userData.parts;
       const movementWeight = unit.state === "moving" ? 1 : 0;
