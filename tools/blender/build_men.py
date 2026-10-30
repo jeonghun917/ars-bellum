@@ -18,10 +18,12 @@ import bpy  # must come first: it makes bmesh and mathutils importable
 import bmesh
 import numpy as np
 from mathutils import Matrix, Quaternion, Vector
+from mathutils.bvhtree import BVHTree
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import build_human as bh  # noqa: E402
+import check_soldier  # noqa: E402
 import makehuman_data as mh  # noqa: E402
 
 OUT = os.path.join(HERE, "..", "..", "assets", "models")
@@ -345,6 +347,38 @@ def show(skeleton, spear=True, sword=False, sheathed=True):
         skeleton.pose.bones[name].scale = (k, k, k)
 
 
+# The scabbard hangs from the belt on its own bone and swings with the left thigh, as far as this, so it rides
+# on the skirt (which follows the thighs towards its hem) instead of the leg pushing the skirt through it.
+SCABBARD_SWING = 0.5
+
+
+def add_scabbard_bone(skeleton, mouth, up):
+    """A bone at the scabbard's mouth (child of the pelvis); the sheathed sword's bone hangs from it."""
+    bpy.context.view_layer.objects.active = skeleton
+    bpy.ops.object.mode_set(mode="EDIT")
+    bones = skeleton.data.edit_bones
+    b = bones.new("scabbard")
+    b.head, b.tail = mouth, mouth - up * 0.2
+    b.parent = bones["pelvis"]
+    bones["prop_sheath"].parent = b
+    bpy.ops.object.mode_set(mode="OBJECT")
+    reset_pose(skeleton)
+
+
+def swing_scabbard(skeleton):
+    """Turn the scabbard about its mouth by part of the left thigh's turn (both measured against the pelvis)."""
+    bpy.context.view_layer.update()
+    pb, rest = skeleton.pose.bones, skeleton.data.bones
+
+    def turned(name):
+        return pb[name].matrix.to_3x3() @ rest[name].matrix_local.to_3x3().inverted()
+
+    thigh = (turned("pelvis").inverted() @ turned("thigh_l")).to_quaternion()
+    want = Quaternion().slerp(thigh, SCABBARD_SWING).to_matrix()
+    own = rest["scabbard"].matrix_local.to_3x3()
+    pb["scabbard"].rotation_quaternion = (own.inverted() @ want @ own).to_quaternion()
+
+
 def reach(skeleton, side, wrist, pole):
     """Two-bone arm: put the wrist at `wrist` (armature space), the elbow bending towards `pole`."""
     bpy.context.view_layer.update()
@@ -590,10 +624,13 @@ def draw_pose(skeleton, t):
     up = (pelvis.to_3x3() @ SHEATH["up"]).normalized()
     shoulder = pb["upperarm_r"].head.copy()
     rest = pb["lowerarm_r"].tail.copy()
-    at_hilt = grip + Vector((-0.045, -0.02, -0.02))
+    at_hilt = grip + Vector((-0.03, -0.06, 0.02))   # the hand closes on the grip from in front
     drawn = at_hilt + up * 0.62 + Vector((-0.05, -0.2, 0.04))
-    wrist = rest.lerp(at_hilt, to_hilt).lerp(drawn, pull).lerp(shoulder + guard, ready)
-    reach(skeleton, "r", wrist, pole=(-0.6, 0.6, -0.5))
+    front = pelvis @ SHEATH["front"]
+    s_ = to_hilt
+    across = rest * (1 - s_) ** 2 + front * (2 * s_ * (1 - s_)) + at_hilt * s_ ** 2
+    wrist = across.lerp(drawn, pull).lerp(shoulder + guard, ready)
+    reach(skeleton, "r", wrist, pole=(-1, -0.4, -0.3))
     bpy.context.view_layer.update()
     aim(skeleton, "hand_r", Vector(pb["lowerarm_r"].matrix.col[1][:3]))
     if in_hand:
@@ -636,9 +673,11 @@ def death_pose(skeleton, t, sword=False):
     turn(skeleton, "head", UP, 25 * settle)
     # The arms are flung out by the blow, then trail behind the fall and come to rest on the ground.
     fling = max(0.5 * hit, fall)
-    aim(skeleton, "upperarm_l", (0.42 + 0.6 * fling, -0.62 + 0.8 * fall, -1 + 0.6 * fling))
-    # The shield arm rolls as it falls, so the shield ends up lying flat on the ground, not standing on its edge.
-    aim(skeleton, "lowerarm_l", (-1 + 1.6 * fling, -0.3 + 0.5 * fall, 0.14 - 0.12 * fall), roll=math.radians(SHIELD_ROLL) * fall)
+    # The shield arm opens out with the blow, before the fall, so the shield never swings across his body;
+    # it rolls as he falls, so the shield ends up lying flat on the ground, not standing on its edge.
+    open_l = max(smooth(span(t, 0.05, 0.35)), fall)
+    aim(skeleton, "upperarm_l", (0.42 + 0.6 * open_l, -0.62 + 0.8 * fall, -1 + 0.6 * open_l))
+    aim(skeleton, "lowerarm_l", (-1 + 1.6 * open_l, -0.3 + 0.5 * fall, 0.14 - 0.12 * fall), roll=math.radians(SHIELD_ROLL) * fall)
     aim(skeleton, "upperarm_r", (-0.22 - 0.9 * fling, 0.5 * fall, -1 + 0.7 * fling))
     aim(skeleton, "lowerarm_r", (-0.05 - 0.9 * fling, -1 + 1.3 * fall, 0.1))
     # The spear goes over with him. Directions here are before the whole body is tipped back (below), so
@@ -736,25 +775,73 @@ def kite_shield(f, mat_rim):
         pts.append((math.cos(a) * w, h * 0.3 + math.sin(a) * w * 0.55))
     pts += [(-w * 0.92, -h * 0.02), (-w * 0.55, -h * 0.4), (0, -h * 0.7), (w * 0.55, -h * 0.4), (w * 0.92, -h * 0.02)]
 
-    def plate(outline, thick, inset, mat, name):
+    def inside(x, z, outline):
+        hit = False
+        for (x1, z1), (x2, z2) in zip(outline, outline[1:] + outline[:1]):
+            if (z1 > z) != (z2 > z) and x < x1 + (z - z1) * (x2 - x1) / (z2 - z1):
+                hit = not hit
+        return hit
+
+    def nearest_on(x, z, outline):
+        best, point = math.inf, (x, z)
+        for (x1, z1), (x2, z2) in zip(outline, outline[1:] + outline[:1]):
+            dx, dz = x2 - x1, z2 - z1
+            k = max(0.0, min(1.0, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)))
+            px, pz = x1 + dx * k, z1 + dz * k
+            d = (px - x) ** 2 + (pz - z) ** 2
+            if d < best:
+                best, point = d, (px, pz)
+        return point
+
+    def plate(outline, thick, inset, mat, name, cells=(12, 24)):
+        """A solid plate filling the outline, curved back towards the sides. It is a grid with points inside
+        the outline as well (grid points outside are pulled onto the outline), so the curve holds across the
+        whole face, not only along its edge."""
+        xs = [x for x, _ in outline]
+        zs = [z for _, z in outline]
+        nx, nz = cells
         bm = bmesh.new()
         uv = bm.loops.layers.uv.new("UVMap")
-        verts = [bm.verts.new((x, 0, y)) for x, y in outline]
-        face = bm.faces.new(verts)
-        bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=2)
-        bmesh.ops.triangulate(bm, faces=bm.faces[:])
-        ext = bmesh.ops.extrude_face_region(bm, geom=bm.faces[:])
-        for v in ext["geom"]:
-            if isinstance(v, bmesh.types.BMVert):
-                v.co.y += thick
-        for v in bm.verts:
-            v.co.y += (v.co.x / w) ** 2 * 0.07 - inset  # curve back at the edges
+        grid = []
+        for j in range(nz + 1):
+            row = []
+            for i in range(nx + 1):
+                x = min(xs) + (max(xs) - min(xs)) * i / nx
+                z = min(zs) + (max(zs) - min(zs)) * j / nz
+                if not inside(x, z, outline):
+                    x, z = nearest_on(x, z, outline)
+                row.append(bm.verts.new((x, (x / w) ** 2 * 0.1 - inset, z)))
+            grid.append(row)
+        for j in range(nz):
+            for i in range(nx):
+                quad = [grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]]
+                if len({v.index for v in quad} | set()) and len({tuple(round(c, 5) for c in v.co) for v in quad}) >= 3:
+                    try:
+                        bm.faces.new(quad)
+                    except ValueError:
+                        pass
+        bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.calc_area() < 1e-8], context="FACES")
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+        # Thickness: a copy of the surface `thick` behind it, joined to it along the outline.
+        bm.verts.ensure_lookup_table()
+        rim_edges = [e for e in bm.edges if e.is_boundary]
+        front_faces = list(bm.faces)
+        back = {v: bm.verts.new(v.co + Vector((0, thick, 0))) for v in list(bm.verts)}
+        for f in front_faces:
+            bm.faces.new([back[v] for v in reversed(f.verts)])
+        for e in rim_edges:
+            a, b = e.verts
+            try:
+                bm.faces.new((a, b, back[b], back[a]))
+            except ValueError:
+                pass
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         for face in bm.faces:
             for loop in face.loops:
                 c = loop.vert.co
                 loop[uv].uv = ((c.x + w) / (2 * w), (c.z + h * 0.72) / (h * 1.2))
-        return mesh_obj(name, bm, mat, smooth=False)
+        return mesh_obj(name, bm, mat, smooth=True)
 
     size = 256
     bars = [(-0.035, 0.035, -0.5, 0.32), (-0.2, 0.2, 0.1, 0.17)]
@@ -769,7 +856,7 @@ def kite_shield(f, mat_rim):
     boss = bmesh.new()
     bmesh.ops.create_uvsphere(boss, u_segments=12, v_segments=6, radius=0.05)
     for v in boss.verts:
-        v.co.y = -abs(v.co.y) * 0.5 - 0.01
+        v.co.y = -abs(v.co.y) * 0.5 + 0.004
         v.co.z += 0.12
     boss_obj = mesh_obj("boss", boss, mat_rim)
     return [rim, face, boss_obj]
@@ -842,6 +929,14 @@ def paint_tabard(surcoat, f, chest_z, size=512):
     bm.free()
     surcoat.data.materials.clear()
     surcoat.data.materials.append(mat)
+
+
+def frame(z_axis, x_hint):
+    z = Vector(z_axis).normalized()
+    x = (Vector(x_hint) - z * Vector(x_hint).dot(z)).normalized()
+    y = z.cross(x)
+    m = Matrix((x, y, z)).transposed().to_4x4()
+    return m
 
 
 def rigid(obj, skeleton, bone):
@@ -951,6 +1046,14 @@ def infantry(zf, f):
     coat_skirt, _ = skirt(body, dom, skeleton, "coat_skirt", hip_z + 0.06, knee_z - 0.12, 0.05, mats["cloth"], flare=0.1)
     hose = surface_layer(body, "hose", lambda i: dom[i] in LEG_BONES, lambda co: 0.006, mats["hose"], decimate=0.2)
     shoes = surface_layer(body, "shoes", lambda i: dom[i] in FOOT_BONES, lambda co: 0.014, mats["leather"], decimate=0.12)
+    # Test-only shapes for check_soldier: the body's torso, head and forearms, shrunk a little inside the
+    # skin, so anything that enters them is inside the man. Removed before export.
+    cores = {
+        "torso": surface_layer(body, "core_torso", lambda i: dom[i] in TORSO_BONES, lambda co: -0.015, mats["skin"], decimate=0.3),
+        "head": surface_layer(body, "core_head", lambda i: dom[i] == "head", lambda co: -0.01, mats["skin"], decimate=0.3),
+        "forearm_l": surface_layer(body, "core_forearm_l", lambda i: dom[i] == "lowerarm_l", lambda co: -0.005, mats["skin"], decimate=0.5),
+        "forearm_r": surface_layer(body, "core_forearm_r", lambda i: dom[i] == "lowerarm_r", lambda co: -0.005, mats["skin"], decimate=0.5),
+    }
     # Only the face of the body stays visible; the hands are in mail mittens (below).
     remove_faces(body, lambda i: not is_face(i))
     body.data.materials.clear()
@@ -960,46 +1063,120 @@ def infantry(zf, f):
     for part in (coat_skirt, hose, shoes):
         box_uvs(part, 0.3)
 
-    # Belt where the surcoat's skirt starts (it also hides that seam), sized to sit outside every layer there.
+    # Belt where the surcoat's skirt starts (it also hides that seam). The cloth under it is measured as it is
+    # drawn (after decimation), in every direction round the waist, and the belt sits 2.5 mm outside it there:
+    # an ellipse fitted to the widest points cut into the cloth wherever the waist is not an ellipse.
     belt_z = hip_z + 0.06
-    around = [v.co for o in (surcoat, coat_skirt, hauberk, mail_skirt) for v in o.data.vertices if abs(v.co.z - belt_z) < 0.025]
-    bx = max(abs(c.x) for c in around) + 0.01
-    by0, by1 = min(c.y for c in around) - 0.01, max(c.y for c in around) + 0.01
-    cy = (by0 + by1) / 2
-    belt_bm = lathe([(1.0, belt_z - 0.022), (1.0, belt_z + 0.022)], 28)
-    for v in belt_bm.verts:
-        v.co.x *= bx
-        v.co.y = cy + v.co.y / 1.08 * (by1 - by0) / 2
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    # (tree, how far out to start the rays: the mail's sleeves hang beside the waist, the skirts flare wide)
+    cloth = [(BVHTree.FromObject(o, depsgraph), start) for o, start in
+             ((surcoat, 0.6), (coat_skirt, 0.6), (hauberk, 0.3), (mail_skirt, 0.6))]
+    band = [o.matrix_world @ v.co for o in (surcoat,) for v in o.data.vertices if abs(v.co.z - belt_z) < 0.03]
+    cy = (min(c.y for c in band) + max(c.y for c in band)) / 2
+
+    def polar(c):
+        return math.atan2(c.x, -(c.y - cy)), math.hypot(c.x, c.y - cy)
+
+    def cloth_radius(a, z, half_angle, half_z):
+        """How far out the cloth's surface reaches round the centre line, in the directions a +- half_angle
+        (0 is the front, + the left) and at heights z +- half_z: rays shot in from outside. (Its vertices are
+        not enough: a long triangle from the wider chest or hips crosses the waist further out than any.)"""
+        best = 0.0
+        for da in (-1, -0.5, 0, 0.5, 1):
+            for dz in (-1, 0, 1):
+                b = a + da * half_angle
+                inward = Vector((-math.sin(b), math.cos(b), 0))
+                for tree, far in cloth:
+                    start = Vector((far * math.sin(b), cy - far * math.cos(b), z + dz * half_z))
+                    hit = tree.ray_cast(start, inward, far)
+                    if hit[0] is not None:
+                        best = max(best, far - hit[3])
+        return best
+
+    def round_waist(a, r, z):
+        return Vector((r * math.sin(a), cy - r * math.cos(a), z))
+
+    segments, rings = 36, [belt_z - 0.022, belt_z - 0.011, belt_z, belt_z + 0.011, belt_z + 0.022]
+    step = 2 * math.pi / segments
+    belt_bm = bmesh.new()
+    belt_rings = []
+    for z in rings:
+        belt_rings.append([belt_bm.verts.new(round_waist(i * step, cloth_radius(i * step, z, step, 0.008) + 0.0025, z))
+                           for i in range(segments)])
+    for a, b in zip(belt_rings, belt_rings[1:]):
+        for i in range(segments):
+            j = (i + 1) % segments
+            belt_bm.faces.new((a[i], a[j], b[j], b[i]))
     belt = rigid(mesh_obj("belt", belt_bm, mats["leather"]), skeleton, "pelvis")
+    front_r = max(polar(v.co)[1] for v in belt.data.vertices if abs(polar(v.co)[0]) < step)
+    by0 = cy - front_r
     buckle_bm = bmesh.new()
     bmesh.ops.create_cube(buckle_bm, size=1.0)
     for v in buckle_bm.verts:
         v.co = Vector((v.co.x * 0.05, v.co.y * 0.01, v.co.z * 0.045)) + Vector((0, by0 - 0.004, belt_z))
     buckle = rigid(mesh_obj("buckle", buckle_bm, mats["steel"], smooth=False), skeleton, "pelvis")
 
-    # Scabbard hanging from the belt on the left hip, angled back, outside the skirt all the way down.
-    def skirt_x(z):
-        return max((abs(v.co.x) for v in coat_skirt.data.vertices if abs(v.co.z - z) < 0.03), default=bx)
+    # Scabbard hanging from the front-left of the belt, hilt forward, angled back (as swords were worn), its
+    # flat side along the body and outside the skirt all the way down: by its own half thickness plus 2 mm at
+    # the belt, growing to 2 cm more at the tip (the hem swings with the legs).
+    angle = math.radians(52)
+    out = Vector((math.sin(angle), -math.cos(angle), 0))
+    belt_tree = BVHTree.FromPolygons([v.co for v in belt.data.vertices], [p.vertices for p in belt.data.polygons])
 
-    hip = Vector((bx + 0.025, cy + 0.05, belt_z - 0.02))
-    # Long enough to hold the whole 0.78 m blade.
-    tip = hip + Vector((0.06, 0.32, -0.76))
-    tip.x = max(tip.x, skirt_x(tip.z) + 0.035)
+    def belt_here(z):
+        """The belt's outside in that direction, at height z."""
+        z = min(max(z, belt_z - 0.018), belt_z + 0.018)
+        return 0.3 - belt_tree.ray_cast(round_waist(angle, 0.3, z), -out, 0.3)[3]
+
+    hip = round_waist(angle, belt_here(belt_z - 0.015) + 0.016, belt_z - 0.015)
+    along = Vector((math.cos(angle), math.sin(angle), 0))   # round the waist, towards the back
+    # Tilted out from hanging straight (down and a little back) only as far as it must be.
+    hang = Vector((0.0, 0.3, -0.95)).normalized()
+
+    def clear(tip):
+        for k in (0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0):
+            point = hip.lerp(tip, k)
+            a, r = polar(point)
+            if cloth_radius(a, point.z, step / 2, 0.015) + 0.014 + 0.02 * k > r:
+                return False
+        return True
+
+    low, high = 0.0, 1.5
+    for _ in range(24):
+        tilt = (low + high) / 2
+        if clear(hip + (hang + out * tilt).normalized() * 0.84):
+            high = tilt
+        else:
+            low = tilt
+    tip = hip + (hang + out * high).normalized() * 0.84
     up = (hip - tip).normalized()
     scab = bmesh.new()
     bmesh.ops.create_cone(scab, cap_ends=True, segments=10, radius1=0.02, radius2=0.026, depth=(tip - hip).length)
     for v in scab.verts:
         v.co.y *= 0.45
     scabbard = mesh_obj("scabbard", scab, mats["leather"])
-    scabbard.data.transform(Matrix.Translation((hip + tip) / 2) @ Vector((0, 0, 1)).rotation_difference(up).to_matrix().to_4x4())
-    rigid(scabbard, skeleton, "pelvis")
+    # Flat side against the hip: thin out from the body, wide along it.
+    scabbard.data.transform(Matrix.Translation((hip + tip) / 2) @ frame(up, along))
+    add_scabbard_bone(skeleton, hip, up)
+    rigid(scabbard, skeleton, "scabbard")
+    # The strap it hangs by: down the outside of the belt and over the scabbard's mouth.
+    strap_bm = bmesh.new()
+    bmesh.ops.create_cube(strap_bm, size=1.0)
+    for v in strap_bm.verts:
+        z = belt_z + v.co.z * 0.052
+        v.co = round_waist(angle, belt_here(z) + 0.003 + v.co.x * 0.008, z) + along * v.co.y * 0.022
+    strap = rigid(mesh_obj("scabbard_strap", strap_bm, mats["leather"], smooth=False), skeleton, "pelvis")
     # The sword in it: crossguard at the scabbard's mouth, blade down inside. It rides on its own bone, so the
     # draw animation can hide it at the moment the hand takes it.
     sheathed = sword(mats, "sheathed")
     for part in sheathed:
-        part.data.transform(Matrix.Translation(hip) @ Vector((0, 0, 1)).rotation_difference(-up).to_matrix().to_4x4())
+        # Crossguard along the body, so it does not stick into the skirt or out from the hip.
+        part.data.transform(Matrix.Translation(hip) @ frame(-up, along))
         rigid(part, skeleton, "prop_sheath")
     SHEATH["grip"] = hip + up * 0.06
+    # A point in front of the belly that the right hand passes on its way to the hilt (draw_pose).
+    SHEATH["front"] = Vector((0.04, by0 - 0.13, belt_z + 0.1))
     SHEATH["up"] = up.copy()
 
     # Eyes: a white ball with a dark iris looking ahead, in each eye socket.
@@ -1045,14 +1222,35 @@ def infantry(zf, f):
     mittens = []
     for side in ("l", "r"):
         hand = skeleton.pose.bones[f"hand_{side}"]
+        bone = skeleton.data.bones[f"lowerarm_{side}"]
+        elbow, wrist = bone.head_local, bone.tail_local
+        axis = (wrist - elbow).normalized()
+        length = (wrist - elbow).length
+        along = [(v.co - elbow).dot(axis) for v in hauberk.data.vertices
+                 if ((v.co - elbow) - axis * (v.co - elbow).dot(axis)).length < 0.07 and length * 0.5 < (v.co - elbow).dot(axis) < length + 0.06]
+        sleeve_short = length - max(along)          # how far before the wrist the sleeve ends
+        half = 0.065
+        centre = half - sleeve_short - 0.035        # from the wrist, along the hand: 3.5 cm inside the sleeve
         bm = bmesh.new()
         bmesh.ops.create_uvsphere(bm, u_segments=12, v_segments=8, radius=1.0)
         for v in bm.verts:
-            v.co = Vector((v.co.x * 0.045, v.co.y * 0.06, v.co.z * 0.05))
+            v.co = Vector((v.co.x * 0.05, v.co.y * half, v.co.z * 0.054))
         mitten = mesh_obj(f"mitten_{side}", bm, mats["mail"])
-        # Long axis along the hand, centred on the fist.
-        mitten.data.transform(Matrix.Translation(fists[side]) @ Vector((0, 1, 0)).rotation_difference(Vector(hand.matrix.col[1][:3])).to_matrix().to_4x4())
+        direction = Vector(hand.matrix.col[1][:3])
+        mitten.data.transform(Matrix.Translation(hand.head + direction * centre) @ Vector((0, 1, 0)).rotation_difference(direction).to_matrix().to_4x4())
         mittens.append((mitten, f"hand_{side}"))
+    # The shield stands clear (8 mm) in front of the hand that holds it: its edges curve back, so a hand
+    # towards an edge needs the shield further forward.
+    shield_at = Matrix.Translation(mid + Vector((-0.04, -0.17, 0.02))) @ Matrix.Rotation(math.radians(-6), 4, "Z")
+    to_local = shield_at.inverted()
+    push = 0.0
+    for v in mittens[0][0].data.vertices:
+        q = to_local @ v.co
+        if abs(q.x) < 0.29 and -0.67 < q.z < 0.45:
+            back = 0.07 * (q.x / 0.27) ** 2 + 0.02 + 0.008
+            push = max(push, back - q.y)
+    for part in shield_parts:
+        part.data.transform(Matrix.Translation(shield_at @ Vector((0, -push, 0)) - shield_at @ Vector((0, 0, 0))))
     reset_pose(skeleton)
     for part in shield_parts:
         bind(part, skeleton, "lowerarm_l", stance)
@@ -1068,9 +1266,25 @@ def infantry(zf, f):
     bpy.context.view_layer.update()
     SPEAR_AXIS["local"] = (skeleton.pose.bones["hand_r"].matrix.to_3x3().inverted() @ Vector((0, 0, 1))).normalized()
     reset_pose(skeleton)
-    for part in spear_parts + held + sheathed + helm_parts + [m for m, _ in mittens] + [belt, buckle, scabbard] + shield_parts[:1] + shield_parts[2:]:
+    for part in spear_parts + held + sheathed + helm_parts + [m for m, _ in mittens] + [belt, buckle, scabbard, strap] + shield_parts[:1] + shield_parts[2:]:
         box_uvs(part, 0.3)
+    mitten = {bone[-1]: m for m, bone in mittens}
+    CHECK_PARTS.clear()
+    CHECK_PARTS.update({
+        "torso": [cores["torso"]], "head": [cores["head"]],
+        "forearm_l": [cores["forearm_l"]], "forearm_r": [cores["forearm_r"]],
+        "forearm_sleeve_l": [hauberk], "forearm_sleeve_r": [hauberk],
+        "mitten_l": [mitten["l"]], "mitten_r": [mitten["r"]],
+        "spear": spear_parts, "sword": held, "sheathed": sheathed,
+        "shield": shield_parts, "shield_face": [shield_parts[1]], "boss": [shield_parts[2]],
+        "scabbard": [scabbard, strap], "belt": [belt], "surcoat": [surcoat], "coat_skirt": [coat_skirt],
+        "surcoat_or_skirt": [surcoat, coat_skirt],
+    })
     return body, skeleton
+
+
+# Parts handed to check_soldier (name -> objects), filled by infantry().
+CHECK_PARTS = {}
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -1117,6 +1331,7 @@ def bake_action(skeleton, name, length_s, pose_fn, loop=False, step=2):
     for frame in list(range(0, frames, step)) + [frames]:
         t = frame / frames
         pose_fn(skeleton, 0.0 if (loop and frame == frames) else t)
+        swing_scabbard(skeleton)
         bpy.context.view_layer.update()
         for pb in skeleton.pose.bones:
             pb.keyframe_insert("rotation_quaternion", frame=frame + 1)
@@ -1164,8 +1379,10 @@ def export(path):
 def main():
     zf = mh.package()
     os.makedirs(OUT, exist_ok=True)
-    only = sys.argv[1:] or ["ally", "enemy"]
-    for side in only:
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    allow = "--allow-problems" in sys.argv
+    failed = False
+    for side in (args or ["ally", "enemy"]):
         body, skeleton = infantry(zf, FACTIONS[side])
         # Apply the decimation now, before skinning is exported.
         for obj in list(bpy.data.objects):
@@ -1174,6 +1391,17 @@ def main():
                 for mod in list(obj.modifiers):
                     if mod.type == "DECIMATE":
                         bpy.ops.object.modifier_apply(modifier=mod.name)
+        animate(skeleton)
+        report = os.path.join(mh.CACHE, f"check_{side}.json")
+        problems = check_soldier.check(skeleton, CHECK_PARTS, [t.strips[0].action for t in skeleton.animation_data.nla_tracks],
+                                       report, SPEAR_AXIS["local"], side)
+        for p in problems:
+            print(f"CHECK {side}: {p}")
+        print(f"CHECK {side}: {len(problems)} problem(s), report {report}")
+        failed = failed or bool(problems)
+        # The test-only shapes are not part of the soldier.
+        for name in ("core_torso", "core_head", "core_forearm_l", "core_forearm_r"):
+            bpy.data.objects.remove(bpy.data.objects[name])
         # One mesh per soldier: fewer objects to draw (one draw call per material).
         meshes = [o for o in bpy.data.objects if o.type == "MESH"]
         bpy.ops.object.select_all(action="DESELECT")
@@ -1195,12 +1423,12 @@ def main():
         far.modifiers.move(len(far.modifiers) - 1, 0)
         bpy.ops.object.modifier_apply(modifier=mod.name)
         single_material(far)
-        animate(skeleton)
         tris = {o.name: sum(len(p.vertices) - 2 for p in o.data.polygons) for o in bpy.data.objects if o.type == "MESH"}
         path = os.path.join(OUT, f"infantry_{side}.glb")
         export(path)
-        print(f"{os.path.basename(path)}: {tris} triangles, {os.path.getsize(path)} bytes, "
-              f"{len(bpy.data.actions)} actions")
+        print(f"{os.path.basename(path)}: {tris} triangles, {os.path.getsize(path)} bytes, {len(bpy.data.actions)} actions")
+    if failed and not allow:
+        sys.exit("check_soldier found problems (see the CHECK lines); rebuild with --allow-problems to export anyway")
 
 
 if __name__ == "__main__":
