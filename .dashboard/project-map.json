@@ -742,14 +742,58 @@
       ]
     },
     {
+      "id": "bellum-3d-models",
+      "title": "3D 병사 모델(블렌더)",
+      "owner": "tools/blender/build_soldiers.py가 블렌더로 병사 모델을 만들어 assets/models/*.glb로 쓴다. m2/M2_SoldierModels.js가 전투 시작 전에 불러와 M2_RendererThree에 넘긴다. 모델을 바꿀 때는 스크립트를 고쳐 다시 만든다(glb를 손으로 고치지 않는다)",
+      "files": [
+        "tools/blender/build_soldiers.py",
+        "m2/M2_SoldierModels.js",
+        "assets/models/crossbowman_ally.glb",
+        "assets/models/crossbowman_enemy.glb",
+        "assets/models/infantry_ally.glb",
+        "assets/models/infantry_enemy.glb",
+        "assets/models/knight_ally.glb",
+        "assets/models/knight_enemy.glb"
+      ],
+      "validators": [
+        {
+          "path": "tests/browser/m2-battle.spec.mjs",
+          "kind": "BROWSER_TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "models-01",
+          "risk": "모델 파일의 부품 이름(body·arm_l·arm_r·leg_l·leg_r)이나 관절 위치가 바뀌면 전투에서 팔다리가 엉뚱하게 움직이거나 상자 병사로 되돌아간다",
+          "trigger": "build_soldiers.py의 부품 이름·pivot 변경",
+          "preWriteRule": "스크립트로 다시 만든 뒤 m2.render.soldier-models 검사와 실제 화면 사진으로 확인한다",
+          "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
+        },
+        {
+          "id": "models-02",
+          "risk": "모델 면 수가 늘면 휴대폰에서 느려진다(지금 보병 한 명 약 1,300 삼각형, 40명에 약 3만 5천)",
+          "trigger": "모델에 세부를 더하거나 병사 수를 늘릴 때",
+          "preWriteRule": "진단의 triangles·drawCalls를 전후로 비교하고, 병사가 늘면 묶어 그리기(instancing)를 먼저 한다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        }
+      ]
+    },
+    {
       "id": "bellum-vendor-three",
       "title": "three.js 라이브러리(r184)",
-      "owner": "vendor/three/r184가 3D 전투가 쓰는 three.js를 고정된 판으로 담는다. 판을 바꾸는 것은 사용자 승인으로만 한다",
+      "owner": "vendor/three/r184가 3D 전투가 쓰는 three.js를 고정된 판으로 담는다. addons/는 같은 판(0.184.0)의 모델 불러오기 도구다. 판을 바꾸는 것은 사용자 승인으로만 한다",
       "files": [
         "vendor/three/r184/LICENSE",
         "vendor/three/r184/MANIFEST.json",
         "vendor/three/r184/three.core.min.js",
-        "vendor/three/r184/three.module.min.js"
+        "vendor/three/r184/three.module.min.js",
+        "vendor/three/r184/addons/loaders/GLTFLoader.js",
+        "vendor/three/r184/addons/utils/BufferGeometryUtils.js",
+        "vendor/three/r184/addons/utils/SkeletonUtils.js"
       ],
       "validators": [
         {
@@ -891,6 +935,20 @@
       "kind": "tests",
       "at": "tests/unit/save.test.mjs:10",
       "note": "옛 게임에서 만든 실제 저장으로 변환을 검사"
+    },
+    {
+      "from": "m2/M2_SoldierModels.js",
+      "to": "assets/models/infantry_ally.glb",
+      "kind": "uses",
+      "at": "m2/M2_SoldierModels.js:9",
+      "note": "이름으로 glb를 불러온다(infantry_ally·infantry_enemy)"
+    },
+    {
+      "from": "m2_prototype.html",
+      "to": "vendor/three/r184/three.module.min.js",
+      "kind": "uses",
+      "at": "m2_prototype.html:10",
+      "note": "import map이 three 이름을 같은 파일로 가리킨다(모델 불러오기 도구용)"
     }
   ],
   "unassigned": [

@@ -4,6 +4,8 @@ import { M2CameraController } from "./M2_CameraController.js";
 import { M2InputController } from "./M2_InputController.js";
 import { createCombatProfileCatalog, M2_COMBAT_PROFILE_CONTRACT } from "./M2_CombatProfiles.js";
 import { M2_TECHNICAL_COMBAT_PROFILES, M2_TECHNICAL_SNAPSHOT } from "./fixtures/m2_technical_fixture_v1.js";
+import { useSoldierModels } from "./M2_RendererThree.js";
+import { loadSoldierModels } from "./M2_SoldierModels.js";
 
 const elements = {
   canvas: document.getElementById("m2Canvas"),
@@ -168,6 +170,14 @@ function loadSnapshot(snapshot) {
   if (receipt.ok) inputController?.refreshFormationLists();
   updateHud();
   return receipt;
+}
+
+// The Blender soldiers are loaded before the battle is built. If they cannot be loaded the battle still
+// runs, with the simple box soldiers.
+try {
+  useSoldierModels(await loadSoldierModels());
+} catch (error) {
+  console.warn("[ARS BELLUM] soldier models not loaded; using box soldiers", error);
 }
 
 try {

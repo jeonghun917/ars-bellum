@@ -1,6 +1,35 @@
 import * as THREE from "../vendor/three/r184/three.module.min.js";
 import { M2_CONFIG } from "./M2_Config.js";
 
+// Soldier models made in Blender (see M2_SoldierModels.js), one per side. Set before the runtime starts;
+// without them the renderer draws the simple box soldiers below.
+let soldierModels = null;
+export function useSoldierModels(models) {
+  soldierModels = models || null;
+}
+
+// A Blender soldier: a copy of the side's model (meshes and materials are shared, not copied), plus the
+// same ground shadow and player ring as the box soldier. Its parts turn at their joints like the box one's.
+function createModelSoldier(model, markerMaterial, geometries, shadowMaterial) {
+  const group = new THREE.Group();
+  const soldier = model.clone(true);
+  group.add(soldier);
+  const shadow = new THREE.Mesh(geometries.shadow, shadowMaterial);
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.015;
+  group.add(shadow);
+  if (markerMaterial) {
+    const marker = new THREE.Mesh(geometries.marker, markerMaterial);
+    marker.rotation.x = -Math.PI / 2;
+    marker.position.y = 0.02;
+    group.add(marker);
+  }
+  const part = (name) => soldier.getObjectByName(name);
+  group.userData.parts = { body: part("body"), leftArm: part("arm_l"), rightArm: part("arm_r"), leftLeg: part("leg_l"), rightLeg: part("leg_r") };
+  group.userData.bodyBaseY = group.userData.parts.body.position.y;
+  return group;
+}
+
 // A soft round shadow under each soldier: much cheaper than real shadows and enough to ground them.
 function createHumanoid(material, markerMaterial, geometries, shadowMaterial) {
   const group = new THREE.Group();
@@ -28,6 +57,7 @@ function createHumanoid(material, markerMaterial, geometries, shadowMaterial) {
     group.add(marker);
   }
   group.userData.parts = { body, leftArm, rightArm, leftLeg, rightLeg };
+  group.userData.bodyBaseY = body.position.y;
   return group;
 }
 
@@ -145,8 +175,11 @@ export class M2RendererThree {
     for (const entry of this.#units.values()) this.#scene.remove(entry.group);
     this.#units.clear();
     for (const unit of renderSnapshot.units) {
-      const material = unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy;
-      const group = createHumanoid(material, unit.isPlayer ? this.#materials.marker : null, this.#geometries, this.#materials.shadow);
+      const marker = unit.isPlayer ? this.#materials.marker : null;
+      const model = soldierModels?.[unit.sideId === "ally" ? "ally" : "enemy"];
+      const group = model
+        ? createModelSoldier(model, marker, this.#geometries, this.#materials.shadow)
+        : createHumanoid(unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy, marker, this.#geometries, this.#materials.shadow);
       const profile = combatProfiles.get(unit.combatProfileId);
       group.scale.setScalar(0.9 + ((profile?.stats?.vitality || 0) / 100) * 0.18);
       this.#scene.add(group);
@@ -245,7 +278,7 @@ export class M2RendererThree {
       const parts = group.userData.parts;
       const movementWeight = unit.state === "moving" ? 1 : 0;
       const swing = Math.sin(elapsedSeconds * 6 + actor.phaseOffset) * 0.18 * movementWeight;
-      parts.body.position.y = 1.22 + Math.abs(swing) * 0.05;
+      parts.body.position.y = group.userData.bodyBaseY + Math.abs(swing) * 0.05;
       parts.leftArm.rotation.x = unit.blocking ? -0.9 : swing;
       parts.rightArm.rotation.x = unit.blocking ? -0.9 : -swing;
       parts.leftLeg.rotation.x = -swing * 0.7;
@@ -259,7 +292,13 @@ export class M2RendererThree {
 
   getInfo() {
     const info = this.#renderer.info.render;
-    return { drawCalls: info.calls, triangles: info.triangles, renderedUnits: this.#units.size, renderedProjectiles: this.#projectiles.size };
+    return {
+      drawCalls: info.calls,
+      triangles: info.triangles,
+      renderedUnits: this.#units.size,
+      renderedProjectiles: this.#projectiles.size,
+      soldierModel: soldierModels ? "blender" : "box"
+    };
   }
 
   resize() {

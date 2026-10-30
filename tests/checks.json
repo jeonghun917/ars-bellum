@@ -175,6 +175,12 @@
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.render.soldier-models",
+      "title": "the soldiers are drawn with the Blender models, both sides",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
       "id": "m2.camera.starts-third-person",
       "title": "the camera starts behind the player with input attached",
       "kind": "browser",

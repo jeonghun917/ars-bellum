@@ -46,6 +46,18 @@ test.describe('3D battle', () => {
     expect(g.renderedUnits).toBe(40);
   });
 
+  test('[m2.render.soldier-models] the soldiers are drawn with the Blender models, both sides', async ({ page }) => {
+    expect((await diagnostics(page)).soldierModel).toBe('blender');
+    // Both sides' models must have loaded with all five moving parts.
+    const parts = await page.evaluate(async () => {
+      const { loadSoldierModels } = await import('/m2/M2_SoldierModels.js');
+      const models = await loadSoldierModels();
+      return Object.fromEntries(Object.entries(models).map(([side, root]) =>
+        [side, ['body', 'arm_l', 'arm_r', 'leg_l', 'leg_r'].every((name) => !!root.getObjectByName(name))]));
+    });
+    expect(parts).toEqual({ ally: true, enemy: true });
+  });
+
   test('[m2.camera.starts-third-person] the camera starts behind the player with input attached', async ({ page }) => {
     const g = await diagnostics(page);
     expect(g.cameraMode).toBe('third_person');
