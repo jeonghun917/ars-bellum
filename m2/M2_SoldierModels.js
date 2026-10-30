@@ -3,7 +3,12 @@
 // to load: the renderer then draws its simple box soldiers.
 import { GLTFLoader } from "../vendor/three/r184/addons/loaders/GLTFLoader.js";
 
-export const SOLDIER_ANIMATIONS = Object.freeze(["idle", "walk", "attack", "block", "death"]);
+// Each model is one man who can fight with a spear or with a sword (both with a shield). The spear clips
+// have plain names; the sword clips start with "s_", and "draw" takes the sword out of its scabbard.
+export const SOLDIER_ANIMATIONS = Object.freeze([
+  "idle", "walk", "attack", "block", "death",
+  "s_idle", "s_walk", "s_attack", "s_block", "s_death", "draw"
+]);
 
 // Which model each side's foot soldiers wear.
 const BATTLE_MODELS = Object.freeze({ ally: "infantry_ally", enemy: "infantry_enemy" });

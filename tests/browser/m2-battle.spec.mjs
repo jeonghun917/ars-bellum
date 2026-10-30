@@ -59,7 +59,7 @@ test.describe('3D battle', () => {
     });
     for (const side of ['ally', 'enemy']) {
       expect(models[side].skinned).toBeGreaterThan(0);
-      expect(models[side].clips).toEqual(['attack', 'block', 'death', 'idle', 'walk']);
+      expect(models[side].clips).toEqual(['attack', 'block', 'death', 'draw', 'idle', 's_attack', 's_block', 's_death', 's_idle', 's_walk', 'walk']);
     }
   });
 

@@ -11,7 +11,7 @@ export function useSoldierModels(models) {
 
 // A Blender soldier: its own copy of the side's rigged model (the skeleton is copied, meshes and materials
 // are shared), the same ground shadow and player ring as the box soldier, and an animator.
-function createModelSoldier(model, markerMaterial, geometries, shadowMaterial) {
+function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, loadout) {
   const group = new THREE.Group();
   const soldier = cloneSkinned(model.scene);
   soldier.traverse((object) => {
@@ -39,44 +39,67 @@ function createModelSoldier(model, markerMaterial, geometries, shadowMaterial) {
     marker.position.y = 0.02;
     group.add(marker);
   }
-  group.userData.animator = new SoldierAnimator(soldier, model.clips);
+  group.userData.animator = new SoldierAnimator(soldier, model.clips, loadout);
   return group;
 }
 
 // Beyond this distance (metres) from the camera a soldier is drawn with the simpler model.
 const FAR_MODEL_DISTANCE = 14;
 
+// Which clip plays each role, for a spearman and for a swordsman.
+const LOADOUT_CLIPS = Object.freeze({
+  spear: Object.freeze({ idle: "idle", walk: "walk", attack: "attack", block: "block", death: "death" }),
+  sword: Object.freeze({ idle: "s_idle", walk: "s_walk", attack: "s_attack", block: "s_block", death: "s_death" })
+});
+
 // Picks a soldier's animation from its state each frame: idle, walk (faster when routing), block (held),
-// death (held), and an attack played once each time the attack cooldown restarts.
+// death (held), and an attack played once each time the attack cooldown restarts. A swordsman first draws
+// his sword.
 class SoldierAnimator {
   #mixer;
   #actions;
   #base = null;
   #attack;
   #lastCooldown = 0;
+  #draw = null;
 
-  constructor(root, clips) {
+  constructor(root, clips, loadout = "spear") {
     this.#mixer = new THREE.AnimationMixer(root);
-    this.#actions = Object.fromEntries(Object.entries(clips).map(([name, clip]) => [name, this.#mixer.clipAction(clip)]));
+    const roles = LOADOUT_CLIPS[loadout] || LOADOUT_CLIPS.spear;
+    this.#actions = Object.fromEntries(Object.entries(roles).map(([role, name]) => [role, this.#mixer.clipAction(clips[name])]));
     for (const name of ["block", "death"]) {
       this.#actions[name].setLoop(THREE.LoopOnce, 1);
       this.#actions[name].clampWhenFinished = true;
     }
     this.#attack = this.#actions.attack;
     this.#attack.setLoop(THREE.LoopOnce, 1);
-    this.#play("idle");
+    if (loadout === "sword" && clips.draw) {
+      this.#draw = this.#mixer.clipAction(clips.draw);
+      this.#draw.setLoop(THREE.LoopOnce, 1);
+      this.#draw.clampWhenFinished = true;
+      this.#draw.play();
+      this.#base = "draw";
+    } else {
+      this.#play("idle");
+    }
   }
 
   #play(name) {
     if (this.#base === name) return;
     const next = this.#actions[name];
     next.reset().play();
-    if (this.#base) next.crossFadeFrom(this.#actions[this.#base], name === "death" ? 0.12 : 0.25, false);
+    const previous = this.#base === "draw" ? this.#draw : this.#actions[this.#base];
+    if (previous) next.crossFadeFrom(previous, name === "death" ? 0.12 : 0.25, false);
     this.#base = name;
   }
 
   update(unit, deltaSeconds) {
     const down = unit.state === "dead" || unit.state === "incapacitated";
+    // The draw plays to the end before anything but a fall interrupts it.
+    if (this.#base === "draw" && !down && this.#draw.time < this.#draw.getClip().duration) {
+      this.#mixer.update(deltaSeconds);
+      return;
+    }
     if (down) this.#play("death");
     else if (unit.blocking) this.#play("block");
     else if (unit.state === "moving" || unit.state === "routing") this.#play("walk");
@@ -237,8 +260,10 @@ export class M2RendererThree {
     for (const unit of renderSnapshot.units) {
       const marker = unit.isPlayer ? this.#materials.marker : null;
       const model = soldierModels?.[unit.sideId === "ally" ? "ally" : "enemy"];
+      // Every other soldier on each side fights with the sword, the rest (and the player) with the spear.
+      const loadout = !unit.isPlayer && this.#units.size % 2 === 1 ? "sword" : "spear";
       const group = model
-        ? createModelSoldier(model, marker, this.#geometries, this.#materials.shadow)
+        ? createModelSoldier(model, marker, this.#geometries, this.#materials.shadow, loadout)
         : createHumanoid(unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy, marker, this.#geometries, this.#materials.shadow);
       const profile = combatProfiles.get(unit.combatProfileId);
       group.scale.setScalar(0.9 + ((profile?.stats?.vitality || 0) / 100) * 0.18);
