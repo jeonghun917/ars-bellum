@@ -25,6 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import build_human as bh  # noqa: E402
 import check_soldier  # noqa: E402
+import slim_glb  # noqa: E402
 import makehuman_data as mh  # noqa: E402
 
 OUT = os.path.join(HERE, "..", "..", "assets", "models")
@@ -2780,7 +2781,10 @@ def main():
         tris = {o.name: sum(len(p.vertices) - 2 for p in o.data.polygons) for o in bpy.data.objects if o.type == "MESH"}
         path = os.path.join(OUT, f"infantry_{side}.glb")
         export(path)
-        print(f"{os.path.basename(path)}: {tris} triangles, {os.path.getsize(path)} bytes, {len(bpy.data.actions)} actions")
+        # Leave out what the animations repeat (bones held still), checked to move exactly as before.
+        before, after, worst = slim_glb.slim_file(path)
+        print(f"{os.path.basename(path)}: {tris} triangles, {before} -> {after} bytes (animations slimmed, "
+              f"largest difference {worst:.1e}), {len(bpy.data.actions)} actions")
     if failed and not allow:
         sys.exit("check_soldier found problems (see the CHECK lines); rebuild with --allow-problems to export anyway")
 
