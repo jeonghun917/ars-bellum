@@ -1,0 +1,544 @@
+{
+  "format": "readfirst/map@1",
+  "groups": [
+    {
+      "id": "dashboard",
+      "title": "Machine-readable project map of the game's areas, validators and risks (Korean notes)",
+      "files": [
+        ".dashboard/**"
+      ],
+      "checks": [],
+      "risks": [
+        {
+          "text": "It is a hand-kept description of other files; when you move or rename files in src/, tests/ or workflows, its file lists go stale and nothing checks them",
+          "files": [
+            ".dashboard/project-map.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "docs",
+      "title": "Working agreement for how code under src/ is organised (state, areas, tests, style)",
+      "files": [
+        "docs/**"
+      ],
+      "checks": [],
+      "risks": [
+        {
+          "text": "REWRITE.md is the rulebook for src/; changing a convention in code without updating it leaves newcomers following wrong rules",
+          "files": [
+            "docs/REWRITE.md"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "github",
+      "title": "CI workflows: verify (M1 + 2D battle tests), full npm test, and M2 verify with run-bound evidence",
+      "files": [
+        ".github/**"
+      ],
+      "checks": [
+        {
+          "run": "node verify.mjs"
+        },
+        {
+          "run": "node m2_verify.mjs"
+        }
+      ],
+      "risks": [
+        {
+          "text": "m2-verify.yml only runs on pushes to the m2 branch and fails if m2_ci_*_verification_result.json files are tracked in git; never commit those result files",
+          "files": [
+            ".github/workflows/m2-verify.yml"
+          ]
+        },
+        {
+          "text": "test.yml needs Chromium (npx playwright install) and uploads test-results/; a missing browser makes checks NOT_TESTED, not PASS",
+          "files": [
+            ".github/workflows/test.yml"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m2",
+      "title": "3D battle (M2) runtime: fixed-tick simulation, formations, morale, results and a three.js renderer",
+      "files": [
+        "m2/**"
+      ],
+      "checks": [
+        {
+          "run": "node m2_verify.mjs"
+        }
+      ],
+      "risks": [
+        {
+          "text": "m2 must stay independent of the main game: m2_verify fails if any m2 file mentions localStorage, ArsSaveService, GameClock, ArsGameState, uses requestAnimationFrame( or imports a remote URL",
+          "files": [
+            "m2_verify.mjs"
+          ]
+        },
+        {
+          "text": "Four files (M2_BattleSnapshot, M2_CombatProfiles, M2_SpatialGrid, fixtures/m2_technical_fixture_v1) are pinned by git blob hash; any edit fails m2_verify until the hash is deliberately updated",
+          "files": [
+            "m2_verify.mjs"
+          ]
+        },
+        {
+          "text": "Per-tick order in M2_BattleRuntime (damage, morale, result, render snapshot, markTick) is checked by source position; reordering breaks M21-03-STATIC-PHASES",
+          "files": [
+            "m2_verify.mjs"
+          ]
+        },
+        {
+          "text": "M2_Bootstrap may expose only window.ArsM2Battle and window.ArsM2Diagnostics",
+          "files": [
+            "m2_verify.mjs"
+          ]
+        },
+        {
+          "text": "Soldier models are loaded from assets/models/*.glb at runtime; if loading fails the game falls back to box soldiers with only a console warning",
+          "files": [
+            "m2/M2_Bootstrap.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "root",
+      "title": "Entry pages (index, battle2d, m2_prototype), verify scripts, package and test config",
+      "files": [
+        ".gitignore",
+        "M2_INIT_PLACEHOLDER",
+        "README.md",
+        "battle2d.html",
+        "castle_icon.png",
+        "index.html",
+        "m2_prototype.css",
+        "m2_prototype.html",
+        "m2_verify.mjs",
+        "package-lock.json",
+        "package.json",
+        "playwright.config.mjs",
+        "verify.mjs"
+      ],
+      "checks": [
+        {
+          "run": "npm test"
+        },
+        {
+          "run": "node verify.mjs"
+        },
+        {
+          "run": "node m2_verify.mjs"
+        },
+        {
+          "run": "npm run test:battle2d"
+        }
+      ],
+      "risks": [
+        {
+          "text": "index.html must load exactly one module, src/main.js; verify.mjs fails on missing scripts, inline scripts or absolute paths",
+          "files": [
+            "verify.mjs"
+          ]
+        },
+        {
+          "text": "m2_prototype.html must have a single script, m2/M2_Bootstrap.js, and an import map pointing 'three' at vendor/three/r184",
+          "files": [
+            "m2_verify.mjs"
+          ]
+        },
+        {
+          "text": "m2_verify.mjs writes m2_verification_result.json into the working directory when run",
+          "files": [
+            "m2_verify.mjs"
+          ]
+        },
+        {
+          "text": "Browser tests need Chromium (set PW_CHROMIUM_PATH for a local one); without it checks are NOT_TESTED, not passed",
+          "files": [
+            "playwright.config.mjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src",
+      "title": "App entry that wires browser storage, the world and battle starters into the UI",
+      "files": [
+        "src/main.js"
+      ],
+      "checks": [
+        {
+          "run": "node verify.mjs"
+        },
+        {
+          "run": "npm test"
+        }
+      ],
+      "risks": [
+        {
+          "text": "main.js only passes storage and battle functions into mountApp; the 2D battle is imported lazily, so a broken battle2d module surfaces only when a battle starts",
+          "files": [
+            "src/main.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src-battle2d",
+      "title": "2D battle: seeded simulation (sim/) and canvas/HUD session (ui/), also run standalone from battle2d.html",
+      "files": [
+        "src/battle2d/**"
+      ],
+      "checks": [
+        {
+          "run": "npm run test:battle2d"
+        }
+      ],
+      "risks": [
+        {
+          "text": "Simulation randomness must come only from sim/random.js (seeded); outcomes use one stream and visual effects a separate cosmetic stream so drawing never changes a fight",
+          "files": [
+            "src/battle2d/sim/random.js"
+          ]
+        },
+        {
+          "text": "A seed must be a finite number; normalizeSeed throws otherwise",
+          "files": [
+            "src/battle2d/sim/random.js"
+          ]
+        },
+        {
+          "text": "The session reports the battle end exactly once and dispose() must remove everything it added",
+          "files": [
+            "src/battle2d/ui/session.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src-core",
+      "title": "Shared basics: the single state store, results (ok/fail), seeded rng, calendar, ids, hashing",
+      "files": [
+        "src/core/**"
+      ],
+      "checks": [
+        {
+          "run": "npm test"
+        }
+      ],
+      "risks": [
+        {
+          "text": "State changes only inside store.transact(label, change); a failure result or throw discards the whole draft, and nested transactions fail",
+          "files": [
+            "src/core/store.js"
+          ]
+        },
+        {
+          "text": "State must be plain JSON (no Map, Set, Date, classes); read it frozen via getState()",
+          "files": [
+            "docs/REWRITE.md"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src-domains",
+      "title": "Game areas (characters, finance, politics, settlements, world...) as pure rule modules on a state draft",
+      "files": [
+        "src/domains/**"
+      ],
+      "checks": [
+        {
+          "run": "npm test"
+        }
+      ],
+      "risks": [
+        {
+          "text": "Rules take a draft and return ok()/fail('area_reason'); callers must return a failure unchanged so the whole transaction rolls back, and failure codes are stable once written",
+          "files": [
+            "docs/REWRITE.md"
+          ]
+        },
+        {
+          "text": "Other areas import an area only through its index.js; index.js registers the area's checks with registerAreaCheck",
+          "files": [
+            "src/domains/finance/index.js"
+          ]
+        },
+        {
+          "text": "No Math.random, Date.now or window/DOM in rules; use draw(draft.rng) and draft.calendar",
+          "files": [
+            "docs/REWRITE.md"
+          ]
+        },
+        {
+          "text": "Changing a world record shape requires a conversion step in src/persist for old saves",
+          "files": [
+            "docs/REWRITE.md"
+          ]
+        },
+        {
+          "text": "Daily steps run in 'order' (ties by name) and one failing step fails the whole day",
+          "files": [
+            "src/game/daily.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src-game",
+      "title": "Campaign actions, daily processing, new-game state and the areas map",
+      "files": [
+        "src/game/**"
+      ],
+      "checks": [
+        {
+          "run": "npm test"
+        }
+      ],
+      "risks": [
+        {
+          "text": "new-game.js holds SCHEMA_VERSION and the state shape; bumping it breaks saving/loading unless persist is updated",
+          "files": [
+            "src/game/new-game.js"
+          ]
+        },
+        {
+          "text": "Daily processing runs each ended day through the ordered steps; failure fails the whole day",
+          "files": [
+            "src/game/daily.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src-persist",
+      "title": "Saving, loading, schema validation and conversion of v1 saves in browser storage",
+      "files": [
+        "src/persist/**"
+      ],
+      "checks": [
+        {
+          "run": "npm test"
+        }
+      ],
+      "risks": [
+        {
+          "text": "Saves are written to a staging key, read back and verified before replacing the final key (ars_bellum_save_v2); keep this order",
+          "files": [
+            "src/persist/save.js"
+          ]
+        },
+        {
+          "text": "The v1 save key (ars_bellum_save_v1) is read and converted but must never be changed or deleted",
+          "files": [
+            "src/persist/save.js"
+          ]
+        },
+        {
+          "text": "A save from a newer schemaVersion is refused and never overwritten; a stale revision is refused too (save_conflict, save_older_than_stored)",
+          "files": [
+            "src/persist/save.js"
+          ]
+        },
+        {
+          "text": "Saves carry a sha256 digest of canonical JSON, so any change to state encoding invalidates existing saves",
+          "files": [
+            "src/persist/save.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src-ui",
+      "title": "Screens (menu, world map, settlement panel, battle flow) that draw state and send actions to the campaign",
+      "files": [
+        "src/ui/**"
+      ],
+      "checks": [
+        {
+          "run": "npm test"
+        },
+        {
+          "run": "npm run test:battle2d"
+        }
+      ],
+      "risks": [
+        {
+          "text": "UI gets storage and the battle starter as arguments to mountApp and must not reach for globals",
+          "files": [
+            "src/ui/app.js"
+          ]
+        },
+        {
+          "text": "Player-facing error text is mapped from failure codes in messages.js (Korean); a new failure code needs a message there",
+          "files": [
+            "src/ui/messages.js"
+          ]
+        },
+        {
+          "text": "Browser storage may be unavailable (private mode); app handles it as storage_unavailable",
+          "files": [
+            "src/ui/app.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tests",
+      "title": "Unit (node:test), browser (Playwright) tests, fixtures, and the run-all harness driven by checks.json",
+      "files": [
+        "tests/**"
+      ],
+      "checks": [
+        {
+          "run": "npm test"
+        },
+        {
+          "run": "npm run test:browser"
+        },
+        {
+          "run": "npm run test:battle2d"
+        }
+      ],
+      "risks": [
+        {
+          "text": "tests/checks.json is the one list of required checks; a listed id without a result or a result without a listed id fails npm test",
+          "files": [
+            "tests/run-all.mjs"
+          ]
+        },
+        {
+          "text": "Each test title must start with its check id in brackets and the id must be listed in checks.json",
+          "files": [
+            "docs/REWRITE.md"
+          ]
+        },
+        {
+          "text": "tests/fixtures/v1-new-game-save.json is a real v1 save used for migration tests; do not regenerate it",
+          "files": [
+            "tests/fixtures/v1-new-game-save.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tools",
+      "title": "Blender/Python scripts that build and slim the soldier models in assets/models",
+      "files": [
+        "tools/**"
+      ],
+      "checks": [],
+      "risks": [
+        {
+          "text": "slim_glb.py rewrites animations of a .glb and its own check() fails if motion differs beyond tolerance; run it standalone: python slim_glb.py model.glb",
+          "files": [
+            "tools/blender/slim_glb.py"
+          ]
+        },
+        {
+          "text": "Output .glb files in assets/models are loaded by m2 at runtime; regenerate them rather than hand-editing",
+          "files": [
+            "m2/M2_SoldierModels.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vendor",
+      "title": "Vendored three.js r184 (minified build and add-ons), loaded locally with no network",
+      "files": [
+        "vendor/**"
+      ],
+      "checks": [],
+      "risks": [
+        {
+          "text": "Vendored and minified: do not edit; files are listed with size and sha256 in MANIFEST.json and runtime network import is false",
+          "files": [
+            "vendor/three/r184/MANIFEST.json"
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "rule-1",
+      "rule": "All persistent game state is changed only inside store.transact so failures roll back",
+      "files": [
+        "src/core/store.js"
+      ]
+    },
+    {
+      "id": "rule-2",
+      "rule": "Code under src/ must not depend on the old root game files",
+      "files": [
+        "docs/REWRITE.md"
+      ]
+    },
+    {
+      "id": "rule-3",
+      "rule": "Rules use draw(draft.rng) and draft.calendar, never Math.random or Date.now",
+      "files": [
+        "docs/REWRITE.md"
+      ]
+    },
+    {
+      "id": "rule-4",
+      "rule": "Other areas import a domain only through its index.js",
+      "files": [
+        "docs/REWRITE.md"
+      ]
+    },
+    {
+      "id": "rule-5",
+      "rule": "Never overwrite or delete the v1 save key; refuse to overwrite a newer-version save",
+      "files": [
+        "src/persist/save.js"
+      ]
+    },
+    {
+      "id": "rule-6",
+      "rule": "A record shape change needs a matching save-conversion step in src/persist",
+      "files": [
+        "docs/REWRITE.md"
+      ]
+    },
+    {
+      "id": "rule-7",
+      "rule": "Every test name starts with its bracketed check id, listed in tests/checks.json",
+      "files": [
+        "docs/REWRITE.md"
+      ]
+    },
+    {
+      "id": "rule-8",
+      "rule": "m2 must not use localStorage, requestAnimationFrame or remote imports, and keeps pinned file hashes",
+      "files": [
+        "m2_verify.mjs"
+      ]
+    },
+    {
+      "id": "rule-9",
+      "rule": "Do not commit m2_ci_*_verification_result.json run evidence",
+      "files": [
+        ".github/workflows/m2-verify.yml"
+      ]
+    },
+    {
+      "id": "rule-10",
+      "rule": "Browser checks that were not run are NOT_TESTED, never recorded as PASS",
+      "files": [
+        "README.md"
+      ]
+    }
+  ],
+  "ignore": [
+    "assets/**"
+  ]
+}
