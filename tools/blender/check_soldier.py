@@ -8,6 +8,7 @@ What used to be caught by eye (and mostly by the user) is measured here, in ever
 - feet: in a walk or run, a foot on the ground stays on it and moves back at the gait's speed (no skating),
   a swinging foot clears the ground (no dragging), and no foot sinks into it;
 - holes: rays from inside the man (spine, neck, head) all meet some part on the way out;
+- joints: elbows bend only as hinges, forearms and wrists turn only as far as a man's can;
 - direction: the knee never folds forwards; the shield's face bulges outwards; the spear and the sword point
   where the attack sends them.
 
@@ -18,7 +19,7 @@ import math
 import os
 
 import bpy  # must come first
-from mathutils import Vector
+from mathutils import Quaternion, Vector
 from mathutils.bvhtree import BVHTree
 
 FRAME_STEP = 2          # test every other frame of each animation
@@ -68,6 +69,52 @@ def _gap_mm(a_objs, b_objs, depsgraph, sample=400):
     return best * 1000
 
 
+# How far each arm joint may turn from where it is in the rest pose (degrees), as a man's can.
+ELBOW_SIDEWAYS = 15      # an elbow is a hinge: it does not bend sideways
+ELBOW_TWIST = 95         # turning the forearm (palm up / palm down) from the rest pose
+WRIST_TWIST = 15         # the wrist itself barely twists: the forearm does that
+WRIST_BEND = 70          # palm-ward or back
+WRIST_SIDEWAYS = 35      # towards the thumb or the little finger
+
+
+def _swing_twist(q):
+    """Split a bone's turn (pose quaternion, the bone's own axes) into its twist about the bone (Y) and the
+    swing that follows. Returns (twist degrees, swing quaternion)."""
+    twist = math.degrees(2 * math.atan2(q.y, q.w))
+    twist = (twist + 180) % 360 - 180
+    t = Quaternion((math.cos(math.radians(twist) / 2), 0, math.sin(math.radians(twist) / 2), 0))
+    return twist, q @ t.inverted()
+
+
+def _joints(skeleton):
+    """Arm joints turned past what a man's can: [(joint, how, degrees)]."""
+    out = []
+    pb, rest = skeleton.pose.bones, skeleton.data.bones
+    for side in ("l", "r"):
+        # Elbow: a hinge about the upper arm's X; the forearm may also turn about its own length.
+        twist, swing = _swing_twist(pb[f"lowerarm_{side}"].matrix_basis.to_quaternion())
+        axis, angle = swing.to_axis_angle()
+        sideways = math.degrees(angle * abs(axis.z))
+        if sideways > ELBOW_SIDEWAYS:
+            out.append((f"elbow_{side}", "bends sideways", round(sideways)))
+        if abs(twist) > ELBOW_TWIST:
+            out.append((f"elbow_{side}", "forearm twisted", round(twist)))
+        # Wrist: bends palm-ward/back and sideways, but does not twist.
+        hand = rest[f"hand_{side}"].matrix_local.to_3x3().inverted()
+        across = (hand @ (rest[f"pinky_01_{side}"].head_local - rest[f"index_01_{side}"].head_local)).normalized()
+        palm = across.cross(Vector((0, 1, 0))).normalized()
+        twist, swing = _swing_twist(pb[f"hand_{side}"].matrix_basis.to_quaternion())
+        axis, angle = swing.to_axis_angle()
+        bend, sideways = math.degrees(angle * abs(axis.dot(across))), math.degrees(angle * abs(axis.dot(palm)))
+        if abs(twist) > WRIST_TWIST:
+            out.append((f"wrist_{side}", "twisted", round(twist)))
+        if bend > WRIST_BEND:
+            out.append((f"wrist_{side}", "bent", round(bend)))
+        if sideways > WRIST_SIDEWAYS:
+            out.append((f"wrist_{side}", "bent sideways", round(sideways)))
+    return out
+
+
 def _dir(skeleton, bone):
     pb = skeleton.pose.bones[bone]
     return Vector(pb.matrix.col[1][:3]).normalized()
@@ -90,11 +137,16 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
         ("shield", "torso"), ("shield", "head"), ("shield", "mitten_l"), ("shield", "coat_skirt"), ("shield", "legs"),
         ("scabbard", "coat_skirt"), ("sheathed", "coat_skirt"),
         ("belt", "surcoat"), ("belt", "coat_skirt"),
+        # Nothing goes through the surcoat or its skirt: not the weapons, not the arms, not the knees.
+        ("spear", "surcoat"), ("spear", "coat_skirt"), ("sword", "surcoat"), ("sword", "coat_skirt"),
+        ("forearm_r", "surcoat"), ("forearm_l", "surcoat"), ("mitten_r", "surcoat"), ("mitten_l", "surcoat"),
+        ("mitten_r", "coat_skirt"), ("mitten_l", "coat_skirt"), ("legs", "coat_skirt"),
     ]
     for action in actions:
         skeleton.animation_data.action = action
         start, end = (int(x) for x in action.frame_range)
         worst = {}
+        joints = {}
         for frame in range(start, end + 1, FRAME_STEP):
             scene.frame_set(frame)
             depsgraph = bpy.context.evaluated_depsgraph_get()
@@ -108,6 +160,10 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
                     key = f"{a} x {b}"
                     first, last, most = worst.get(key, (frame, frame, 0))
                     worst[key] = (min(first, frame), max(last, frame), max(most, n))
+            for joint, how, degrees in _joints(skeleton):
+                key = f"{joint} {how}"
+                first, last, most = joints.get(key, (frame, frame, 0))
+                joints[key] = (min(first, frame), max(last, frame), max(most, abs(degrees)))
             # The knee: the shin never points further forward than the thigh.
             for side in ("l", "r"):
                 # The pelvis bone's Z axis points to the body's front (-Y in the rest pose).
@@ -120,6 +176,9 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
         for key, (first, last, most) in worst.items():
             entry = {"action": action.name, "pair": key, "frames": f"{first}-{last}", "triangles": most}
             log["clipping"].append(entry)
+        for key, (first, last, most) in joints.items():
+            log.setdefault("joints", []).append({"action": action.name, "joint": key, "frames": f"{first}-{last}",
+                                                 "degrees": most})
     skeleton.animation_data.action = None
 
     # Feet in the gaits. Each frame the ball of each foot is on the ground (within 6 mm of where it stands)
@@ -260,6 +319,8 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
 
     for e in log["clipping"]:
         problems.append(f"clipping: {e['pair']} in {e['action']} frames {e['frames']} ({e['triangles']} triangle pairs)")
+    for e in log.get("joints", []):
+        problems.append(f"joint: {e['joint']} in {e['action']} frames {e['frames']} (up to {e['degrees']} degrees)")
     knees = {(e["action"], e["what"]) for e in log["direction"] if "knee" in e["what"]}
     for action, what in sorted(knees):
         problems.append(f"direction: {what} in {action}")
