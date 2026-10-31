@@ -534,7 +534,7 @@ def add_scabbard_bone(skeleton, top, up):
 # its own weight: the body's movement throws it, it falls back and settles; the upper part, mail under
 # wool, slowly and heavily, the lower part, wool alone, quickly and with a flutter. Nothing goes through a
 # skirt; it gives way.
-PANELS = 12
+PANELS = 16
 SKIRT_MARGIN = 0.02   # the cloth keeps this far (m) outside a leg
 # How each one swings: its own frequency (Hz), how quickly a swing dies away (damping ratio), how strongly
 # the body's movement throws it, and how stiffly a panel holds to its neighbours.
@@ -549,9 +549,23 @@ WEIGHT = {
 SKIRTS = {}   # bone prefix ("skirt" for the coat, "mail") -> rings, heights, what pushes it, ...
 
 
+FOLDS = 14   # soft vertical folds round a skirt
+
+
+def _panel_angle(j):
+    return 2 * math.pi * (j + 0.5) / PANELS
+
+
 def _panel_dir(j):
-    a = 2 * math.pi * j / PANELS
+    a = _panel_angle(j)
     return Vector((math.cos(a), math.sin(a), 0))
+
+
+def panel_half(j):
+    """Which half of a slit skirt a panel is in: "right" (from the seam behind, at 90 degrees, round his right
+    side to the seam in front, at 270) or "left"."""
+    a = _panel_angle(j)
+    return "right" if math.pi / 2 <= a <= 3 * math.pi / 2 else "left"
 
 
 def _prop_hidden(skeleton, obj):
@@ -566,12 +580,12 @@ def add_skirt_bones(skeleton, prefix, rings):
     to the hem, so a knee can push the lower part out without throwing the whole panel."""
     mid = len(rings) // 2
     SKIRTS[prefix] = dict(rings=rings, top=rings[0][0], bottom=rings[-1][0], mid=rings[mid][0], inside=[], outside=[],
-                          layers=[])
+                          layers=[], slit=-1.0)
     bpy.context.view_layer.objects.active = skeleton
     bpy.ops.object.mode_set(mode="EDIT")
     bones = skeleton.data.edit_bones
     for j in range(PANELS):
-        a = 2 * math.pi * j / PANELS
+        a = _panel_angle(j)
         points = [Vector((cx + ax * math.cos(a), cy + ay * math.sin(a), z)) for z, cx, cy, ax, ay in (rings[0], rings[mid], rings[-1])]
         upper = bones.new(f"{prefix}_{j:02d}")
         upper.head, upper.tail = points[0], points[1]
@@ -697,12 +711,11 @@ def push_skirt(skeleton, prefix, swing, dt):
     # Where each layer of cloth (the coat, the mail under it) is this frame before the panels turn: its
     # distance from the skirt's middle at each ring and each step round it.
     layers = []
-    for obj, layer_rings in sk["layers"]:
+    for obj, layer_rings, segments in sk["layers"]:
         ev = obj.evaluated_get(depsgraph)
         mesh = ev.to_mesh()
-        segments = len(mesh.vertices) // len(layer_rings)
         grid = [[0.0] * segments for _ in layer_rings]
-        for idx, v in enumerate(mesh.vertices):
+        for idx, v in enumerate(mesh.vertices[:len(layer_rings) * segments]):
             k, i = divmod(idx, segments)
             q = back @ (obj.matrix_world @ v.co)
             grid[k][i] = math.hypot(q.x - layer_rings[k][1], q.y - layer_rings[k][2])
@@ -749,21 +762,30 @@ def push_skirt(skeleton, prefix, swing, dt):
                     continue
                 # A leg must be inside every layer; a thing outside, outside the outer one (the coat).
                 gap = max(found) if inside else found[0]
-                j0 = int((a % (2 * math.pi)) // spacing) % n
+                f = (a % (2 * math.pi)) / spacing - 0.5
+                j0 = int(math.floor(f)) % n
+                js = (j0, (j0 + 1) % n)
+                if q.z < sk["slit"]:
+                    # Below the slit a point touches only the half of the skirt on its side.
+                    half = "right" if math.pi / 2 <= a % (2 * math.pi) <= 3 * math.pi / 2 else "left"
+                    js = tuple(j for j in js if panel_half(j) == half) or js
                 # Near the top the cloth hangs partly from the body (see skirt()): it moves only that much
                 # of what the panel does.
                 hang = panel_share((top - q.z) / (top - bottom))
                 if hang < 0.3:
                     continue   # (too near the top for a panel to move the cloth there: it is on the body)
-                if sk.get("debug") is not None:
-                    sk["debug"].append((round(q.z, 3), j0, inside, round(gap, 3), round(hang, 2), obj.name))
                 if inside:
-                    points.append((q.z, j0, True, (gap + SKIRT_MARGIN) / hang))
+                    points.append((q.z, js, True, (gap + SKIRT_MARGIN) / hang))
                 elif -0.12 < gap < 0.35:
                     # A thing outside stops the cloth swinging out into it (+: how far out it may come), or
                     # presses it in where it already touches (-). Deeper in than that it is through it.
-                    points.append((q.z, j0, False, (gap - SKIRT_MARGIN) / hang))
+                    points.append((q.z, js, False, (gap - SKIRT_MARGIN) / hang))
             ev.to_mesh_clear()
+
+    def beside(j, step):
+        """The neighbouring panel, or the panel itself across a slit (the halves hang apart)."""
+        other = (j + step) % n
+        return j if panel_half(other) != panel_half(j) else other
 
     def bounds(legs, things):
         """legs: the least turn each panel needs for what is inside (negative: how far in it lets it
@@ -772,8 +794,8 @@ def push_skirt(skeleton, prefix, swing, dt):
         out = [max(0.0, x) for x in legs]
         press = [min(0.0, x) for x in things]
         for _ in range(2):
-            out = [max(out[j], 0.35 * out[j - 1], 0.35 * out[(j + 1) % n]) for j in range(n)]
-            press = [min(press[j], 0.35 * press[j - 1], 0.35 * press[(j + 1) % n]) for j in range(n)]
+            out = [max(out[j], 0.35 * out[beside(j, -1)], 0.35 * out[beside(j, 1)]) for j in range(n)]
+            press = [min(press[j], 0.35 * press[beside(j, -1)], 0.35 * press[beside(j, 1)]) for j in range(n)]
         low = [max(legs[j], out[j]) for j in range(n)]
         high = [max(low[j], min(things[j], press[j] if press[j] < 0 else 9.0)) for j in range(n)]
         return low, high
@@ -797,7 +819,7 @@ def push_skirt(skeleton, prefix, swing, dt):
             outward = moved.to_3x3() @ _panel_dir(j)
             end = pb[name].tail.copy()
             angles.append(swing.step(name, weight, low[j], high[j], rest_at[j], end, outward, length, dt))
-        mean = [(angles[j - 1] + angles[(j + 1) % n]) / 2 for j in range(n)]
+        mean = [(angles[beside(j, -1)] + angles[beside(j, 1)]) / 2 for j in range(n)]
         pull = min(0.5, weight["bind"] * dt)
         angles = [max(low[j], min(high[j], a + (m - a) * pull)) for j, (a, m) in enumerate(zip(angles, mean))]
         for j, name in enumerate(names):
@@ -816,9 +838,9 @@ def push_skirt(skeleton, prefix, swing, dt):
 
     # Upper halves: what touches above the middle, and a little of what touches below it.
     legs, things = [-9.0] * n, [9.0] * n
-    for z, j0, inside, need in points:
+    for z, js, inside, need in points:
         angle = angle_for(need, max(0.04, top - z), 0.94 if z >= mid else 0.3)
-        for j in (j0, (j0 + 1) % n):
+        for j in js:
             if inside:
                 legs[j] = max(legs[j], angle)
             else:
@@ -846,10 +868,10 @@ def push_skirt(skeleton, prefix, swing, dt):
     # hangs back down from a panel the knee has pushed out (it drapes over the knee instead of flying out
     # level with it).
     legs, things = [-9.0] * n, [9.0] * n
-    for z, j0, inside, need in points:
+    for z, js, inside, need in points:
         if z >= mid:
             continue
-        for j in (j0, (j0 + 1) % n):
+        for j in js:
             left = need - (top - z) * math.sin(upper[j])
             angle = angle_for(left, max(0.04, mid - z), 0.8)
             if inside:
@@ -1842,13 +1864,13 @@ def rigid(obj, skeleton, bone):
     return obj
 
 
-def skirt(body, dom, skeleton, name, z_top, z_bottom, margin, mat, flare=0.0, segments=24, step=0.035, bones="skirt",
-          frame=None):
+def skirt(body, dom, skeleton, name, z_top, z_bottom, margin, mat, flare=0.0, segments=48, step=0.035, bones="skirt",
+          frame=None, slit_z=-1.0):
     """A skirt hanging from the hips: at each height an ellipse around the body (both legs together below
     the crotch), pushed out by margin (and flare towards the hem). Near the waist it follows the pelvis;
     below that its panels' bones (named bones_NN, see push_skirts()), by height against the panels' top,
-    middle and hem (frame: those of the skirt whose panels these are; by default its own). Returns the object
-    and its rings (z, centre x, centre y, half widths x and y)."""
+    middle and hem (frame: those of the skirt whose panels these are; by default its own). Below slit_z it is
+    slit in front and behind. Returns the object and its rings (z, centre x, centre y, half widths x and y)."""
     pts = [(v.co, b) for v, b in zip(body.data.vertices, dom) if b in TORSO_BONES or b in LEG_BONES]
     rings = []
     z = z_top
@@ -1879,47 +1901,103 @@ def skirt(body, dom, skeleton, name, z_top, z_bottom, margin, mat, flare=0.0, se
         total = sum(w.values()) or 1.0
         return {b: x / total for b, x in w.items()}
 
+    n = PANELS
+    if frame is None:
+        frame = dict(top=rings[0][0], bottom=rings[-1][0], mid=rings[len(rings) // 2][0])
+    # Slit in front and behind from the crotch down (as surcoats and hauberks were, to walk and ride in):
+    # below slit_z each half hangs over its own leg. The seams are at 90 degrees (behind) and 270 (in front),
+    # between panels (panel centres are half a step off them).
+    front_seam, back_seam = segments * 3 // 4, segments // 4
+
+    def half_of(a):
+        return "right" if math.pi / 2 <= a % (2 * math.pi) <= 3 * math.pi / 2 else "left"
+
+    def panels_at(a, half):
+        """The two panels a point at angle a hangs from, and its share of the first; within its own half
+        below the slit."""
+        f = (a % (2 * math.pi)) / (2 * math.pi) * n - 0.5
+        j0 = int(math.floor(f)) % n
+        frac = f - math.floor(f)
+        j1 = (j0 + 1) % n
+        if half:
+            if panel_half(j1) != half:
+                return j0, j0, 1.0
+            if panel_half(j0) != half:
+                return j1, j1, 1.0
+        return j0, j1, 1 - frac
+
     bm = bmesh.new()
     verts = []
     weights = []
     shaped = []
-    n = PANELS
-    if frame is None:
-        frame = dict(top=rings[0][0], bottom=rings[-1][0], mid=rings[len(rings) // 2][0])
+    seam_copies = []
     for k, (z, cx, cy, rx, ry) in enumerate(rings):
         t = k / max(1, len(rings) - 1)
         grow = margin + flare * t
         shaped.append((z, cx, cy, rx + grow, ry + grow * 0.9))
-        row = []
-        for i in range(segments):
-            a = 2 * math.pi * i / segments
-            x = cx + (rx + grow) * math.cos(a)
-            y = cy + (ry + grow * 0.9) * math.sin(a)
-            row.append(bm.verts.new((x, y, z)))
-            # By angle between the two nearest panels, and from the body at the top to them below (the upper
-            # part of a panel above its middle, the lower part below).
+        split = z < slit_z
+        # Folds: the cloth falls in soft vertical folds, deeper towards the hem.
+        fold = 0.003 + 0.035 * t * t   # (barely any under the belt)
+
+        def place(a):
+            bulge = fold * (0.5 + 0.5 * math.cos(FOLDS * a))
+            return (cx + (rx + grow + bulge) * math.cos(a), cy + (ry + grow * 0.9 + bulge) * math.sin(a), z)
+
+        def weigh(x, y, a, half):
+            # From the body at the top to the panels below (the upper part of a panel above its middle, the
+            # lower part below, bending over a wide band rather than at a hinge).
             down = (frame["top"] - z) / (frame["top"] - frame["bottom"])
             panel = panel_share(down)
-            f = a / (2 * math.pi) * n
-            j0 = int(f) % n
-            frac = f - int(f)
-            low = smooth(clamp01((frame["mid"] + 0.04 - z) / 0.08))
+            low = smooth(clamp01((frame["mid"] + 0.1 - z) / 0.2))
             # (the band under the belt stays on the pelvis with the belt)
             under_belt = 1 - smooth(clamp01((down - 0.1) / 0.1))
             skin = skin_weights(Vector((x, y, z)))
             skin = {b: v * (1 - under_belt) for b, v in skin.items()}
             skin["pelvis"] = skin.get("pelvis", 0) + under_belt
             w = {b: v * (1 - panel) for b, v in skin.items()}
-            for j, share in ((j0, 1 - frac), ((j0 + 1) % n, frac)):
-                for half, part in (("", 1 - low), ("_lo", low)):
-                    if part > 0:
-                        w[f"{bones}_{j:02d}{half}"] = w.get(f"{bones}_{j:02d}{half}", 0) + panel * share * part
-            weights.append(w)
+            j0, j1, share0 = panels_at(a, half)
+            for j, share in ((j0, share0), (j1, 1 - share0)):
+                for part_name, part in (("", 1 - low), ("_lo", low)):
+                    if part > 0 and share > 0:
+                        key = f"{bones}_{j:02d}{part_name}"
+                        w[key] = w.get(key, 0) + panel * share * part
+            return w
+
+        row = []
+        for i in range(segments):
+            a = 2 * math.pi * i / segments
+            x, y, _ = place(a)
+            row.append(bm.verts.new((x, y, z)))
+            # On a seam, the vertex itself is the half before it (by angle); a copy, made below, the half after.
+            if split and i in (front_seam, back_seam):
+                half = "right" if i == front_seam else "left"
+            else:
+                half = half_of(a) if split else None
+            weights.append(weigh(x, y, a, half))
         verts.append(row)
-    for a, b in zip(verts, verts[1:]):
+        seam_copies.append({})
+        if split:
+            for i, half in ((front_seam, "left"), (back_seam, "right")):
+                a = 2 * math.pi * i / segments
+                x, y, _ = place(a)
+                seam_copies[k][i] = (x, y, z, weigh(x, y, a, half))
+    # The seam copies go after the regular rings, so a vertex's place in the rings stays ring * segments + step.
+    copies = {}
+    for k, found in enumerate(seam_copies):
+        for i, (x, y, z, w) in found.items():
+            copies[(k, i)] = bm.verts.new((x, y, z))
+            weights.append(w)
+    for k, (a_row, b_row) in enumerate(zip(verts, verts[1:])):
         for i in range(segments):
             j = (i + 1) % segments
-            bm.faces.new((a[i], a[j], b[j], b[i]))
+            corners = [a_row[i], a_row[j], b_row[j], b_row[i]]
+            # The face just after a seam takes the copies of the seam's vertices where the slit is open.
+            if i in (front_seam, back_seam):
+                if (k, i) in copies:
+                    corners[0] = copies[(k, i)]
+                if (k + 1, i) in copies:
+                    corners[3] = copies[(k + 1, i)]
+            bm.faces.new(corners)
     obj = mesh_obj(name, bm, mat)
     for bone in sorted({b for w in weights for b in w}):
         g = obj.vertex_groups.new(name=bone)
@@ -1988,14 +2066,17 @@ def infantry(zf, f):
     # Surcoat over the mail: sleeveless body and a longer, fuller skirt to mid-calf.
     surcoat = surface_layer(body, "surcoat", lambda i: dom[i] in TORSO_BONES, lambda co: 0.036, mats["cloth"], decimate=0.32,
                             smoothing=3, edge_smoothing=12)
-    # The coat's skirt reaches the knee (some were longer; a longer one met the knees, the shield and the
-    # spear wherever he ran).
-    coat_skirt, coat_rings = skirt(body, dom, skeleton, "coat_skirt", hip_z + 0.06, knee_z, 0.05, mats["cloth"], flare=0.08)
+    # The coat's skirt reaches mid-calf, slit in front and behind from the crotch down.
+    slit_z = hip_z - 0.1   # the crotch
+    coat_skirt, coat_rings = skirt(body, dom, skeleton, "coat_skirt", hip_z + 0.06, knee_z - 0.12, 0.05, mats["cloth"],
+                                   flare=0.1, slit_z=slit_z)
     add_skirt_bones(skeleton, "skirt", coat_rings)
-    # The hauberk's skirt, to mid-thigh under the coat, lined into the same panels: the two hang together as
-    # one (a point of the mail moves as the point of the coat outside it), so neither goes through the other.
-    mail_skirt, mail_rings = skirt(body, dom, skeleton, "mail_skirt", hip_z + 0.06, knee_z + 0.12, 0.028, mats["mail"],
-                                   flare=0.03, frame=SKIRTS["skirt"])
+    SKIRTS["skirt"]["slit"] = slit_z
+    # The hauberk's skirt, to the knee under the coat and slit the same way, lined into the same panels: the
+    # two hang together as one (a point of the mail moves as the point of the coat outside it), so neither
+    # goes through the other.
+    mail_skirt, mail_rings = skirt(body, dom, skeleton, "mail_skirt", hip_z + 0.06, knee_z + 0.03, 0.028, mats["mail"],
+                                   flare=0.03, frame=SKIRTS["skirt"], slit_z=slit_z)
     # Hose up to mid-thigh: above that the mail skirt always covers the leg, and the top of the thigh, which
     # swells forward through the groin as a knee comes up, came out through the front of the coat's skirt.
     hose = surface_layer(body, "hose", lambda i: dom[i] in LEG_BONES and body.data.vertices[i].co.z < hip_z - 0.2,
@@ -2005,7 +2086,7 @@ def infantry(zf, f):
     shoes = surface_layer(body, "shoes", lambda i: dom[i] in FOOT_BONES, lambda co: 0.003 + 0.011 * min(1.0, co.z / 0.03),
                           mats["leather"], decimate=0.12)
     SKIRTS["skirt"]["inside"] = [hose, shoes]
-    SKIRTS["skirt"]["layers"] = [(coat_skirt, coat_rings), (mail_skirt, mail_rings)]
+    SKIRTS["skirt"]["layers"] = [(coat_skirt, coat_rings, 48), (mail_skirt, mail_rings, 48)]
     # Test-only shapes for check_soldier: the body's torso, head and forearms, shrunk a little inside the
     # skin, so anything that enters them is inside the man. Removed before export.
     cores = {
