@@ -212,13 +212,16 @@ LEG_BONES = {"thigh_l", "thigh_r", "calf_l", "calf_r"}
 FOOT_BONES = {"foot_l", "foot_r", "ball_l", "ball_r"}
 
 
-def pin_band(obj, z, half, fade, bone):
+def pin_band(obj, z, half, fade, bone, only=TORSO_BONES | LEG_BONES):
     """Move the skin weights of obj's vertices within half of height z (fading out over fade beyond) onto
-    bone, so that band moves with that bone alone."""
+    bone, so that band moves with that bone alone. Only vertices of the body itself (moved by the bones in
+    only): a sleeve's end hangs at the same height, and pinned to the hips it was drawn out into a spike
+    when the arm moved."""
     pin = obj.vertex_groups.get(bone) or obj.vertex_groups.new(name=bone)
+    names = {g.index: g.name for g in obj.vertex_groups}
     for v in obj.data.vertices:
         k = 1 - smooth(clamp01((abs((obj.matrix_world @ v.co).z - z) - half) / fade))
-        if k <= 0:
+        if k <= 0 or any(ge.weight > 1e-3 and names[ge.group] not in only for ge in v.groups):
             continue
         weights = [(ge.group, ge.weight) for ge in v.groups]
         total = sum(w for _, w in weights)
@@ -2544,6 +2547,8 @@ def infantry(zf, f):
         "shield": shield_parts, "shield_face": [shield_parts[1]], "boss": [shield_parts[2]],
         "scabbard": [scabbard, strap], "belt": [belt], "surcoat": [surcoat], "coat_skirt": [coat_skirt],
         "surcoat_or_skirt": [surcoat, coat_skirt], "shoes": [shoes], "legs": [hose], "mail_skirt": [mail_skirt],
+        # (what the bones bend: none of it may be drawn out far past its own size)
+        "stretch": [hauberk, surcoat, coif, coat_skirt, mail_skirt, hose, shoes],
     })
     return body, skeleton
 

@@ -21,6 +21,7 @@ import math
 import os
 
 import bpy  # must come first
+import numpy as np
 from mathutils import Quaternion, Vector
 from mathutils.bvhtree import BVHTree
 
@@ -121,6 +122,60 @@ def _joints(skeleton):
 def _dir(skeleton, bone):
     pb = skeleton.pose.bones[bone]
     return Vector(pb.matrix.col[1][:3]).normalized()
+
+
+SPIKE_CM = 5.5
+
+
+def _bulges(obj, depsgraph):
+    """How far (m) each vertex stands off the middle of the vertices joined to it."""
+    ev = obj.evaluated_get(depsgraph)
+    mesh = ev.to_mesh()
+    co = np.empty(len(mesh.vertices) * 3)
+    mesh.vertices.foreach_get("co", co)
+    pairs = np.empty(len(mesh.edges) * 2, dtype=np.int64)
+    mesh.edges.foreach_get("vertices", pairs)
+    ev.to_mesh_clear()
+    co, pairs = co.reshape(-1, 3), pairs.reshape(-1, 2)
+    total, count = np.zeros_like(co), np.zeros(len(co))
+    np.add.at(total, pairs[:, 0], co[pairs[:, 1]])
+    np.add.at(total, pairs[:, 1], co[pairs[:, 0]])
+    np.add.at(count, pairs[:, 0], 1)
+    np.add.at(count, pairs[:, 1], 1)
+    return np.linalg.norm(co - total / np.maximum(count, 1)[:, None], axis=1)
+
+
+def spikes(skeleton, objs, actions):
+    """action name -> (the most any vertex of objs stands further off its neighbours than at rest, cm; the
+    frames it is more than SPIKE_CM; which part). A vertex the wrong bone carries is drawn out of the cloth
+    into a spike; the cloth stretching evenly (an arm raised) moves its vertices along with their neighbours."""
+    scene = bpy.context.scene
+    skeleton.animation_data.action = None
+    for pb in skeleton.pose.bones:
+        pb.location, pb.rotation_quaternion, pb.scale = (0, 0, 0), (1, 0, 0, 0), (1, 1, 1)
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    rest = {o.name: _bulges(o, depsgraph) for o in objs}
+    out = {}
+    for action in actions:
+        skeleton.animation_data.action = action
+        f0, f1 = (int(x) for x in action.frame_range)
+        worst, frames, part = 0.0, [], ""
+        for frame in range(f0, f1 + 1, FRAME_STEP):
+            scene.frame_set(frame)
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            for o in objs:
+                now = _bulges(o, depsgraph)
+                if len(now) != len(rest[o.name]):
+                    continue
+                grown = float(np.max(now - rest[o.name])) * 100
+                if grown > worst:
+                    worst, part = grown, o.name
+                if grown > SPIKE_CM and (not frames or frames[-1] != frame):
+                    frames.append(frame)
+        out[action.name] = (round(worst, 1), ",".join(str(f) for f in frames[:6]), part)
+    skeleton.animation_data.action = None
+    return out
 
 
 def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=None, aims=None, edges=None):
@@ -273,6 +328,15 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
         if lowest < -0.01:
             problems.append(f"feet: a shoe sinks {-lowest * 1000:.0f} mm into the ground in {name}")
     skeleton.animation_data.action = None
+
+    # Spikes: nothing the bones bend (the mail, the coat, the skirts, the hose and the shoes) may have a
+    # vertex drawn out of its surface, in any frame: one left on the wrong bone (a sleeve's end held to the
+    # hips) becomes a spike, which no other check sees.
+    found = spikes(skeleton, parts.get("stretch", []), actions)
+    log["spikes"] = found
+    for name, (worst, frames, part) in found.items():
+        if worst > SPIKE_CM:
+            problems.append(f"spike: {part} has a point {worst:.0f} cm out of its surface in {name} (frames {frames})")
 
     # Holes: from points on the spine, neck and head, rays outwards in every direction must meet some part of
     # the soldier. One that gets out unmet has found a gap where the inside of the man shows (two layers that
