@@ -6,7 +6,8 @@ What used to be caught by eye (and mostly by the user) is measured here, in ever
 - contact: parts that must touch, in the guard (the shield boss on the shield face, the belt on the
   surcoat, each mitten on its sleeve, the scabbard at the belt): the gap between them, in millimetres;
 - feet: in a walk or run, a foot on the ground stays on it and moves back at the gait's speed (no skating),
-  a swinging foot clears the ground (no dragging), and no foot sinks into it;
+  a swinging foot clears the ground (no dragging), and no foot sinks into it; in an attack the back foot
+  stays planted;
 - holes: rays from inside the man (spine, neck, head) all meet some part on the way out;
 - joints: elbows bend only as hinges, forearms and wrists turn only as far as a man's can; both hands stay on
   a longsword's grip;
@@ -242,6 +243,33 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
             problems.append(f"feet: a swinging foot drags its toes in {action.name} (frames {', '.join(drags[:4])})")
         if lowest < -0.01:
             problems.append(f"feet: a shoe sinks {-lowest * 1000:.0f} mm into the ground in {action.name}")
+    skeleton.animation_data.action = None
+
+    # Feet in the attacks: the back (right) foot stays planted, not sliding by more than 3 mm a frame, and
+    # no shoe goes 1 cm under the ground.
+    for name in (aims or {}):
+        action = next((a for a in actions if a.name == name), None)
+        if action is None:
+            continue
+        skeleton.animation_data.action = action
+        f0, f1 = (int(x) for x in action.frame_range)
+        last, slides, lowest = None, [], 0.0
+        for frame in range(f0, f1 + 1):
+            scene.frame_set(frame)
+            ball = skeleton.pose.bones["ball_r"].head.copy()
+            if last is not None and (ball - last).length > 0.003:
+                slides.append(f"{frame}:{(ball - last).length * 1000:.0f}mm")
+            last = ball
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            for o in parts.get("shoes", []):
+                ev = o.evaluated_get(depsgraph)
+                mesh = ev.to_mesh()
+                lowest = min(lowest, min((o.matrix_world @ v.co).z for v in mesh.vertices))
+                ev.to_mesh_clear()
+        if slides:
+            problems.append(f"feet: the back foot slides in {name} (frames {', '.join(slides[:4])})")
+        if lowest < -0.01:
+            problems.append(f"feet: a shoe sinks {-lowest * 1000:.0f} mm into the ground in {name}")
     skeleton.animation_data.action = None
 
     # Holes: from points on the spine, neck and head, rays outwards in every direction must meet some part of

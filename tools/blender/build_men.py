@@ -1274,19 +1274,56 @@ def run_pose(skeleton, t, sword=False, shield="guard", great=False):
     gait_pose(skeleton, t, GAITS["run"], sword, shield, great)
 
 
+# Footwork for the attacks: the feet stand on the ground and the legs reach them (as in walking), the left
+# foot steps forward into the blow and back again, the right stays planted, turned out; the hips go with
+# the step and down. (Bending the legs by angle while the body moved on let the feet slide.)
+STEP_LENGTH = 0.3
+
+
+def fight_footwork(skeleton, step, crouch, rise=0.0):
+    """step 0..1: how far the left foot has stepped forward (it lifts while it moves); crouch 0..1 lowers
+    the hips; rise lifts them (winding up)."""
+    pb, bones = skeleton.pose.bones, skeleton.data.bones
+    for bone in ("thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"):
+        pb[bone].rotation_quaternion = (1, 0, 0, 0)
+    ankle0 = bones["foot_l"].head_local
+    lift = 0.07 * 4 * step * (1 - step) * (1 if 0 < step < 1 else 0)
+    spots = {"l": (Vector((0.115, ankle0.y - 0.03 - STEP_LENGTH * step, ankle0.z + lift)), 8.0),
+             "r": (Vector((-0.12, ankle0.y + 0.06, ankle0.z)), -25.0)}
+    pb["Root"].location = (0.02 * step, -0.45 * STEP_LENGTH * step, -0.06 * crouch + 0.02 * rise)
+    bpy.context.view_layer.update()
+    for side, (ankle, toe_out) in spots.items():
+        ball_rel = bones[f"ball_{side}"].head_local - bones[f"foot_{side}"].head_local
+        ball_rel = Matrix.Rotation(math.radians(toe_out), 3, "Z") @ Vector((0, ball_rel.y, ball_rel.z))
+        two_bone(skeleton, f"thigh_{side}", f"calf_{side}", ankle, pole=(0, -1, 0.1))
+        bpy.context.view_layer.update()
+        aim(skeleton, f"foot_{side}", ball_rel)
+        aim(skeleton, f"ball_{side}", Matrix.Rotation(math.radians(toe_out), 3, "Z") @
+            (bones[f"ball_{side}"].tail_local - bones[f"ball_{side}"].head_local))
+
+
+def look_ahead(skeleton, body_turn):
+    """The head turns back against the body's turn, keeping his eyes on his man."""
+    turn(skeleton, "head", UP, -0.6 * body_turn)
+
+
 def attack_pose(skeleton, t):
-    """Spear thrust: gather and draw back (0..0.35), drive forward with a step (0.35..0.5), hold the reach a
-    moment, then recover to the guard."""
-    draw = smooth(span(t, 0.0, 0.35)) * (1 - ease_in(span(t, 0.35, 0.45)))
-    reach_ = ease_out(span(t, 0.35, 0.5)) * (1 - smooth(span(t, 0.62, 1.0)))
-    stance(skeleton, spear_up=False, crouch=0.35 * draw + 0.5 * reach_)
+    """Spear thrust: gather and draw back (0..0.35), drive forward hard with a step (0.36..0.47), hold the
+    reach a moment, then recover to the guard."""
+    draw = smooth(span(t, 0.0, 0.35)) * (1 - ease_in(span(t, 0.36, 0.44)))
+    reach_ = ease_in(span(t, 0.36, 0.47)) * (1 - smooth(span(t, 0.62, 1.0)))
+    step = smooth(span(t, 0.3, 0.46)) * (1 - smooth(span(t, 0.64, 1.0)))
+    stance(skeleton, spear_up=False)
+    fight_footwork(skeleton, step, 0.35 * draw + 0.6 * reach_, rise=0.5 * draw)
     # The shield comes up and forward with the lunge, clear of the leading knee.
     turn(skeleton, "upperarm_l", RIGHT, 18 * reach_)
-    bend_leg(skeleton, "l", 4 + 22 * reach_, 8 + 22 * reach_)
-    bend_leg(skeleton, "r", 4 - 12 * reach_, 6 + 6 * reach_)
-    turn(skeleton, "pelvis", UP, -10 * draw + 12 * reach_)
-    turn(skeleton, "spine_02", UP, -16 * draw + 16 * reach_)
-    turn(skeleton, "spine_02", RIGHT, -6 * reach_)
+    # The hips turn first, the shoulders after them.
+    hips = -10 * draw + 12 * smooth(span(t, 0.32, 0.46)) * (1 - smooth(span(t, 0.62, 1.0)))
+    shoulders = -16 * draw + 16 * reach_
+    turn(skeleton, "pelvis", UP, hips)
+    turn(skeleton, "spine_02", UP, shoulders)
+    turn(skeleton, "spine_02", RIGHT, -8 * reach_)
+    look_ahead(skeleton, hips + shoulders)
     # Underarm thrust: the spear comes down from upright to level as he gathers, then the arm drives it
     # straight ahead, point first.
     level = smooth(span(t, 0.0, 0.3)) * (1 - smooth(span(t, 0.7, 1.0)))
@@ -1295,7 +1332,6 @@ def attack_pose(skeleton, t):
     upright = Vector((0, -0.05, 1))
     forward = Vector((0.12, -1, 0.06))   # the butt out to his right, clear of the skirt
     point_spear(skeleton, upright.lerp(forward, level).normalized())
-    skeleton.pose.bones["Root"].location.y += -0.12 * reach_
 
 
 def guard_wrist(skeleton, style="shield"):
@@ -1336,19 +1372,27 @@ def sword_cut(skeleton, t, cut, style="shield"):
     in both hands)."""
     guard = guard_wrist(skeleton, style)
     rest_blade = GREAT_GUARD if style == "great" else SWORD_GUARD
-    wind = smooth(span(t, 0.0, 0.35))
-    strike = smooth(span(t, 0.36, 0.6))
-    back = smooth(span(t, 0.7, 1.0))
+    # Wound up (0..0.32), then the blow: slow to start and fastest as it lands (0.34..0.56), carried on
+    # past where it was aimed (follow-through, back by 0.72), and back to the guard (0.72..1).
+    wind = smooth(span(t, 0.0, 0.32))
+    s_ = span(t, 0.34, 0.56)
+    strike = s_ * s_
+    follow = 0.12 * math.sin(math.pi * span(t, 0.56, 0.72))
+    back = smooth(span(t, 0.72, 1.0))
     held = strike * (1 - back)
-    stance(skeleton, sword=style != "great", great=style == "great", shield="guard" if style == "shield" else "none",
-           crouch=0.25 * wind * (1 - strike) + 0.45 * held)
-    bend_leg(skeleton, "l", 4 + 20 * held, 8 + 20 * held)
-    bend_leg(skeleton, "r", 4 - 10 * held, 6 + 6 * held)
-    # Turning the body about the vertical: a positive turn brings the right shoulder forward.
-    twist = cut["twist"][0] * wind * (1 - strike) + cut["twist"][1] * held
-    turn(skeleton, "pelvis", UP, 0.4 * twist)
-    turn(skeleton, "spine_02", UP, 0.6 * twist)
+    stance(skeleton, sword=style != "great", great=style == "great", shield="guard" if style == "shield" else "none")
+    fight_footwork(skeleton, smooth(span(t, 0.28, 0.5)) * (1 - back), 0.25 * wind * (1 - strike) + 0.5 * held,
+                   rise=wind * (1 - strike) * (1 if cut["wind"][0][2] > 0.2 else 0))
+    # Turning the body about the vertical (a positive turn brings the right shoulder forward): the hips lead,
+    # the shoulders follow, the arm comes last.
+    hips_s = smooth(span(t, 0.3, 0.5))
+    shoulders_s = smooth(span(t, 0.32, 0.54))
+    hips = 0.4 * (cut["twist"][0] * wind * (1 - hips_s) + cut["twist"][1] * hips_s * (1 - back))
+    shoulders = 0.6 * (cut["twist"][0] * wind * (1 - shoulders_s) + cut["twist"][1] * shoulders_s * (1 - back))
+    turn(skeleton, "pelvis", UP, hips)
+    turn(skeleton, "spine_02", UP, shoulders)
     turn(skeleton, "spine_02", RIGHT, -(cut["lean"][0] * wind * (1 - strike) + cut["lean"][1] * held))
+    look_ahead(skeleton, hips + shoulders)
     if style == "free":
         # The free arm goes out behind for balance as he strikes.
         out = max(wind, strike) * (1 - back)
@@ -1363,11 +1407,13 @@ def sword_cut(skeleton, t, cut, style="shield"):
                                                    (cut["wind"], cut["mid"], cut["end"]))
     if back > 0:
         at, blade = e_at.lerp(guard, back), e_dir.lerp(rest_blade, back)
-    elif strike > 0:
-        # Through the middle point: a curve whose control point puts it there halfway.
+    elif t >= 0.34:
+        # Through the middle point: a curve whose control point puts it there halfway (and on along it
+        # for the follow-through).
+        c = strike + follow
         control = 2 * m_at - (w_at + e_at) / 2
-        at = w_at * (1 - strike) ** 2 + control * (2 * strike * (1 - strike)) + e_at * strike ** 2
-        blade = w_dir.lerp(m_dir, strike * 2) if strike < 0.5 else m_dir.lerp(e_dir, strike * 2 - 1)
+        at = w_at * (1 - c) ** 2 + control * (2 * c * (1 - c)) + e_at * c ** 2
+        blade = w_dir.lerp(m_dir, c * 2) if c < 0.5 else m_dir.lerp(e_dir, c * 2 - 1)
     elif "via" in cut:
         via = Vector(cut["via"]).normalized()
         at = guard.lerp(w_at, wind) + Vector((0, -0.35, 0)) * math.sin(math.pi * wind)   # up in front of him
@@ -1382,7 +1428,6 @@ def sword_cut(skeleton, t, cut, style="shield"):
         shoulder = skeleton.pose.bones["upperarm_r"].head.copy()
         reach(skeleton, "r", shoulder + at, pole=cut["pole"])
         point_spear(skeleton, blade.normalized())
-    skeleton.pose.bones["Root"].location.y += -0.1 * held
 
 
 # The same four attacks with a longsword in both hands: the hands work nearer the middle of the body and
@@ -1460,18 +1505,21 @@ def left_hand_on_shaft(skeleton, amount, along=0.55):
 def spear_thrust(skeleton, t, grip, shield):
     move = SPEAR_THRUSTS[(grip, shield)]
     draw = smooth(span(t, 0.0, 0.35))
-    hit = ease_out(span(t, 0.36, 0.5))
+    hit = ease_in(span(t, 0.36, 0.47))   # fastest as it lands
     back = smooth(span(t, 0.62, 1.0))
     held = hit * (1 - back)
-    stance(skeleton, crouch=0.3 * draw * (1 - hit) + 0.5 * held, shield=shield)
+    stance(skeleton, shield=shield)
+    fight_footwork(skeleton, smooth(span(t, 0.3, 0.46)) * (1 - smooth(span(t, 0.64, 1.0))),
+                   0.3 * draw * (1 - hit) + 0.55 * held, rise=0.5 * draw * (1 - hit) * (grip == "over"))
     if shield == "guard":
         turn(skeleton, "upperarm_l", RIGHT, 18 * held)
-    bend_leg(skeleton, "l", 4 + 22 * held, 8 + 22 * held)
-    bend_leg(skeleton, "r", 4 - 12 * held, 6 + 6 * held)
     set_to = max(draw, hit) * (1 - back)
-    turn(skeleton, "pelvis", UP, -0.4 * move["twist"] * set_to)
-    turn(skeleton, "spine_02", UP, -0.6 * move["twist"] * set_to - 8 * draw * (1 - hit) + 8 * held)
-    turn(skeleton, "spine_02", RIGHT, -6 * held)
+    hips = -0.4 * move["twist"] * set_to
+    shoulders = -0.6 * move["twist"] * set_to - 8 * draw * (1 - hit) + 8 * held
+    turn(skeleton, "pelvis", UP, hips)
+    turn(skeleton, "spine_02", UP, shoulders)
+    turn(skeleton, "spine_02", RIGHT, -8 * held)
+    look_ahead(skeleton, hips + shoulders)
     bpy.context.view_layer.update()
     pb = skeleton.pose.bones
     shoulder = pb["upperarm_r"].head.copy()
@@ -1489,7 +1537,6 @@ def spear_thrust(skeleton, t, grip, shield):
     point_spear(skeleton, point.normalized())
     if shield == "none":
         left_hand_on_shaft(skeleton, smooth(span(t, 0.0, 0.3)) * (1 - smooth(span(t, 0.75, 1.0))))
-    pb["Root"].location.y += -0.12 * held
 
 
 def spear_block_pose(skeleton, t):
@@ -2420,15 +2467,15 @@ def bake_action(skeleton, name, length_s, pose_fn, loop=False, step=2, free_arms
 
 def attack_aims():
     """Where each attack's weapon must point (armature space) at a moment of it: (t, direction, least cosine)."""
-    aims = {"attack": (0.45, Vector((0, -1, 0)), 0.85)}
+    aims = {"attack": (0.5, Vector((0, -1, 0)), 0.85)}
     for (grip, shield), move in SPEAR_THRUSTS.items():
         name = {"none": "n_", "guard": ""}[shield] + ("attack" if grip == "under" else "attack_over")
         aims[name] = (0.5, Vector(move["hit"][1]).normalized(), 0.85)
     for name, cut in SWORD_CUTS.items():
-        aims[name] = (0.65, Vector(cut["end"][1]).normalized(), 0.8)
-        aims["f_" + name[2:]] = (0.65, Vector(cut["end"][1]).normalized(), 0.8)
+        aims[name] = (0.57, Vector(cut["end"][1]).normalized(), 0.8)
+        aims["f_" + name[2:]] = (0.57, Vector(cut["end"][1]).normalized(), 0.8)
     for name, cut in GREAT_CUTS.items():
-        aims[name] = (0.65, Vector(cut["end"][1]).normalized(), 0.8)
+        aims[name] = (0.57, Vector(cut["end"][1]).normalized(), 0.8)
     return aims
 
 
