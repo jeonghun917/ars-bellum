@@ -12,6 +12,7 @@ import gzip
 import hashlib
 import json
 import os
+import subprocess
 import urllib.request
 import zipfile
 
@@ -21,11 +22,25 @@ MPFB_SHA256 = "c075b3e9b94b8e5556a5f03f4653602d02ea306de08126e8f55ed6dee28a2dad"
 CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache")
 
 
+MPFB_BRANCH = "ccr-3692cb93-6pjzuu-mpfb"   # holds mpfb-2.0.18.zip (see its README.md)
+
+
+def _from_branch(out):
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    subprocess.run(["git", "-C", repo, "fetch", "--depth", "1", "origin", MPFB_BRANCH], check=True)
+    with open(out, "wb") as fh:
+        subprocess.run(["git", "-C", repo, "show", "FETCH_HEAD:mpfb-2.0.18.zip"], check=True, stdout=fh)
+
+
 def package():
     os.makedirs(CACHE, exist_ok=True)
     path = os.path.join(CACHE, "mpfb-2.0.18.zip")
     if not os.path.exists(path):
-        urllib.request.urlretrieve(MPFB_URL, path + ".part")
+        try:
+            urllib.request.urlretrieve(MPFB_URL, path + ".part")
+        except OSError:
+            # The link went dead (404, 2026-10-31): the same package is kept on a branch of this repository.
+            _from_branch(path + ".part")
         os.replace(path + ".part", path)
     digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
     if digest != MPFB_SHA256:
