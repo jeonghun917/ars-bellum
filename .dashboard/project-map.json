@@ -744,7 +744,7 @@
     {
       "id": "bellum-3d-models",
       "title": "3D 병사 모델(블렌더·MakeHuman)",
-      "owner": "tools/blender/build_men.py가 MakeHuman 사람 몸(makehuman_data.py가 MPFB 패키지에서 데이터만 읽음, CC0)에 옷·갑옷·장비·동작을 입혀 assets/models/infantry_*.glb로 쓴다(build_human.py가 몸과 뼈대). 만들 때마다 check_soldier.py가 모든 동작의 모든 프레임에서 뚫림·떠 있음·구멍(몸 안이 비치는 틈)·방향을 재고, 문제가 하나라도 있으면 glb를 쓰지 않고 멈춘다. m2/M2_SoldierModels.js가 전투 시작 전에 불러오고, M2_RendererThree의 SoldierAnimator가 병사 상태·실제 이동 속도·가장 가까운 적과의 거리(멀면 방패를 내림)로 동작을 고르고, 공격은 무기별 공격 동작을 차례로 쓰고, 걷기·뛰기는 (속도 ÷ 모델에 적힌 걸음 속도)로 재생해 발이 땅에 붙게 한다. 모델을 바꿀 때는 스크립트를 고쳐 다시 만든다(glb를 손으로 고치지 않는다)",
+      "owner": "tools/blender/build_men.py가 MakeHuman 사람 몸(makehuman_data.py가 MPFB 패키지에서 데이터만 읽음, CC0)에 옷·갑옷·장비·동작을 입혀 assets/models/infantry_*.glb로 쓴다(build_human.py가 몸과 뼈대). 팔은 어깨·팔꿈치·손목 점으로 관절 규칙대로 자세를 잡고(set_arm·grip), 치마는 다리가 밀어내는 판 12장(push_skirt)이다. 만들 때마다 check_soldier.py가 모든 동작의 모든 프레임에서 뚫림(겉옷·치마 포함)·떠 있음·구멍(몸 안이 비치는 틈)·관절 범위(팔꿈치는 경첩, 손목·팔뚝 비틀림 한계)·발 미끄러짐·방향을 재고, 문제가 하나라도 있으면 glb를 쓰지 않고 멈춘다. m2/M2_SoldierModels.js가 전투 시작 전에 불러오고, M2_RendererThree의 SoldierAnimator가 병사 상태·실제 이동 속도·가장 가까운 적과의 거리(멀면 방패를 내림)로 동작을 고르고, 공격은 무기별 공격 동작을 차례로 쓰고, 걷기·뛰기는 (속도 ÷ 모델에 적힌 걸음 속도)로 재생해 발이 땅에 붙게 한다. 모델을 바꿀 때는 스크립트를 고쳐 다시 만든다(glb를 손으로 고치지 않는다)",
       "files": [
         "tools/blender/build_human.py",
         "tools/blender/build_men.py",
@@ -767,14 +767,14 @@
       "risks": [
         {
           "id": "models-01",
-          "risk": "glb의 동작 이름(창·방패, s_ 검·방패, n_ 방패 없는 창, low_ 방패 내림, draw — M2_SoldierModels.js의 SOLDIER_ANIMATIONS)이나 뼈대, 뼈대 노드의 걸음 속도(walk_speed·run_speed)가 바뀌면 병사가 굳거나 발이 미끄러지거나 상자 병사로 되돌아간다",
+          "risk": "glb의 동작 이름(창·방패, s_ 검·방패, n_ 방패 없는 창, f_ 방패 없는 검, t_ 양손검, low_ 방패 내림, draw — M2_SoldierModels.js의 SOLDIER_ANIMATIONS)이나 뼈대, 뼈대 노드의 걸음 속도(walk_speed·run_speed)가 바뀌면 병사가 굳거나 발이 미끄러지거나 상자 병사로 되돌아간다",
           "trigger": "build_men.py의 동작·뼈대·병합 변경",
           "preWriteRule": "스크립트로 다시 만든 뒤 m2.render.soldier-models 검사와 실제 전투 화면 사진으로 확인한다",
           "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
         },
         {
           "id": "models-02",
-          "risk": "병사 한 명은 가까이 약 14,000 삼각형·재질 13개, 14 m 밖은 단순 모델 약 1,820 삼각형·재질 1개다. 3인칭에서 가까운 병사가 많으면 약 40만 삼각형·약 360번 그리기, 전술 시점은 약 9만·약 85번이다. 휴대폰에서 느려질 수 있다",
+          "risk": "병사 한 명은 가까이 약 13,900 삼각형·재질 13개, 14 m 밖은 단순 모델 약 1,810 삼각형·재질 1개다. 3인칭에서 가까운 병사가 많으면 약 40만 삼각형·약 360번 그리기, 전술 시점은 약 9만·약 85번이다. 휴대폰에서 느려질 수 있다. 모델 파일은 진영당 약 3.3MB(동작 48개, 치마 판 뼈 24개 포함)라 휴대폰 첫 불러오기가 느릴 수 있다",
           "trigger": "병사 수를 늘리거나 모델에 세부·재질을 더할 때",
           "preWriteRule": "진단의 triangles·drawCalls를 전후로 비교하고, 병사를 늘리기 전에 묶어 그리기나 재질 합치기를 먼저 한다. FAR_MODEL_DISTANCE를 줄이면 가까운 병사도 단순 모델로 보인다",
           "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"

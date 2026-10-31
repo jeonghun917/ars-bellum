@@ -4,13 +4,15 @@
 import { GLTFLoader } from "../vendor/three/r184/addons/loaders/GLTFLoader.js";
 
 // Each model is one man who can fight with spear and shield (plain names), sword and shield ("s_"; "draw"
-// takes the sword out of its scabbard) or a spear in both hands without a shield ("n_"). "low_" clips carry
-// the shield at the side, out of a fight.
+// takes the sword out of its scabbard), a spear in both hands without a shield ("n_"), the sword alone
+// ("f_") or a longsword in both hands ("t_"). "low_" clips carry the shield at the side, out of a fight.
 export const SOLDIER_ANIMATIONS = Object.freeze([
   "idle", "walk", "run", "attack", "attack_over", "block", "death", "low_idle", "low_walk", "low_run",
   "s_idle", "s_walk", "s_run", "s_swing_l", "s_swing_r", "s_overhead", "s_thrust", "s_block", "s_death",
   "s_low_idle", "s_low_walk", "s_low_run", "draw",
-  "n_idle", "n_walk", "n_run", "n_attack", "n_attack_over", "n_block", "n_death"
+  "n_idle", "n_walk", "n_run", "n_attack", "n_attack_over", "n_block", "n_death",
+  "f_idle", "f_walk", "f_run", "f_swing_l", "f_swing_r", "f_overhead", "f_thrust", "f_block", "f_death",
+  "t_idle", "t_walk", "t_run", "t_swing_l", "t_swing_r", "t_overhead", "t_thrust", "t_block", "t_death"
 ]);
 
 // Which model each side's foot soldiers wear.

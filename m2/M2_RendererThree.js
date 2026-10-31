@@ -46,8 +46,8 @@ function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, l
 // Beyond this distance (metres) from the camera a soldier is drawn with the simpler model.
 const FAR_MODEL_DISTANCE = 14;
 
-// Which clips play each role, for a spearman with a shield, a swordsman (with a shield) and a spearman
-// without one (two hands on the spear). "low" are the same roles with the shield carried at the side, out
+// Which clips play each role, for a spearman with a shield, a swordsman (with a shield), a spearman
+// without one (two hands on the spear), a swordsman without one and a man with a longsword in both hands. "low" are the same roles with the shield carried at the side, out
 // of a fight; each attack goes to the next of "attacks" in turn.
 const LOADOUT_CLIPS = Object.freeze({
   spear: Object.freeze({
@@ -62,6 +62,14 @@ const LOADOUT_CLIPS = Object.freeze({
   spear_free: Object.freeze({
     idle: "n_idle", walk: "n_walk", run: "n_run", block: "n_block", death: "n_death",
     attacks: Object.freeze(["n_attack", "n_attack_over"]), low: null
+  }),
+  sword_free: Object.freeze({
+    idle: "f_idle", walk: "f_walk", run: "f_run", block: "f_block", death: "f_death",
+    attacks: Object.freeze(["f_swing_l", "f_overhead", "f_swing_r", "f_thrust"]), low: null
+  }),
+  great: Object.freeze({
+    idle: "t_idle", walk: "t_walk", run: "t_run", block: "t_block", death: "t_death",
+    attacks: Object.freeze(["t_swing_l", "t_overhead", "t_swing_r", "t_thrust"]), low: null
   })
 });
 
@@ -318,9 +326,9 @@ export class M2RendererThree {
     for (const unit of renderSnapshot.units) {
       const marker = unit.isPlayer ? this.#materials.marker : null;
       const model = soldierModels?.[unit.sideId === "ally" ? "ally" : "enemy"];
-      // In turn, soldiers fight with spear and shield, sword and shield, or a spear in both hands (the
-      // player always with spear and shield).
-      const loadout = unit.isPlayer ? "spear" : ["spear", "sword", "spear_free"][this.#units.size % 3];
+      // In turn, soldiers fight with spear and shield, sword and shield, a spear in both hands, the sword
+      // alone or a longsword (the player always with spear and shield).
+      const loadout = unit.isPlayer ? "spear" : ["spear", "sword", "spear_free", "sword_free", "great"][this.#units.size % 5];
       const group = model
         ? createModelSoldier(model, marker, this.#geometries, this.#materials.shadow, loadout)
         : createHumanoid(unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy, marker, this.#geometries, this.#materials.shadow);

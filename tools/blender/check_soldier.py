@@ -8,7 +8,8 @@ What used to be caught by eye (and mostly by the user) is measured here, in ever
 - feet: in a walk or run, a foot on the ground stays on it and moves back at the gait's speed (no skating),
   a swinging foot clears the ground (no dragging), and no foot sinks into it;
 - holes: rays from inside the man (spine, neck, head) all meet some part on the way out;
-- joints: elbows bend only as hinges, forearms and wrists turn only as far as a man's can;
+- joints: elbows bend only as hinges, forearms and wrists turn only as far as a man's can; both hands stay on
+  a longsword's grip;
 - direction: the knee never folds forwards; the shield's face bulges outwards; the spear and the sword point
   where the attack sends them.
 
@@ -75,6 +76,7 @@ ELBOW_TWIST = 95         # turning the forearm (palm up / palm down) from the re
 WRIST_TWIST = 15         # the wrist itself barely twists: the forearm does that
 WRIST_BEND = 70          # palm-ward or back
 WRIST_SIDEWAYS = 35      # towards the thumb or the little finger
+TWO_HANDS_CM = 7         # a longsword's left hand: its wrist this near the grip (the hand reaches on from it)
 
 
 def _swing_twist(q):
@@ -139,6 +141,7 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
         ("belt", "surcoat"), ("belt", "coat_skirt"),
         # Nothing goes through the surcoat or its skirt: not the weapons, not the arms, not the knees.
         ("spear", "surcoat"), ("spear", "coat_skirt"), ("sword", "surcoat"), ("sword", "coat_skirt"),
+        ("great", "torso"), ("great", "head"), ("great", "surcoat"), ("great", "coat_skirt"),
         ("forearm_r", "surcoat"), ("forearm_l", "surcoat"), ("mitten_r", "surcoat"), ("mitten_l", "surcoat"),
         ("mitten_r", "coat_skirt"), ("mitten_l", "coat_skirt"), ("legs", "coat_skirt"),
     ]
@@ -160,6 +163,16 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
                     key = f"{a} x {b}"
                     first, last, most = worst.get(key, (frame, frame, 0))
                     worst[key] = (min(first, frame), max(last, frame), max(most, n))
+            # Both hands on a longsword: the left wrist at the grip, below the right fist.
+            if action.name.startswith("t_") and action.name != "t_death":   # (struck, he lets go)
+                hand = skeleton.pose.bones["hand_r"]
+                fist = hand.head + Vector(hand.matrix.col[1][:3]) * 0.065
+                grip_at = fist - (hand.matrix.to_3x3() @ spear_axis_local).normalized() * 0.1
+                off = (skeleton.pose.bones["lowerarm_l"].tail - grip_at).length * 100
+                if off > TWO_HANDS_CM:
+                    key = "left hand off the grip"
+                    first, last, most = joints.get(key, (frame, frame, 0))
+                    joints[key] = (min(first, frame), max(last, frame), max(most, round(off)))
             for joint, how, degrees in _joints(skeleton):
                 key = f"{joint} {how}"
                 first, last, most = joints.get(key, (frame, frame, 0))
@@ -320,7 +333,8 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
     for e in log["clipping"]:
         problems.append(f"clipping: {e['pair']} in {e['action']} frames {e['frames']} ({e['triangles']} triangle pairs)")
     for e in log.get("joints", []):
-        problems.append(f"joint: {e['joint']} in {e['action']} frames {e['frames']} (up to {e['degrees']} degrees)")
+        unit = "cm" if "grip" in e["joint"] else "degrees"
+        problems.append(f"joint: {e['joint']} in {e['action']} frames {e['frames']} (up to {e['degrees']} {unit})")
     knees = {(e["action"], e["what"]) for e in log["direction"] if "knee" in e["what"]}
     for action, what in sorted(knees):
         problems.append(f"direction: {what} in {action}")
