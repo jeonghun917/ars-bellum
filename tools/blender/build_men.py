@@ -1314,7 +1314,7 @@ def xbow_reload(skeleton, t):
     groove = fist + point * (XBOW["nut"] + 0.1) + top * 0.08
     grip_at = pb["lowerarm_r"].tail.copy()   # (where the carry put the right wrist)
     if t < 0.16:
-        target = grip_at.lerp(at_case + UP * 0.05, to_lever) + (away * 0.2 + UP * 0.06) * math.sin(math.pi * to_lever)
+        target = grip_at.lerp(at_case + UP * 0.05, to_lever) + (away * 0.2 + UP * 0.06) * math.sin(math.pi * to_lever) ** 0.5
     elif t < 0.28:
         target = (at_case + UP * 0.05).lerp(lever_hook, hook) + away * 0.12 * math.sin(math.pi * hook)
     elif t < 0.54:
