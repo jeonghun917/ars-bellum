@@ -144,6 +144,7 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
         ("great", "torso"), ("great", "head"), ("great", "surcoat"), ("great", "coat_skirt"),
         ("forearm_r", "surcoat"), ("forearm_l", "surcoat"), ("mitten_r", "surcoat"), ("mitten_l", "surcoat"),
         ("mitten_r", "coat_skirt"), ("mitten_l", "coat_skirt"), ("legs", "coat_skirt"),
+        ("legs", "mail_skirt"), ("shoes", "mail_skirt"), ("shoes", "coat_skirt"), ("mail_skirt", "coat_skirt"),
     ]
     for action in actions:
         skeleton.animation_data.action = action

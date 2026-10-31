@@ -510,11 +510,12 @@ def show(skeleton, spear=True, sword=False, sheathed=True, shield=True, great=Fa
 
 def add_scabbard_bone(skeleton, top, up):
     """A bone at the top of the scabbard (child of the pelvis); the sheathed sword's bone hangs from it.
-    It turns with part of the skirt panel it hangs over (see push_skirt()): a knee that pushes the skirt
-    out pushes the scabbard too, without flinging it."""
-    centre = Vector((SKIRT["rings"][0][1], SKIRT["rings"][0][2], 0))
+    It swings, with the weight of the sword in it, on the skirt panel it hangs over (see push_skirts()): a
+    knee that pushes the skirt out pushes the scabbard too."""
+    coat = SKIRTS["skirt"]
+    centre = Vector((coat["rings"][0][1], coat["rings"][0][2], 0))
     out = Vector((top.x, top.y, 0)) - centre
-    SKIRT["scabbard_panel"] = max(range(SKIRT["panels"]), key=lambda j: out.normalized().dot(_panel_dir(j)))
+    coat["scabbard_panel"] = max(range(PANELS), key=lambda j: out.normalized().dot(_panel_dir(j)))
     bpy.context.view_layer.objects.active = skeleton
     bpy.ops.object.mode_set(mode="EDIT")
     bones = skeleton.data.edit_bones
@@ -526,19 +527,30 @@ def add_scabbard_bone(skeleton, top, up):
     reset_pose(skeleton)
 
 
-SCABBARD_FOLLOWS = 0.9   # how much of its skirt panel's turn the scabbard takes
-
-
-# The coat's skirt (and the mail skirt under it) hang from panels round the hips, each on its own bone. A
-# skirt that only followed the thighs let the knees, swinging forward, come through it; the panels are
-# instead pushed out, frame by frame, as far as the legs under them need (push_skirt()): the cloth gives
-# way rather than being gone through.
-SKIRT = {"rings": None, "panels": 12, "colliders": [], "outside": [], "top": 0.0, "mid": 0.0, "bottom": 0.0}
+# Skirts. The coat's skirt, with the mail skirt lined under it, hangs from twelve panels round the hips,
+# each in two parts (to the middle, and on to the hem), each part on its own bone. Frame by frame
+# (push_skirts()), a panel is pushed out as far as the legs under it need, stopped or pressed in where
+# something outside it touches it (the shield, the spear's butt, a hand), and between those it swings with
+# its own weight: the body's movement throws it, it falls back and settles; the upper part, mail under
+# wool, slowly and heavily, the lower part, wool alone, quickly and with a flutter. Nothing goes through a
+# skirt; it gives way.
+PANELS = 12
 SKIRT_MARGIN = 0.02   # the cloth keeps this far (m) outside a leg
+# How each one swings: its own frequency (Hz), how quickly a swing dies away (damping ratio), how strongly
+# the body's movement throws it, and how stiffly a panel holds to its neighbours.
+WEIGHT = {
+    "lined": dict(hz=1.25, damping=0.55, throw=0.6, bind=9.0),     # the upper panels, mail under the wool: heavy,
+                                                                   # slow, little bounce
+    "cloth": dict(hz=1.9, damping=0.22, throw=1.0, bind=6.0),      # below the mail's hem, wool alone: light,
+                                                                   # flutters, settles quickly
+    "scabbard": dict(hz=1.4, damping=0.6, throw=0.6),              # a sword's weight hanging from the belt: it
+                                                                   # swings slowly and does not bounce
+}
+SKIRTS = {}   # bone prefix ("skirt" for the coat, "mail") -> rings, heights, what pushes it, ...
 
 
 def _panel_dir(j):
-    a = 2 * math.pi * j / SKIRT["panels"]
+    a = 2 * math.pi * j / PANELS
     return Vector((math.cos(a), math.sin(a), 0))
 
 
@@ -549,21 +561,22 @@ def _prop_hidden(skeleton, obj):
     return False
 
 
-def add_skirt_bones(skeleton, rings):
+def add_skirt_bones(skeleton, prefix, rings):
     """Two bones per panel, hanging from the pelvis: from the skirt's top ring to its middle, and from there
     to the hem, so a knee can push the lower part out without throwing the whole panel."""
     mid = len(rings) // 2
-    SKIRT.update(rings=rings, top=rings[0][0], bottom=rings[-1][0], mid=rings[mid][0])
+    SKIRTS[prefix] = dict(rings=rings, top=rings[0][0], bottom=rings[-1][0], mid=rings[mid][0], inside=[], outside=[],
+                          layers=[])
     bpy.context.view_layer.objects.active = skeleton
     bpy.ops.object.mode_set(mode="EDIT")
     bones = skeleton.data.edit_bones
-    for j in range(SKIRT["panels"]):
-        a = 2 * math.pi * j / SKIRT["panels"]
+    for j in range(PANELS):
+        a = 2 * math.pi * j / PANELS
         points = [Vector((cx + ax * math.cos(a), cy + ay * math.sin(a), z)) for z, cx, cy, ax, ay in (rings[0], rings[mid], rings[-1])]
-        upper = bones.new(f"skirt_{j:02d}")
+        upper = bones.new(f"{prefix}_{j:02d}")
         upper.head, upper.tail = points[0], points[1]
         upper.parent = bones["pelvis"]
-        lower = bones.new(f"skirt_{j:02d}_lo")
+        lower = bones.new(f"{prefix}_{j:02d}_lo")
         lower.head, lower.tail = points[1], points[2]
         lower.parent = upper
         lower.use_connect = True
@@ -571,8 +584,7 @@ def add_skirt_bones(skeleton, rings):
     reset_pose(skeleton)
 
 
-def _ring_at(z):
-    rings = SKIRT["rings"]
+def _ring_at(rings, z):
     for (z0, *r0), (z1, *r1) in zip(rings, rings[1:]):
         if z1 <= z <= z0:
             k = (z0 - z) / max(1e-6, z0 - z1)
@@ -580,29 +592,149 @@ def _ring_at(z):
     return rings[0][1:] if z > rings[0][0] else rings[-1][1:]
 
 
-def push_skirt(skeleton):
-    """Turn the skirt panels out just far enough that the legs under them stay inside the cloth (by
-    SKIRT_MARGIN): first the upper half of each panel about the top, then the lower half about the middle,
-    and neighbouring panels part of the way with them, as cloth would. Things outside the skirt (the shield,
-    the spear's butt, a hand) press it in the same way, where no leg holds it out."""
-    if SKIRT["rings"] is None:
+class Swing:
+    """The state of the swinging parts through one clip: each panel part's and the scabbard's angle and
+    speed, and where their ends were in the last frames (to feel the body's movement)."""
+
+    def __init__(self):
+        self.angle, self.speed, self.trail, self.bound = {}, {}, {}, {}
+
+    def save(self):
+        return ({**self.angle}, {**self.speed}, {k: [v.copy() for v in t] for k, t in self.trail.items()}, {**self.bound})
+
+    def restore(self, saved):
+        self.angle, self.speed, self.trail, self.bound = ({**saved[0]}, {**saved[1]},
+                                                          {k: [v.copy() for v in t] for k, t in saved[2].items()},
+                                                          {**saved[3]})
+
+    def step(self, key, weight, low, high, rest, end, outward, length, dt):
+        """Move one swinging part on by dt: drawn back to rest, thrown by how its end is being moved, held
+        between low (pushed out by what is inside it) and high (pressed in from outside). Returns its angle."""
+        w = 2 * math.pi * weight["hz"]
+        trail = self.trail.setdefault(key, [])
+        trail.append(end.copy())
+        del trail[:-3]
+        push = 0.0
+        if len(trail) == 3:
+            # The end being jerked one way leaves the part behind: it swings the other way.
+            accel = (trail[2] - 2 * trail[1] + trail[0]) / (dt * dt)
+            push = -weight["throw"] * accel.dot(outward) / max(0.1, length)
+        angle = self.angle.get(key, max(low, min(high, rest)))
+        speed = self.speed.get(key, 0.0)
+        last_low = self.bound.get(key, low)
+        for _ in range(4):
+            h = dt / 4
+            speed += (-w * w * (angle - rest) - 2 * weight["damping"] * w * speed + push) * h
+            angle += speed * h
+        angle = max(-0.6, min(1.25, angle))   # a hanging panel swings only so far
+        if angle < low:
+            # Pushed out: it moves with what pushes it (and keeps some of that speed when let go).
+            speed = max(speed, 0.7 * (low - last_low) / dt, 0.0)
+            angle = low
+        if angle > high:
+            speed = min(speed, 0.0)
+            angle = high
+        self.angle[key], self.speed[key], self.bound[key] = angle, speed, low
+        return angle
+
+
+def panel_share(down):
+    """How much of a skirt point at `down` (0 at the panels' top, 1 at their hem) its panel moves; the rest
+    is on the body."""
+    return smooth(clamp01((down - 0.06) * 6))
+
+
+def push_skirts(skeleton, swing=None, dt=1.0 / 30):
+    """Pose the skirts for this frame."""
+    for prefix in SKIRTS:
+        push_skirt(skeleton, prefix, swing, dt)
+
+
+# What a hand carries beside the skirt, by side: a knee may push the skirt out into it.
+BESIDE_SKIRT = {"l": [], "r": []}
+
+
+def _skirt_touches(skeleton, side):
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    coat = BVHTree.FromObject(SKIRTS["skirt"]["layers"][0][0], depsgraph)
+    return any(coat.overlap(BVHTree.FromObject(o, depsgraph))
+               for o in BESIDE_SKIRT[side] if not _prop_hidden(skeleton, o))
+
+
+def dress(skeleton, swing, dt, free_arms=True):
+    """Pose the skirts for this frame; where a leg pushes the skirt out into what a hand holds beside it
+    (the shield, the spear's butt, a hand itself), that arm comes out from his side, a little at a time,
+    until they no longer meet (the skirt's swing is worked out again each time from the same state)."""
+    saved = swing.save() if swing else None
+    push_skirts(skeleton, swing, dt)
+    if not free_arms or "skirt" not in SKIRTS:
         return
+    for _ in range(8):
+        bpy.context.view_layer.update()
+        touching = [side for side in ("l", "r") if _skirt_touches(skeleton, side)]
+        if not touching:
+            return
+        for side in touching:
+            turn(skeleton, f"upperarm_{side}", FRONT, 4 if side == "l" else -4)
+        if swing:
+            swing.restore(saved)
+        push_skirts(skeleton, swing, dt)
+
+
+def push_skirt(skeleton, prefix, swing, dt):
+    sk = SKIRTS[prefix]
     pb, rest = skeleton.pose.bones, skeleton.data.bones
-    n = SKIRT["panels"]
+    n = PANELS
     for j in range(n):
-        for name in (f"skirt_{j:02d}", f"skirt_{j:02d}_lo"):
+        for name in (f"{prefix}_{j:02d}", f"{prefix}_{j:02d}_lo"):
             pb[name].rotation_quaternion = (1, 0, 0, 0)
     bpy.context.view_layer.update()
     moved = pb["pelvis"].matrix @ rest["pelvis"].matrix_local.inverted()
     back = moved.inverted()
     depsgraph = bpy.context.evaluated_depsgraph_get()
     spacing = 2 * math.pi / n
-    top, mid, bottom = SKIRT["top"], SKIRT["mid"], SKIRT["bottom"]
-    # Every point of the legs (inside) and of the things beside him (outside) at the skirt's height, with
-    # how far (m) it needs the cloth to move out (+) or lets it move in (-) where it is.
+    rings, top, mid, bottom = sk["rings"], sk["top"], sk["mid"], sk["bottom"]
+    # Where each layer of cloth (the coat, the mail under it) is this frame before the panels turn: its
+    # distance from the skirt's middle at each ring and each step round it.
+    layers = []
+    for obj, layer_rings in sk["layers"]:
+        ev = obj.evaluated_get(depsgraph)
+        mesh = ev.to_mesh()
+        segments = len(mesh.vertices) // len(layer_rings)
+        grid = [[0.0] * segments for _ in layer_rings]
+        for idx, v in enumerate(mesh.vertices):
+            k, i = divmod(idx, segments)
+            q = back @ (obj.matrix_world @ v.co)
+            grid[k][i] = math.hypot(q.x - layer_rings[k][1], q.y - layer_rings[k][2])
+        ev.to_mesh_clear()
+        layers.append((layer_rings, grid, segments))
+
+    def gaps(q):
+        """How far (m) a point is outside each layer of cloth at its height (negative: inside)."""
+        out = []
+        for layer_rings, grid, segments in layers:
+            if not layer_rings[-1][0] - 0.03 < q.z < layer_rings[0][0]:
+                continue
+            cx, cy, ax, ay = _ring_at(layer_rings, q.z)
+            a = math.atan2((q.y - cy) / ay, (q.x - cx) / ax)
+            f = (a % (2 * math.pi)) / (2 * math.pi) * segments
+            i0, frac = int(f) % segments, f - int(f)
+            i1 = (i0 + 1) % segments
+            for k in range(len(layer_rings) - 1):
+                if layer_rings[k + 1][0] <= q.z <= layer_rings[k][0]:
+                    kz = (layer_rings[k][0] - q.z) / max(1e-6, layer_rings[k][0] - layer_rings[k + 1][0])
+                    break
+            else:
+                k, kz = len(layer_rings) - 2, 1.0
+            at = [grid[kk][i0] * (1 - frac) + grid[kk][i1] * frac for kk in (k, k + 1)]
+            out.append(math.hypot(q.x - cx, q.y - cy) - (at[0] * (1 - kz) + at[1] * kz))
+        return out
+
+    # Every point of what is inside (legs; for the coat, the mail too) and of the things beside him, at the
+    # skirt's height, with how far (m) it needs the cloth to move out (+) or lets it move in (-) where it is.
     points = []
-    visible = [o for o in SKIRT["outside"] if not _prop_hidden(skeleton, o)]
-    for inside, objs in ((True, SKIRT["colliders"]), (False, visible)):
+    visible = [o for o in sk["outside"] if not _prop_hidden(skeleton, o)]
+    for inside, objs in ((True, sk["inside"]), (False, visible)):
         for obj in objs:
             ev = obj.evaluated_get(depsgraph)
             mesh = ev.to_mesh()
@@ -610,47 +742,74 @@ def push_skirt(skeleton):
                 q = back @ (obj.matrix_world @ v.co)
                 if not bottom - 0.03 < q.z < top - 0.01:
                     continue
-                cx, cy, ax, ay = _ring_at(q.z)
-                u, w = (q.x - cx) / ax, (q.y - cy) / ay
-                a = math.atan2(w, u)
-                radius = math.hypot(ax * math.cos(a), ay * math.sin(a))
-                gap = (math.hypot(u, w) - 1) * radius
+                cx, cy, ax, ay = _ring_at(rings, q.z)
+                a = math.atan2((q.y - cy) / ay, (q.x - cx) / ax)
+                found = gaps(q)
+                if not found:
+                    continue
+                # A leg must be inside every layer; a thing outside, outside the outer one (the coat).
+                gap = max(found) if inside else found[0]
                 j0 = int((a % (2 * math.pi)) // spacing) % n
                 # Near the top the cloth hangs partly from the body (see skirt()): it moves only that much
                 # of what the panel does.
-                hang = max(0.15, smooth(clamp01(((top - q.z) / (top - bottom) - 0.06) * 6)))
-                # A leg needs the cloth out (+) or lets it come in no further than its own gap (-); a thing
-                # outside presses it in (-) where it touches it (deeper is through it, not touching).
+                hang = panel_share((top - q.z) / (top - bottom))
+                if hang < 0.3:
+                    continue   # (too near the top for a panel to move the cloth there: it is on the body)
+                if sk.get("debug") is not None:
+                    sk["debug"].append((round(q.z, 3), j0, inside, round(gap, 3), round(hang, 2), obj.name))
                 if inside:
                     points.append((q.z, j0, True, (gap + SKIRT_MARGIN) / hang))
-                elif 0 < -gap + SKIRT_MARGIN < 0.12:
-                    points.append((q.z, j0, False, -(-gap + SKIRT_MARGIN) / hang))
+                elif -0.12 < gap < 0.35:
+                    # A thing outside stops the cloth swinging out into it (+: how far out it may come), or
+                    # presses it in where it already touches (-). Deeper in than that it is through it.
+                    points.append((q.z, j0, False, (gap - SKIRT_MARGIN) / hang))
             ev.to_mesh_clear()
 
-    def settle(legs, things, base=None):
-        """legs: the least turn each panel needs for the legs (negative: how far in they let it come);
-        things: the most it may turn for what presses from outside. Cloth: each panel goes at least a third
-        as far as a neighbour; a leg holding a panel out wins over something pressing it in."""
+    def bounds(legs, things):
+        """legs: the least turn each panel needs for what is inside (negative: how far in it lets it
+        come); things: the most it may turn for what presses from outside. Cloth: each panel goes at least
+        a third as far as a neighbour; a leg holding a panel out wins over something pressing it in."""
         out = [max(0.0, x) for x in legs]
         press = [min(0.0, x) for x in things]
         for _ in range(2):
             out = [max(out[j], 0.35 * out[j - 1], 0.35 * out[(j + 1) % n]) for j in range(n)]
             press = [min(press[j], 0.35 * press[j - 1], 0.35 * press[(j + 1) % n]) for j in range(n)]
-        final = []
-        for j in range(n):
-            rest_at = base[j] if base else 0.0
-            if out[j] > 0:
-                final.append(max(out[j], rest_at))
-            else:
-                final.append(max(min(rest_at, press[j]), legs[j]))
-        return final
+        low = [max(legs[j], out[j]) for j in range(n)]
+        high = [max(low[j], min(things[j], press[j] if press[j] < 0 else 9.0)) for j in range(n)]
+        return low, high
 
-    def apply(name, j, angle):
-        if angle:
-            bone = pb[name]
-            down = (bone.tail - bone.head).normalized()
-            axis = down.cross(moved.to_3x3() @ _panel_dir(j)).normalized()
-            turn(skeleton, name, axis, math.degrees(angle))
+    def axis_of(name, j):
+        bone = pb[name]
+        down = (bone.tail - bone.head).normalized()
+        return down.cross(moved.to_3x3() @ _panel_dir(j)).normalized(), (bone.tail - bone.head).length
+
+    def settle(level, low, high, rest_at):
+        """The angle of each panel part this frame: with no swing (a still pose), as near rest as the bounds
+        allow; swinging, by its weight, then held within the bounds; a panel then pulled a little towards
+        its neighbours, as cloth is."""
+        names = [f"{prefix}_{j:02d}{level}" for j in range(n)]
+        weight = WEIGHT["lined" if level == "" else "cloth"]
+        if swing is None:
+            return [max(low[j], min(high[j], rest_at[j])) for j in range(n)]
+        angles = []
+        for j, name in enumerate(names):
+            axis, length = axis_of(name, j)
+            outward = moved.to_3x3() @ _panel_dir(j)
+            end = pb[name].tail.copy()
+            angles.append(swing.step(name, weight, low[j], high[j], rest_at[j], end, outward, length, dt))
+        mean = [(angles[j - 1] + angles[(j + 1) % n]) / 2 for j in range(n)]
+        pull = min(0.5, weight["bind"] * dt)
+        angles = [max(low[j], min(high[j], a + (m - a) * pull)) for j, (a, m) in enumerate(zip(angles, mean))]
+        for j, name in enumerate(names):
+            swing.angle[name] = angles[j]
+        return angles
+
+    def apply(level, angles):
+        for j in range(n):
+            if angles[j]:
+                name = f"{prefix}_{j:02d}{level}"
+                axis, _ = axis_of(name, j)
+                turn(skeleton, name, axis, math.degrees(angles[j]))
 
     def angle_for(need, lever, limit):
         return math.copysign(math.asin(min(limit, abs(need) / lever)), need)
@@ -658,28 +817,34 @@ def push_skirt(skeleton):
     # Upper halves: what touches above the middle, and a little of what touches below it.
     legs, things = [-9.0] * n, [9.0] * n
     for z, j0, inside, need in points:
-        lever = max(0.04, top - z)
-        angle = angle_for(need, lever, 0.94 if z >= mid else 0.3)
+        angle = angle_for(need, max(0.04, top - z), 0.94 if z >= mid else 0.3)
         for j in (j0, (j0 + 1) % n):
             if inside:
                 legs[j] = max(legs[j], angle)
             else:
                 things[j] = min(things[j], angle)
-    upper = settle(legs, things)
-    for j in range(n):
-        apply(f"skirt_{j:02d}", j, upper[j])
-    if "scabbard" in pb:
-        j = SKIRT["scabbard_panel"]
+    low, high = bounds(legs, things)
+    upper = settle("", low, high, [0.0] * n)
+    apply("", upper)
+    if prefix == "skirt" and "scabbard" in pb:
+        # The scabbard lies on its panel and swings out from it with the sword's weight.
+        j = sk["scabbard_panel"]
         pb["scabbard"].rotation_quaternion = (1, 0, 0, 0)
         bpy.context.view_layer.update()
-        if upper[j]:
-            down = (rest[f"skirt_{j:02d}"].tail_local - rest[f"skirt_{j:02d}"].head_local).normalized()
-            axis = moved.to_3x3() @ down.cross(_panel_dir(j)).normalized()
-            turn(skeleton, "scabbard", axis, math.degrees(upper[j]) * SCABBARD_FOLLOWS)
+        down = (rest[f"skirt_{j:02d}"].tail_local - rest[f"skirt_{j:02d}"].head_local).normalized()
+        axis = moved.to_3x3() @ down.cross(_panel_dir(j)).normalized()
+        on_skirt = upper[j]
+        angle = on_skirt
+        if swing is not None:
+            end = pb["scabbard"].tail.copy()
+            angle = swing.step("scabbard", WEIGHT["scabbard"], on_skirt, 9.0, on_skirt, end,
+                               moved.to_3x3() @ _panel_dir(j), 0.8, dt)
+        if angle:
+            turn(skeleton, "scabbard", axis, math.degrees(angle))
     bpy.context.view_layer.update()
-    # Lower halves: what is left below the middle, after the upper half has moved. Left to itself the lower
-    # half hangs back down from a panel the knee has pushed out (it drapes over the knee instead of flying
-    # out level with it).
+    # Lower halves: what is left below the middle, after the upper half has moved. At rest the lower half
+    # hangs back down from a panel the knee has pushed out (it drapes over the knee instead of flying out
+    # level with it).
     legs, things = [-9.0] * n, [9.0] * n
     for z, j0, inside, need in points:
         if z >= mid:
@@ -691,9 +856,9 @@ def push_skirt(skeleton):
                 legs[j] = max(legs[j], angle)
             else:
                 things[j] = min(things[j], angle)
-    lower = settle(legs, things, base=[-0.6 * max(0.0, u) for u in upper])
-    for j in range(n):
-        apply(f"skirt_{j:02d}_lo", j, lower[j])
+    low, high = bounds(legs, things)
+    lower = settle("_lo", low, high, [-0.6 * max(0.0, u) for u in upper])
+    apply("_lo", lower)
     bpy.context.view_layer.update()
 
 
@@ -821,7 +986,7 @@ def stance(skeleton, spear_up=True, breathe=0.0, shift=0.0, look=0.0, crouch=0.0
         arm(skeleton, "l", SHIELD_LOW["upperarm"], SHIELD_LOW["lowerarm"])
         face_shield(skeleton, SHIELD_LOW["face"])
     else:
-        arm(skeleton, "l", (0.55, 0.0, -1), (0.35, -0.3, -1))
+        arm(skeleton, "l", (0.7, 0.0, -1), (0.4, -0.3, -1))
     if great:
         bpy.context.view_layer.update()
         shoulder = skeleton.pose.bones["upperarm_r"].head.copy()
@@ -892,10 +1057,10 @@ def both_hands(skeleton, direction, amount=1.0, pole=(0.8, -0.5, -1)):
 # normal in the left forearm's frame, measured when the shield is bound (see infantry()).
 SHIELD_LOW = {"upperarm": Vector((0.55, 0.06, -1)), "lowerarm": Vector((0.14, -0.85, -0.2)),
               "face": Vector((1, -0.15, 0)).normalized()}
-SHIELD_READY = {"upperarm": Vector((0.55, 0.0, -1)), "lowerarm": Vector((0.15, -1, 0.0)),
+SHIELD_READY = {"upperarm": Vector((0.62, 0.0, -1)), "lowerarm": Vector((0.15, -1, 0.0)),
                 "face": Vector((0.75, -0.65, 0)).normalized()}
-SHIELD_RUN = {"upperarm": Vector((0.65, -0.1, -0.8)), "lowerarm": Vector((0.25, -1, 0.35)),
-              "face": Vector((0.9, -0.4, 0.2)).normalized()}
+SHIELD_RUN = {"upperarm": Vector((0.8, -0.05, -0.6)), "lowerarm": Vector((0.3, -1, 0.35)),
+              "face": Vector((0.95, -0.25, 0.2)).normalized()}
 SHIELD_FACE = {"local": None}
 
 
@@ -1062,8 +1227,9 @@ def gait_pose(skeleton, t, g, sword=False, shield="guard", great=False):
         turn(skeleton, "upperarm_r", RIGHT, (1.0 if sword else 0.5) * g["arm"] * math.cos(a))
         turn(skeleton, "upperarm_l", RIGHT, -{"guard": 0.35, "low": 0.5, "none": 0.6}[shield] * g["arm"] * math.cos(a))
     if not sword and not great:
-        # The spear leans a little: its butt out to his right and behind, clear of the swinging skirt.
-        point_spear(skeleton, Vector((0.45 if g is GAITS["run"] else 0.3, -0.05, 1)).normalized())
+        # The spear leans a little: its butt out to his right and behind, clear of the skirt where the right
+        # knee pushes it out in front.
+        point_spear(skeleton, Vector((0.45 if g is GAITS["run"] else 0.3, -0.25, 1)).normalized())
     centre_y = bones["thigh_l"].head_local.y + 0.02
     feet = {side: foot_placement(skeleton, side, (t + phase) % 1.0, g, centre_y)
             for side, phase in (("l", 0.0), ("r", 0.5))}
@@ -1243,7 +1409,7 @@ def sword_parry(skeleton, t, style):
 # for the elbow; twist (degrees, + turns the left shoulder forward). Without a shield the left hand takes
 # the shaft 55 cm ahead of the right.
 SPEAR_THRUSTS = {
-    ("under", "none"): dict(wind=((-0.1, 0.2, -0.33), (0.12, -1, 0.15)), hit=((-0.04, -0.32, -0.25), (0.1, -1, 0.06)),
+    ("under", "none"): dict(wind=((-0.1, 0.2, -0.33), (0.12, -1, 0.15)), hit=((-0.04, -0.32, -0.25), (0.18, -1, 0.06)),
                             pole=(-1, 0.3, -0.7), twist=28),
     ("over", "guard"): dict(wind=((-0.1, 0.1, 0.28), (0.04, -0.9, -0.42)), hit=((0.0, -0.42, 0.2), (0.03, -0.92, -0.38)),
                             pole=(-1, 0.5, 0.3), twist=8),
@@ -1290,7 +1456,8 @@ def spear_thrust(skeleton, t, grip, shield):
     start, upright = pb["lowerarm_r"].tail - shoulder, Vector((0, -0.05, 1)).normalized()
     (w_at, w_dir), (h_at, h_dir) = ((Vector(a), Vector(d).normalized()) for a, d in (move["wind"], move["hit"]))
     if back > 0:
-        at, point = h_at.lerp(start, back), h_dir.lerp(upright, back)
+        # (out to the right on the way back too, the butt clear of the skirt)
+        at, point = h_at.lerp(start, back) + Vector((-0.1, 0, 0)) * math.sin(math.pi * back), h_dir.lerp(upright, back)
     elif hit > 0:
         at, point = w_at.lerp(h_at, hit), w_dir.lerp(h_dir, hit)
     else:
@@ -1675,11 +1842,13 @@ def rigid(obj, skeleton, bone):
     return obj
 
 
-def skirt(body, dom, skeleton, name, z_top, z_bottom, margin, mat, flare=0.0, segments=24, step=0.035):
+def skirt(body, dom, skeleton, name, z_top, z_bottom, margin, mat, flare=0.0, segments=24, step=0.035, bones="skirt",
+          frame=None):
     """A skirt hanging from the hips: at each height an ellipse around the body (both legs together below
     the crotch), pushed out by margin (and flare towards the hem). Near the waist it follows the pelvis;
-    below that the skirt panels' bones (SKIRT, push_skirt()). Returns the object and its rings (z, centre
-    x, centre y, half widths x and y)."""
+    below that its panels' bones (named bones_NN, see push_skirts()), by height against the panels' top,
+    middle and hem (frame: those of the skirt whose panels these are; by default its own). Returns the object
+    and its rings (z, centre x, centre y, half widths x and y)."""
     pts = [(v.co, b) for v, b in zip(body.data.vertices, dom) if b in TORSO_BONES or b in LEG_BONES]
     rings = []
     z = z_top
@@ -1689,9 +1858,10 @@ def skirt(body, dom, skeleton, name, z_top, z_bottom, margin, mat, flare=0.0, se
         y0, y1 = min(c.y for c in near), max(c.y for c in near)
         rings.append((z, (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2, (y1 - y0) / 2))
         z -= step
-    # Near the waist the cloth moves as the body under it does (the nearest point of the skin's weights, the
-    # thighs' among them: lifting a knee swells the top of the thigh under the skirt's top).
-    under = [(i, v.co.copy()) for i, (v, b) in enumerate(zip(body.data.vertices, dom)) if b in TORSO_BONES or b in LEG_BONES]
+    # Near the waist the cloth moves as the body under it does: as the nearest point of the hips and thighs
+    # (the hose under it has the same weights, so the two move together and a lifted thigh does not come
+    # out through the cloth over it).
+    under = [(i, v.co.copy()) for i, (v, b) in enumerate(zip(body.data.vertices, dom)) if b == "pelvis" or b in LEG_BONES]
     tree = KDTree(len(under))
     for k, (_, co) in enumerate(under):
         tree.insert(co, k)
@@ -1713,7 +1883,9 @@ def skirt(body, dom, skeleton, name, z_top, z_bottom, margin, mat, flare=0.0, se
     verts = []
     weights = []
     shaped = []
-    n = SKIRT["panels"]
+    n = PANELS
+    if frame is None:
+        frame = dict(top=rings[0][0], bottom=rings[-1][0], mid=rings[len(rings) // 2][0])
     for k, (z, cx, cy, rx, ry) in enumerate(rings):
         t = k / max(1, len(rings) - 1)
         grow = margin + flare * t
@@ -1724,14 +1896,16 @@ def skirt(body, dom, skeleton, name, z_top, z_bottom, margin, mat, flare=0.0, se
             x = cx + (rx + grow) * math.cos(a)
             y = cy + (ry + grow * 0.9) * math.sin(a)
             row.append(bm.verts.new((x, y, z)))
-            # By angle between the two nearest panels, and from the pelvis at the top to them below.
-            panel = smooth(clamp01((t - 0.06) * 6))
+            # By angle between the two nearest panels, and from the body at the top to them below (the upper
+            # part of a panel above its middle, the lower part below).
+            down = (frame["top"] - z) / (frame["top"] - frame["bottom"])
+            panel = panel_share(down)
             f = a / (2 * math.pi) * n
             j0 = int(f) % n
             frac = f - int(f)
-            low = smooth(clamp01((t - 0.4) / 0.2))
+            low = smooth(clamp01((frame["mid"] + 0.04 - z) / 0.08))
             # (the band under the belt stays on the pelvis with the belt)
-            under_belt = 1 - smooth(clamp01((t - 0.1) / 0.1))
+            under_belt = 1 - smooth(clamp01((down - 0.1) / 0.1))
             skin = skin_weights(Vector((x, y, z)))
             skin = {b: v * (1 - under_belt) for b, v in skin.items()}
             skin["pelvis"] = skin.get("pelvis", 0) + under_belt
@@ -1739,7 +1913,7 @@ def skirt(body, dom, skeleton, name, z_top, z_bottom, margin, mat, flare=0.0, se
             for j, share in ((j0, 1 - frac), ((j0 + 1) % n, frac)):
                 for half, part in (("", 1 - low), ("_lo", low)):
                     if part > 0:
-                        w[f"skirt_{j:02d}{half}"] = w.get(f"skirt_{j:02d}{half}", 0) + panel * share * part
+                        w[f"{bones}_{j:02d}{half}"] = w.get(f"{bones}_{j:02d}{half}", 0) + panel * share * part
             weights.append(w)
         verts.append(row)
     for a, b in zip(verts, verts[1:]):
@@ -1800,7 +1974,6 @@ def infantry(zf, f):
     # the inside of the man shows through.
     hauberk = surface_layer(body, "hauberk", lambda i: dom[i] in TORSO_BONES or dom[i] in ARM_BONES or dom[i] == "neck_01",
                             lambda co: 0.022, mats["mail"], decimate=0.28, smoothing=2)
-    mail_skirt, _ = skirt(body, dom, skeleton, "mail_skirt", hip_z + 0.02, knee_z + 0.05, 0.03, mats["mail"], flare=0.03)
     def is_face_inner(i):
         c = body.data.vertices[i].co
         return is_face(i) and abs(c.x) < FACE_HALF_WIDTH - 0.016 and c.z < brow_z - 0.016 and c.z > chin_z + 0.012
@@ -1818,7 +1991,11 @@ def infantry(zf, f):
     # The coat's skirt reaches the knee (some were longer; a longer one met the knees, the shield and the
     # spear wherever he ran).
     coat_skirt, coat_rings = skirt(body, dom, skeleton, "coat_skirt", hip_z + 0.06, knee_z, 0.05, mats["cloth"], flare=0.08)
-    add_skirt_bones(skeleton, coat_rings)
+    add_skirt_bones(skeleton, "skirt", coat_rings)
+    # The hauberk's skirt, to mid-thigh under the coat, lined into the same panels: the two hang together as
+    # one (a point of the mail moves as the point of the coat outside it), so neither goes through the other.
+    mail_skirt, mail_rings = skirt(body, dom, skeleton, "mail_skirt", hip_z + 0.06, knee_z + 0.12, 0.028, mats["mail"],
+                                   flare=0.03, frame=SKIRTS["skirt"])
     # Hose up to mid-thigh: above that the mail skirt always covers the leg, and the top of the thigh, which
     # swells forward through the groin as a knee comes up, came out through the front of the coat's skirt.
     hose = surface_layer(body, "hose", lambda i: dom[i] in LEG_BONES and body.data.vertices[i].co.z < hip_z - 0.2,
@@ -1827,7 +2004,8 @@ def infantry(zf, f):
     # one sank the shoes into it.
     shoes = surface_layer(body, "shoes", lambda i: dom[i] in FOOT_BONES, lambda co: 0.003 + 0.011 * min(1.0, co.z / 0.03),
                           mats["leather"], decimate=0.12)
-    SKIRT["colliders"] = [hose, shoes]
+    SKIRTS["skirt"]["inside"] = [hose, shoes]
+    SKIRTS["skirt"]["layers"] = [(coat_skirt, coat_rings), (mail_skirt, mail_rings)]
     # Test-only shapes for check_soldier: the body's torso, head and forearms, shrunk a little inside the
     # skin, so anything that enters them is inside the man. Removed before export.
     cores = {
@@ -2075,7 +2253,9 @@ def infantry(zf, f):
     for part in spear_parts + held + great + sheathed + helm_parts + [m for m, _ in mittens] + [belt, buckle, scabbard, strap] + shield_parts[:1] + shield_parts[2:]:
         box_uvs(part, 0.3)
     mitten = {bone[-1]: m for m, bone in mittens}
-    SKIRT["outside"] = shield_parts + spear_parts + held + great + [m for m, _ in mittens]
+    SKIRTS["skirt"]["outside"] = shield_parts + spear_parts + held + great + [m for m, _ in mittens]
+    BESIDE_SKIRT["l"] = shield_parts + [mitten["l"]]
+    BESIDE_SKIRT["r"] = spear_parts + held + [mitten["r"]]
     CHECK_PARTS.clear()
     CHECK_PARTS.update({
         "torso": [cores["torso"]], "head": [cores["head"]],
@@ -2085,7 +2265,7 @@ def infantry(zf, f):
         "spear": spear_parts, "sword": held, "great": great, "sheathed": sheathed,
         "shield": shield_parts, "shield_face": [shield_parts[1]], "boss": [shield_parts[2]],
         "scabbard": [scabbard, strap], "belt": [belt], "surcoat": [surcoat], "coat_skirt": [coat_skirt],
-        "surcoat_or_skirt": [surcoat, coat_skirt], "shoes": [shoes], "legs": [hose],
+        "surcoat_or_skirt": [surcoat, coat_skirt], "shoes": [shoes], "legs": [hose], "mail_skirt": [mail_skirt],
     })
     return body, skeleton
 
@@ -2128,17 +2308,24 @@ def single_material(obj):
     obj.data.materials.append(mat)
 
 
-def bake_action(skeleton, name, length_s, pose_fn, loop=False, step=2):
+def bake_action(skeleton, name, length_s, pose_fn, loop=False, step=2, free_arms=True):
     """Record pose_fn(t in 0..1) as an action with a key every `step` frames."""
     action = bpy.data.actions.new(name)
     action.use_fake_user = True
     skeleton.animation_data_create()
     skeleton.animation_data.action = action
     frames = max(2, round(length_s * FPS))
+    # The skirts and the scabbard swing with their weight from frame to frame (Swing); a looping clip is
+    # played through once first, so it starts as it ends, already swinging.
+    swing = Swing()
+    if loop:
+        for frame in range(0, frames, step):
+            pose_fn(skeleton, frame / frames)
+            dress(skeleton, swing, step / FPS, free_arms)
     for frame in list(range(0, frames, step)) + [frames]:
         t = frame / frames
         pose_fn(skeleton, 0.0 if (loop and frame == frames) else t)
-        push_skirt(skeleton)
+        dress(skeleton, swing, step / FPS, free_arms)
         bpy.context.view_layer.update()
         for pb in skeleton.pose.bones:
             pb.keyframe_insert("rotation_quaternion", frame=frame + 1)
@@ -2172,7 +2359,9 @@ def animate(skeleton):
     walk, run = GAITS["walk"]["cycle"], GAITS["run"]["cycle"]
 
     def clip(name, length, fn, loop=False):
-        return bake_action(skeleton, name, length, fn, loop=loop, step=1)
+        # (with both hands on one weapon, an arm moved out alone would let go of it)
+        two_hands = name.startswith("t_") or name in ("n_attack", "n_attack_over", "n_block")
+        return bake_action(skeleton, name, length, fn, loop=loop, step=1, free_arms=not two_hands)
 
     actions = [
         # Spear and shield.
