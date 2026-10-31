@@ -1116,7 +1116,7 @@ def stance(skeleton, spear_up=True, breathe=0.0, shift=0.0, look=0.0, crouch=0.0
         arm(skeleton, "l", (0.7, 0.0, -1), (0.4, -0.3, -1))
     if crossbow:
         # Carried in both hands at the right hip, the nose forward and down, the prod level.
-        xbow_hold(skeleton, *XBOW_PORT)
+        xbow_hold(skeleton, XBOW_PORT[0], XBOW_PORT[1], along=XBOW_PORT[2])
         show(skeleton, spear=False, sword=False, sheathed=True, shield=False, crossbow=True)
     elif great:
         bpy.context.view_layer.update()
@@ -1193,11 +1193,15 @@ def both_hands(skeleton, direction, amount=1.0, pole=(0.8, -0.5, -1)):
 # The crossbow in both hands: the right fist round the stock's wrist at `at` (relative to the right shoulder)
 # pointing it along `direction`, its top turned up so the prod is level; the left hand under the fore-stock
 # `along` metres ahead of the right. PORT is how it is carried, AIM at the shoulder, the cheek on the stock.
-XBOW_PORT = (Vector((0.04, -0.27, -0.38)), Vector((0.2, -0.85, -0.3)))
-XBOW_AIM = (Vector((0.07, -0.26, 0.03)), Vector((0.0, -1.0, 0.03)))
+# (the fist grips the stock as it does a shaft, across the forearm: aimed, the right elbow is out to the side
+# and the forearm across in front of the chest; found by trying the wrist's place against how far off the
+# aim, the level and the left hand stay and what the crossbow goes through)
+XBOW_PORT = (Vector((0.0, -0.2, -0.42)), Vector((0.75, -0.55, -0.1)), 0.15)
+XBOW_AIM = (Vector((0.26, -0.26, -0.22)), Vector((0.0, -1.0, 0.03)), 0.08)
+XBOW_LEFT_BELOW = 0.09   # how far (m) under the stock's middle the left wrist is
 
 
-def xbow_hold(skeleton, at, direction, along=0.3, pole=(-1, 0.2, -0.8), pole_l=(0.7, -0.6, -0.8), left=1.0):
+def xbow_hold(skeleton, at, direction, along=0.15, pole=(-0.6, 0.2, -1), pole_l=(0.7, -0.6, -0.8), left=1.0):
     pb = skeleton.pose.bones
     bpy.context.view_layer.update()
     direction = Vector(direction).normalized()
@@ -1226,7 +1230,7 @@ def left_on_stock(skeleton, along, pole=(0.7, -0.6, -0.8), amount=1.0):
     pb = skeleton.pose.bones
     fist, point, top = xbow_frame(skeleton)
     hang = pb["lowerarm_l"].tail.copy()
-    reach(skeleton, "l", hang.lerp(fist + point * along - top * 0.04, amount), pole=pole)
+    reach(skeleton, "l", hang.lerp(fist + point * along - top * XBOW_LEFT_BELOW, amount), pole=pole)
     if amount > 0 and "l" in GRIP_AXIS:
         bpy.context.view_layer.update()
         loose = (pb["hand_l"].matrix.to_3x3() @ GRIP_AXIS["l"]).normalized()
@@ -1251,12 +1255,12 @@ def xbow_shoot(skeleton, t):
     turn(skeleton, "head", RIGHT, 10 * raised)
     turn(skeleton, "head", FRONT, 8 * raised)
     plant_feet(skeleton, feet)
-    port_at, port_dir = XBOW_PORT
-    aim_at, aim_dir = XBOW_AIM
+    port_at, port_dir, port_along = XBOW_PORT
+    aim_at, aim_dir, aim_along = XBOW_AIM
     at = port_at.lerp(aim_at, raised) + Vector((0, 0.02, 0.015)) * kick
     direction = port_dir.lerp(aim_dir, raised).normalized()
     direction = (direction + UP * 0.07 * kick).normalized()
-    xbow_hold(skeleton, at, direction)
+    xbow_hold(skeleton, at, direction, along=port_along + (aim_along - port_along) * raised)
     show(skeleton, spear=False, sword=False, sheathed=True, shield=False, crossbow=True, loaded=not loose)
 
 
@@ -1294,7 +1298,7 @@ def xbow_block(skeleton, t):
     up = ease_out(k) + 0.08 * math.sin(math.pi * k) * (1 - k)
     stance(skeleton, crouch=0.5 * smooth(k), crossbow=True)
     turn(skeleton, "spine_02", RIGHT, -6 * up)
-    port_at, port_dir = XBOW_PORT
+    port_at, port_dir, _ = XBOW_PORT
     xbow_hold(skeleton, port_at.lerp(Vector((0.12, -0.32, 0.1)), up), port_dir.lerp(Vector((1, -0.3, 0.3)), up).normalized(),
               along=0.3 + 0.05 * up, pole_l=(0.6, -0.8, -0.5))
 
@@ -1333,7 +1337,7 @@ def xbow_reload(skeleton, t):
     shoulder = pb["upperarm_r"].head.copy()
 
     # The right hand: on the stock's wrist going down and coming up; on the string; to the case and back.
-    port_at, port_dir = XBOW_PORT
+    port_at, port_dir, _ = XBOW_PORT
     down = lower * (1 - lift)
     on_string = smooth(span(t, 0.26, 0.36))
     if t < 0.26 or t >= 0.82:
@@ -1370,7 +1374,7 @@ def xbow_reload(skeleton, t):
     x_fist = pb["prop_xbow"].matrix.translation + held @ Vector((0, 0.065, 0))
     x_point, x_top = (held @ SPEAR_AXIS["local"]).normalized(), (held @ XBOW_AXES["top"]).normalized()
     on_l = on_string * (1 - smooth(span(t, 0.58, 0.68)))
-    stock_l = x_fist + x_point * 0.3 - x_top * 0.04
+    stock_l = x_fist + x_point * XBOW_PORT[2] - x_top * XBOW_LEFT_BELOW
     reach(skeleton, "l", stock_l.lerp(string_at + side * 0.07 + top * 0.04, on_l), pole=(0.7, -0.6, -0.8))
     if "l" in GRIP_AXIS:
         grip(skeleton, "l", x_point.lerp(side, on_l).normalized())
@@ -2234,8 +2238,9 @@ def sword(mats, name, blade_length=0.78, grip_length=0.1, guard_width=0.19):
 # The crossbow, as held in the stance: the fist round the stock's wrist at the origin, the stock along +Z
 # (forward when aimed), its top (the groove the bolt lies in) towards XBOW_TOP, the steel prod across X at the
 # front with the stirrup beyond it, the string spanned back to the nut.
-XBOW = dict(butt=-0.2, nut=0.3, prod=0.6, half_prod=0.36, sweep=0.07, stirrup=0.14, bolt=0.34)
-XBOW_TOP = Vector((0, -1, 0))
+XBOW = dict(butt=-0.06, nut=0.3, prod=0.6, half_prod=0.36, sweep=0.07, stirrup=0.14, bolt=0.34)
+XBOW_ROLL = 90   # degrees the crossbow is turned about its stock in the fist (0: its top towards -Y in the stance)
+XBOW_TOP = Vector((0, -1, 0))   # (in crossbow()'s own frame)
 
 
 def _box(center, size, axes=None):
@@ -2328,7 +2333,7 @@ XBOW_AXES = {"top": None}   # the crossbow's top in the right hand's frame (meas
 QUIVER = {"mouth": None}     # where the bolts are taken from, in the rest pose
 
 
-def tie_string(skeleton, string, fist):
+def tie_string(skeleton, string, fist, roll):
     """Bind the string: its ends to the crossbow, its middle to the nock's bone, which runs from where the
     loose string lies (by the prod) to the nut, so scaling it along its length moves the middle between the
     two (span_string())."""
@@ -2340,8 +2345,8 @@ def tie_string(skeleton, string, fist):
         pb[name].scale = (1, 1, 1)
     bpy.context.view_layer.update()
     to_rest = bones["prop_xbow"].matrix_local @ pb["prop_xbow"].matrix.inverted()
-    loose = to_rest @ (fist + Vector((0, XBOW_TOP.y * 0.02, XBOW["prod"] - XBOW["sweep"])))
-    spanned = to_rest @ (fist + Vector((0, XBOW_TOP.y * 0.02, XBOW["nut"])))
+    loose = to_rest @ (fist + roll @ Vector((0, XBOW_TOP.y * 0.02, XBOW["prod"] - XBOW["sweep"])))
+    spanned = to_rest @ (fist + roll @ Vector((0, XBOW_TOP.y * 0.02, XBOW["nut"])))
     reset_pose(skeleton)
     bpy.context.view_layer.objects.active = skeleton
     bpy.ops.object.mode_set(mode="EDIT")
@@ -2858,8 +2863,9 @@ def infantry(zf, f):
     # The crossbow, its stock upright in the fist as the spear's shaft is (see crossbow()), and a bolt held
     # in the fist the same way (taken from the case in the reload).
     xbow_parts, xbow_string, xbow_bolt, hand_bolt = crossbow(mats)
+    xbow_roll = Matrix.Rotation(math.radians(XBOW_ROLL), 4, "Z")
     for part in xbow_parts + [xbow_string, xbow_bolt]:
-        part.data.transform(Matrix.Translation(fists["r"]))
+        part.data.transform(Matrix.Translation(fists["r"]) @ xbow_roll)
     hand_bolt.data.transform(Matrix.Translation(fists["r"] - Vector((0, 0, XBOW["bolt"] / 2))))
     EDGE_AXIS["world"] = (roll.to_3x3() @ Vector((1, 0, 0))).normalized()
     mittens = []
@@ -2907,7 +2913,7 @@ def infantry(zf, f):
         bind(part, skeleton, "prop_xbow", stance)
     bind(xbow_bolt, skeleton, "prop_bolt", stance)
     bind(hand_bolt, skeleton, "prop_bolt_hand", stance)
-    tie_string(skeleton, xbow_string, fists["r"])
+    tie_string(skeleton, xbow_string, fists["r"], xbow_roll.to_3x3())
     for mitten, bone in mittens:
         # The shield hand grips the shield's strap: it moves with the forearm, as the shield does.
         bind(mitten, skeleton, "lowerarm_l" if bone == "hand_l" else bone, stance)
@@ -2917,7 +2923,7 @@ def infantry(zf, f):
     SPEAR_AXIS["local"] = (skeleton.pose.bones["hand_r"].matrix.to_3x3().inverted() @ Vector((0, 0, 1))).normalized()
     GRIP_AXIS["r"] = SPEAR_AXIS["local"].copy()
     EDGE_AXIS["local"] = (skeleton.pose.bones["hand_r"].matrix.to_3x3().inverted() @ EDGE_AXIS["world"]).normalized()
-    XBOW_AXES["top"] = (skeleton.pose.bones["hand_r"].matrix.to_3x3().inverted() @ XBOW_TOP).normalized()
+    XBOW_AXES["top"] = (skeleton.pose.bones["hand_r"].matrix.to_3x3().inverted() @ xbow_roll.to_3x3() @ XBOW_TOP).normalized()
     # The left fist holds a shaft the same way, mirrored: the same mix of its knuckle line, its length and
     # the back of the hand (the back of the hand is the other way round in a mirrored hand).
     bases = {}
