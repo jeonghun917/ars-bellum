@@ -327,10 +327,10 @@ def turn(skeleton, bone, axis, degrees):
 SPEAR_AXIS = {"local": None}
 
 
-def point_spear(skeleton, direction, edge=None, edge_weight=0.0):
+def point_spear(skeleton, direction, edge=None, edge_weight=0.0, slack=None):
     """Point the weapon in the right fist along direction (armature space), by turning the forearm and the
     wrist only as far as a man's can (see grip()); a sword's edge leading towards edge, if given."""
-    grip(skeleton, "r", direction, edge=edge, edge_weight=edge_weight)
+    grip(skeleton, "r", direction, edge=edge, edge_weight=edge_weight, slack=slack)
 
 
 # Arms. An elbow is a hinge, a forearm turns about its own length (palm up, palm down) and a wrist bends
@@ -444,7 +444,7 @@ WRIST_TWIST_LIMIT = 10
 # The sword's edge (its width) in the right hand's frame, measured when the swords are bound (see infantry()).
 EDGE_AXIS = {"local": None, "world": None}
 EDGE_WEIGHT = 1.0   # in a cut, how many degrees of the blade's aim one degree of its edge's is worth
-EDGE_AIM_SLACK = 3   # degrees: how much worse than its best aim a sword may point to bring its edge round
+EDGE_AIM_SLACK = 8   # degrees: how much worse than its best aim a sword may point to bring its edge round
 
 
 def _grid_arrays(r, axis, edge_axis):
@@ -456,7 +456,7 @@ def _grid_arrays(r, axis, edge_axis):
     return _GRIDS[key]
 
 
-def _best_grip(r, hinge, fore, axis, direction, edge=None, edge_weight=0.0, edge_axis=None):
+def _best_grip(r, hinge, fore, axis, direction, edge=None, edge_weight=0.0, edge_axis=None, slack=EDGE_AIM_SLACK):
     """edge: the way the blade moves (armature space): either edge should lead into it, the more so the
     larger edge_weight (degrees of the weapon's aim one degree of the edge's is worth)."""
     to_fore = _forearm(r, hinge, fore, 0.0).inverted()
@@ -488,12 +488,12 @@ def _best_grip(r, hinge, fore, axis, direction, edge=None, edge_weight=0.0, edge
         score = score + edge_weight * lead
     if use_edge:
         # The edge may only cost the aim a few degrees more than the best aim there is.
-        score = np.where(off <= off.min() + EDGE_AIM_SLACK, score, np.inf)
+        score = np.where(off <= off.min() + slack, score, np.inf)
     i = int(np.argmin(score))
     return (float(score[i]), float(off[i]), float(tw[i]), float(bends[i, 0]), float(bends[i, 1]), float(lead[i]))
 
 
-def grip(skeleton, side, direction, swivel=60, edge=None, edge_weight=0.0):
+def grip(skeleton, side, direction, swivel=60, edge=None, edge_weight=0.0, slack=None):
     """Turn the forearm about itself and bend the wrist, within a man's reach, so the weapon in that hand
     points as nearly along direction as it can; if that is not near enough, also swing the elbow round
     (up to swivel degrees, the wrist staying where it is). With edge (a sword in the right hand: the way
@@ -504,6 +504,7 @@ def grip(skeleton, side, direction, swivel=60, edge=None, edge_weight=0.0):
     if axis is None:
         return 0.0
     edge_axis = EDGE_AXIS["local"] if side == "r" else None
+    slack = EDGE_AIM_SLACK if slack is None else slack
     if edge is None or edge_axis is None or Vector(edge).length < 1e-6:
         edge, edge_weight = None, 0.0
     else:
@@ -520,13 +521,13 @@ def grip(skeleton, side, direction, swivel=60, edge=None, edge_weight=0.0):
         if hinge.length < 0.05:
             continue
         hinge = hinge.normalized() * r["sign"]
-        found = _best_grip(r, hinge, fore, axis, direction, edge, edge_weight, edge_axis)
+        found = _best_grip(r, hinge, fore, axis, direction, edge, edge_weight, edge_axis, slack)
         tried.append((found[0] + 0.15 * abs(turn_by), e, found))
         if found[1] < 4 and found[5] < 10:
             break
     # (with an edge to bring round, only among the elbows that aim the blade nearly as well as the best)
     least = min(found[1] for _, _, found in tried)
-    best = min((x for x in tried if x[2][1] <= least + (EDGE_AIM_SLACK if edge is not None else 1e9)), key=lambda x: x[0])
+    best = min((x for x in tried if x[2][1] <= least + (slack if edge is not None else 1e9)), key=lambda x: x[0])
     _, e, (_, off, tw, flex, dev, _) = best
     set_arm(skeleton, side, e, wrist, tw, flex, dev)
     return off
@@ -1102,7 +1103,7 @@ GREAT_GUARD = Vector((0.08, -0.75, 0.66)).normalized()
 GREAT_GUARD_WRIST = Vector((0.16, -0.42, -0.26))
 
 
-def two_handed(skeleton, at, blade, pole, pole_l=(0.8, -0.5, -1), edge=None, edge_weight=0.0):
+def two_handed(skeleton, at, blade, pole, pole_l=(0.8, -0.5, -1), edge=None, edge_weight=0.0, slack=None):
     """Both hands on the longsword: the right wrist at `at` (relative to the right shoulder) pointing the
     blade along `blade`, and the left hand on the grip below it. Where the left arm cannot reach that far
     (the cuts end far to either side), both hands come back towards it until it can."""
@@ -1112,6 +1113,7 @@ def two_handed(skeleton, at, blade, pole, pole_l=(0.8, -0.5, -1), edge=None, edg
     for _ in range(4):
         bpy.context.view_layer.update()
         shoulder = pb["upperarm_r"].head.copy()
+        posed = at
         reach(skeleton, "r", shoulder + at, pole=pole)
         point_spear(skeleton, blade)
         bpy.context.view_layer.update()
@@ -1126,8 +1128,8 @@ def two_handed(skeleton, at, blade, pole, pole_l=(0.8, -0.5, -1), edge=None, edg
     if edge is not None and edge_weight > 0:
         # (where the hands are settled by the aim alone; then the edge is brought round there)
         bpy.context.view_layer.update()
-        reach(skeleton, "r", pb["upperarm_r"].head + at, pole=pole)
-        point_spear(skeleton, blade, edge, edge_weight)
+        reach(skeleton, "r", pb["upperarm_r"].head + posed, pole=pole)
+        point_spear(skeleton, blade, edge, edge_weight, slack)
     both_hands(skeleton, blade, pole=pole_l)
 
 
@@ -1443,7 +1445,9 @@ def guard_wrist(skeleton, style="shield"):
 # up, halfway through it and where it ends. The cut winds up (t 0..0.35), strikes through the middle
 # (0.36..0.6) with a step, holds a moment and comes back to the guard (0.7..1). twist: degrees the body
 # turns (wound, struck; + turns the right shoulder forward), lean: forward bend (wound, struck), pole: where
-# the elbow points, open: how far the shield arm swings out to the left, out of the blade's way.
+# the elbow points, open: how far the shield arm swings out to the left, out of the blade's way; edge=False
+# for a thrust (no edge to lead with); aim_slack: degrees the blade may point off its line to bring the edge
+# round (EDGE_AIM_SLACK if not given).
 SWORD_CUTS = {
     # Forehand: from his right, flat across to his left.
     "s_swing_l": dict(wind=((-0.38, 0.12, 0.08), (-0.55, 0.65, 0.35)), mid=((-0.02, -0.52, 0.02), (0.05, -1, 0.05)),
@@ -1519,11 +1523,11 @@ def sword_cut(skeleton, t, cut, style="shield"):
         # (to his left at the end of a cut that way, the left elbow goes forward, off his chest)
         two_handed(skeleton, at, blade.normalized(), cut["pole"],
                    pole_l=Vector((0.8, -0.5, -1)).lerp(Vector(cut.get("pole_l", (0.8, -0.5, -1))), held),
-                   edge=edge, edge_weight=edge_weight)
+                   edge=edge, edge_weight=edge_weight, slack=cut.get("aim_slack"))
     else:
         shoulder = skeleton.pose.bones["upperarm_r"].head.copy()
         reach(skeleton, "r", shoulder + at, pole=cut["pole"])
-        point_spear(skeleton, blade.normalized(), edge, edge_weight)
+        point_spear(skeleton, blade.normalized(), edge, edge_weight, cut.get("aim_slack"))
 
 
 def _cut_turns(cut, t):
@@ -1570,10 +1574,10 @@ def _cut_path(cut, t, guard, rest_blade):
 GREAT_CUTS = {
     "t_swing_l": dict(wind=((-0.16, -0.38, 0.14), (-0.6, 0.55, 0.55)), mid=((0.06, -0.52, 0.02), (0.1, -1, 0.05)),
                       end=((0.18, -0.57, -0.02), (0.6, -0.8, -0.08)), twist=(-40, 40), lean=(0, 6),
-                      pole=(-1, 0.3, -0.6), pole_l=(0.6, -1, -0.2), open=0.0, length=1.0),
+                      pole=(-1, 0.3, -0.6), pole_l=(0.6, -1, -0.2), open=0.0, length=1.0, aim_slack=3),
     "t_swing_r": dict(wind=((0.24, -0.5, 0.18), (0.6, 0.45, 0.65)), mid=((0.06, -0.52, 0.02), (-0.1, -1, 0.05)),
                       end=((-0.16, -0.54, -0.04), (-0.75, -0.65, -0.1)), twist=(25, -40), lean=(0, 6),
-                      pole=(-0.8, 0.2, -1), open=0.0, length=1.0),
+                      pole=(-0.8, 0.2, -1), open=0.0, length=1.0, aim_slack=15),
     # (wound up through point-up: the blade goes up before it goes back, over his head rather than through it)
     "t_overhead": dict(wind=((0.12, 0.08, 0.45), (0.05, 0.5, 0.86)), mid=((0.12, -0.35, 0.2), (0.05, -0.85, 0.5)),
                        end=((0.12, -0.45, -0.22), (0.05, -0.75, -0.65)), twist=(-8, 8), lean=(-4, 14),
