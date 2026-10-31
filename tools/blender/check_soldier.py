@@ -181,7 +181,8 @@ def spikes(skeleton, objs, actions):
 def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=None, aims=None, edges=None):
     """parts: name -> list of objects (see build_men.infantry, CHECK_PARTS). actions: the baked actions.
     gaits: walking and running action name -> the speed (m/s) its feet should keep to the ground at.
-    aims: attack action name -> (t 0..1, direction the weapon must point then, least cosine to it).
+    aims: attack action name -> (t 0..1, direction the weapon must point then, least cosine to it[, the weapon's
+    axis in the right hand's frame, if not the spear's]).
     edges: (the sword's edge in the right hand's frame, the cuts): in each cut, wherever the blade moves fast,
     an edge, not the flat, must go first."""
     problems = []
@@ -412,7 +413,7 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
             problems.append(f"direction: shield face is not convex (bulge {bulge:.1f} mm)")
 
     # Weapon points where the attack sends it, at the moment of reach.
-    for name, (t, want, minimum) in (aims or {}).items():
+    for name, (t, want, minimum, *axis) in (aims or {}).items():
         action = next((a for a in actions if a.name == name), None)
         if action is None:
             problems.append(f"direction: no action {name}")
@@ -421,7 +422,7 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
         f0, f1 = action.frame_range
         scene.frame_set(int(f0 + (f1 - f0) * t))
         hand = skeleton.pose.bones["hand_r"]
-        tip = (hand.matrix.to_3x3() @ spear_axis_local).normalized()
+        tip = (hand.matrix.to_3x3() @ (axis[0] if axis else spear_axis_local)).normalized()
         dot = tip.dot(want)
         log["direction"].append({"action": name, "what": "weapon direction vs intended", "value": round(dot, 3)})
         if dot < minimum:
