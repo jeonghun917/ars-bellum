@@ -1,5 +1,182 @@
 import * as THREE from "../vendor/three/r184/three.module.min.js";
 import { M2_CONFIG } from "./M2_Config.js";
+import { clone as cloneSkinned } from "../vendor/three/r184/addons/utils/SkeletonUtils.js";
+
+// Soldier models made in Blender (see M2_SoldierModels.js), one per side. Set before the runtime starts;
+// without them the renderer draws the simple box soldiers below.
+let soldierModels = null;
+export function useSoldierModels(models) {
+  soldierModels = models || null;
+}
+
+// A Blender soldier: its own copy of the side's rigged model (the skeleton is copied, meshes and materials
+// are shared), the same ground shadow and player ring as the box soldier, and an animator.
+function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, loadout) {
+  const group = new THREE.Group();
+  const soldier = cloneSkinned(model.scene);
+  soldier.traverse((object) => {
+    // The bounds of a skinned mesh are those of its rest pose; a fallen soldier lies outside them.
+    if (object.isSkinnedMesh) object.frustumCulled = false;
+  });
+  // Near the camera the full model, further than FAR_MODEL_DISTANCE the simpler one. Both are bound to the
+  // same skeleton, so one animator moves whichever is shown.
+  const near = soldier.getObjectByName("soldier");
+  const far = soldier.getObjectByName("soldier_far");
+  if (near && far) {
+    const lod = new THREE.LOD();
+    near.parent.add(lod);
+    lod.addLevel(near, 0);
+    lod.addLevel(far, FAR_MODEL_DISTANCE);
+  }
+  group.add(soldier);
+  const shadow = new THREE.Mesh(geometries.shadow, shadowMaterial);
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.015;
+  group.add(shadow);
+  if (markerMaterial) {
+    const marker = new THREE.Mesh(geometries.marker, markerMaterial);
+    marker.rotation.x = -Math.PI / 2;
+    marker.position.y = 0.02;
+    group.add(marker);
+  }
+  group.userData.animator = new SoldierAnimator(soldier, model.clips, loadout, model.gait);
+  return group;
+}
+
+// Beyond this distance (metres) from the camera a soldier is drawn with the simpler model.
+const FAR_MODEL_DISTANCE = 14;
+
+// Which clips play each role, for a spearman with a shield, a swordsman (with a shield), a spearman
+// without one (two hands on the spear), a swordsman without one and a man with a longsword in both hands. "low" are the same roles with the shield carried at the side, out
+// of a fight; each attack goes to the next of "attacks" in turn.
+const LOADOUT_CLIPS = Object.freeze({
+  spear: Object.freeze({
+    idle: "idle", walk: "walk", run: "run", block: "block", death: "death", attacks: Object.freeze(["attack", "attack_over"]),
+    low: Object.freeze({ idle: "low_idle", walk: "low_walk", run: "low_run" })
+  }),
+  sword: Object.freeze({
+    idle: "s_idle", walk: "s_walk", run: "s_run", block: "s_block", death: "s_death",
+    attacks: Object.freeze(["s_swing_l", "s_overhead", "s_swing_r", "s_thrust"]),
+    low: Object.freeze({ idle: "s_low_idle", walk: "s_low_walk", run: "s_low_run" })
+  }),
+  spear_free: Object.freeze({
+    idle: "n_idle", walk: "n_walk", run: "n_run", block: "n_block", death: "n_death",
+    attacks: Object.freeze(["n_attack", "n_attack_over"]), low: null
+  }),
+  sword_free: Object.freeze({
+    idle: "f_idle", walk: "f_walk", run: "f_run", block: "f_block", death: "f_death",
+    attacks: Object.freeze(["f_swing_l", "f_overhead", "f_swing_r", "f_thrust"]), low: null
+  }),
+  great: Object.freeze({
+    idle: "t_idle", walk: "t_walk", run: "t_run", block: "t_block", death: "t_death",
+    attacks: Object.freeze(["t_swing_l", "t_overhead", "t_swing_r", "t_thrust"]), low: null
+  })
+});
+
+// Below this speed (m/s) a soldier who is meant to be moving stands.
+const STANDING_SPEED = 0.15;
+
+// An enemy within GUARD_DISTANCE (m) brings the shield up; it goes down again once none is within
+// LOWER_DISTANCE (the gap keeps it from flickering at the edge).
+const GUARD_DISTANCE = 9;
+const LOWER_DISTANCE = 12;
+
+// Picks a soldier's animation from its state each frame: idle, walk or run by how fast he actually moves
+// (played at his speed / the clip's, so his feet keep to the ground), with the shield low while no enemy is
+// near; block (held), death (held), and an attack played once each time the attack cooldown restarts. A
+// swordsman first draws his sword.
+class SoldierAnimator {
+  #mixer;
+  #clips;
+  #roles;
+  #actions = new Map();
+  #base = null;
+  #lastCooldown = 0;
+  #attacks = 0;
+  #draw = null;
+  #low = true;
+  #gait;
+
+  constructor(root, clips, loadout = "spear", gait = { walk: 1.3, run: 3.2 }) {
+    this.#gait = gait;
+    this.#clips = clips;
+    this.#roles = LOADOUT_CLIPS[loadout] || LOADOUT_CLIPS.spear;
+    this.#mixer = new THREE.AnimationMixer(root);
+    if (loadout === "sword" && clips.draw) {
+      this.#draw = this.#action("draw");
+      this.#draw.setLoop(THREE.LoopOnce, 1);
+      this.#draw.clampWhenFinished = true;
+      this.#draw.play();
+      this.#base = "draw";
+    } else {
+      this.#play(this.#clipFor("idle"));
+    }
+  }
+
+  #action(name) {
+    if (!this.#actions.has(name)) {
+      const action = this.#mixer.clipAction(this.#clips[name]);
+      if (name !== "draw" && !/(idle|walk|run)$/.test(name)) {
+        action.setLoop(THREE.LoopOnce, 1);
+        action.clampWhenFinished = true;
+      }
+      this.#actions.set(name, action);
+    }
+    return this.#actions.get(name);
+  }
+
+  #clipFor(role) {
+    return (this.#low && this.#roles.low?.[role]) || this.#roles[role];
+  }
+
+  #play(name) {
+    if (this.#base === name) return;
+    const next = this.#action(name);
+    next.reset().play();
+    const previous = this.#base ? this.#action(this.#base) : null;
+    // Between gaits (walking and running, shield up or down), carry on from the same point of the stride:
+    // the feet stay in step.
+    const gait = (clip) => /(walk|run)$/.test(clip || "");
+    if (previous && gait(name) && gait(this.#base)) {
+      next.time = (previous.time / previous.getClip().duration) * next.getClip().duration;
+    }
+    if (previous) next.crossFadeFrom(previous, /death$/.test(name) ? 0.12 : 0.25, false);
+    this.#base = name;
+  }
+
+  get playing() {
+    return this.#base;
+  }
+
+  // speed: how fast (m/s) the soldier is moving across the ground, as drawn; enemyDistance: how far (m) the
+  // nearest living enemy is.
+  update(unit, deltaSeconds, speed = 0, enemyDistance = Infinity) {
+    const down = unit.state === "dead" || unit.state === "incapacitated";
+    // The draw plays to the end before anything but a fall interrupts it.
+    if (this.#base === "draw" && !down && this.#draw.time < this.#draw.getClip().duration) {
+      this.#mixer.update(deltaSeconds);
+      return;
+    }
+    if (enemyDistance < GUARD_DISTANCE || unit.blocking || unit.state === "attacking") this.#low = false;
+    else if (enemyDistance > LOWER_DISTANCE) this.#low = true;
+    if (down) this.#play(this.#roles.death);
+    else if (unit.blocking) this.#play(this.#roles.block);
+    else if ((unit.state === "moving" || unit.state === "routing") && speed > STANDING_SPEED) {
+      const gait = speed > (this.#gait.walk + this.#gait.run) / 2 ? "run" : "walk";
+      const clip = this.#clipFor(gait);
+      this.#play(clip);
+      const range = gait === "run" ? [0.6, 1.5] : [0.4, 1.7];
+      this.#action(clip).timeScale = Math.min(range[1], Math.max(range[0], speed / this.#gait[gait]));
+    } else this.#play(this.#clipFor("idle"));
+    const cooldown = unit.attackCooldownTicks || 0;
+    if (!down && cooldown > this.#lastCooldown) {
+      const attack = this.#action(this.#roles.attacks[this.#attacks++ % this.#roles.attacks.length]);
+      attack.reset().setEffectiveWeight(1).fadeIn(0.06).play();
+    }
+    this.#lastCooldown = cooldown;
+    this.#mixer.update(deltaSeconds);
+  }
+}
 
 // A soft round shadow under each soldier: much cheaper than real shadows and enough to ground them.
 function createHumanoid(material, markerMaterial, geometries, shadowMaterial) {
@@ -28,6 +205,7 @@ function createHumanoid(material, markerMaterial, geometries, shadowMaterial) {
     group.add(marker);
   }
   group.userData.parts = { body, leftArm, rightArm, leftLeg, rightLeg };
+  group.userData.bodyBaseY = body.position.y;
   return group;
 }
 
@@ -84,6 +262,7 @@ export class M2RendererThree {
   #raycaster = new THREE.Raycaster();
   #groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   #skyTexture = null;
+  #lastElapsed = null;
   #disposed = false;
 
   constructor(canvas) {
@@ -145,13 +324,23 @@ export class M2RendererThree {
     for (const entry of this.#units.values()) this.#scene.remove(entry.group);
     this.#units.clear();
     for (const unit of renderSnapshot.units) {
-      const material = unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy;
-      const group = createHumanoid(material, unit.isPlayer ? this.#materials.marker : null, this.#geometries, this.#materials.shadow);
+      const marker = unit.isPlayer ? this.#materials.marker : null;
+      const model = soldierModels?.[unit.sideId === "ally" ? "ally" : "enemy"];
+      // In turn, soldiers fight with spear and shield, sword and shield, a spear in both hands, the sword
+      // alone or a longsword (the player always with spear and shield).
+      const loadout = unit.isPlayer ? "spear" : ["spear", "sword", "spear_free", "sword_free", "great"][this.#units.size % 5];
+      const group = model
+        ? createModelSoldier(model, marker, this.#geometries, this.#materials.shadow, loadout)
+        : createHumanoid(unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy, marker, this.#geometries, this.#materials.shadow);
       const profile = combatProfiles.get(unit.combatProfileId);
       group.scale.setScalar(0.9 + ((profile?.stats?.vitality || 0) / 100) * 0.18);
       this.#scene.add(group);
       this.#units.set(unit.unitId, { group, phaseOffset: this.#units.size * 0.73 });
+      // Start each soldier's idle at a different point, so a rank does not breathe in step.
+      group.userData.animator?.update(unit, (this.#units.size * 0.37) % 2);
     }
+    // Prepare every material's shader now, while the battle is loading, instead of stalling the first frame.
+    this.#renderer.compile(this.#scene, this.#camera);
   }
 
   setAnimationLoop(callback) {
@@ -231,21 +420,48 @@ export class M2RendererThree {
   render(renderSnapshot, interpolationAlpha, elapsedSeconds) {
     if (this.#disposed || !renderSnapshot) return;
     const alpha = Math.max(0, Math.min(1, Number(interpolationAlpha) || 0));
+    const now = Number(elapsedSeconds) || 0;
+    const deltaSeconds = this.#lastElapsed === null ? 0 : Math.max(0, Math.min(0.1, now - this.#lastElapsed));
+    this.#lastElapsed = now;
+    // The living soldiers of each side, to find each one's nearest enemy.
+    const living = renderSnapshot.units.filter((unit) => unit.state !== "dead" && unit.state !== "incapacitated");
+    const nearestEnemy = (unit) => {
+      let best = Infinity;
+      for (const other of living) {
+        if (other.sideId === unit.sideId) continue;
+        best = Math.min(best, Math.hypot(other.position.x - unit.position.x, other.position.z - unit.position.z));
+      }
+      return best;
+    };
     for (const unit of renderSnapshot.units) {
       const actor = this.#units.get(unit.unitId);
       if (!actor) continue;
       const group = actor.group;
+      const lastX = group.position.x;
+      const lastZ = group.position.z;
       group.position.set(
         unit.previousPosition.x + (unit.position.x - unit.previousPosition.x) * alpha,
         unit.previousPosition.y + (unit.position.y - unit.previousPosition.y) * alpha,
         unit.previousPosition.z + (unit.position.z - unit.previousPosition.z) * alpha
       );
+      // Ground speed as drawn, smoothed over about a tenth of a second (ticks and frames do not line up).
+      if (deltaSeconds > 0 && actor.placed) {
+        const measured = Math.hypot(group.position.x - lastX, group.position.z - lastZ) / deltaSeconds;
+        actor.speed = (actor.speed || 0) + (measured - (actor.speed || 0)) * Math.min(1, deltaSeconds * 10);
+      }
+      actor.placed = true;
       group.rotation.y = unit.heading;
+      const animator = group.userData.animator;
+      if (animator) {
+        // A Blender soldier stays on the field when he falls; his animator plays the fall.
+        animator.update(unit, deltaSeconds, actor.speed || 0, nearestEnemy(unit));
+        continue;
+      }
       group.visible = unit.state !== "dead";
       const parts = group.userData.parts;
       const movementWeight = unit.state === "moving" ? 1 : 0;
       const swing = Math.sin(elapsedSeconds * 6 + actor.phaseOffset) * 0.18 * movementWeight;
-      parts.body.position.y = 1.22 + Math.abs(swing) * 0.05;
+      parts.body.position.y = group.userData.bodyBaseY + Math.abs(swing) * 0.05;
       parts.leftArm.rotation.x = unit.blocking ? -0.9 : swing;
       parts.rightArm.rotation.x = unit.blocking ? -0.9 : -swing;
       parts.leftLeg.rotation.x = -swing * 0.7;
@@ -259,7 +475,20 @@ export class M2RendererThree {
 
   getInfo() {
     const info = this.#renderer.info.render;
-    return { drawCalls: info.calls, triangles: info.triangles, renderedUnits: this.#units.size, renderedProjectiles: this.#projectiles.size };
+    // How many Blender soldiers are playing each animation (idle, walk, run, ...).
+    const soldierAnimations = {};
+    for (const { group } of this.#units.values()) {
+      const playing = group.userData.animator?.playing;
+      if (playing) soldierAnimations[playing] = (soldierAnimations[playing] || 0) + 1;
+    }
+    return {
+      soldierAnimations,
+      drawCalls: info.calls,
+      triangles: info.triangles,
+      renderedUnits: this.#units.size,
+      renderedProjectiles: this.#projectiles.size,
+      soldierModel: soldierModels ? "blender" : "box"
+    };
   }
 
   resize() {

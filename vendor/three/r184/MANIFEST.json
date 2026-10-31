@@ -21,6 +21,21 @@
       "path": "LICENSE",
       "size": 1081,
       "sha256": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
+    },
+    {
+      "path": "addons/loaders/GLTFLoader.js",
+      "size": 114959,
+      "sha256": "97642d720f16cc9a0c9844934198e4d0c023bea8e89576d0f7545d03b2d103d2"
+    },
+    {
+      "path": "addons/utils/BufferGeometryUtils.js",
+      "size": 35539,
+      "sha256": "d700b4c4584b9ff53a04692624d2363019f6d1df2978a207389168c6ae647a65"
+    },
+    {
+      "path": "addons/utils/SkeletonUtils.js",
+      "size": 11535,
+      "sha256": "b1632a703206c3d830de9fcbe515696770d04b71a15ee6b50afa6d2c3298c86f"
     }
   ]
 }

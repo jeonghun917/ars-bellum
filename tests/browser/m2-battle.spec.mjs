@@ -19,7 +19,7 @@ async function finishByRetreat(page) {
     .filter((f) => f.sideId === 'ally')
     .map((f, i) => window.ArsM2Battle.issueCommand({ commandId: `retreat_${i}`, type: 'formation_retreat', formationId: f.formationId })));
   expect(issued.every((receipt) => receipt.ok), JSON.stringify(issued)).toBe(true);
-  await page.waitForFunction(() => window.ArsM2Battle.getResult(), null, { timeout: 10_000 });
+  await page.waitForFunction(() => window.ArsM2Battle.getResult(), null, { timeout: 20_000 });
   return page.evaluate(() => window.ArsM2Battle.getResult());
 }
 
@@ -29,7 +29,7 @@ async function swingCooldownSeen(page) {
   await page.waitForFunction(() => {
     const s = window.ArsM2Battle.getSnapshot();
     return s.units.find((u) => u.unitId === s.playerCharacterId).attackCooldownTicks > 0;
-  }, null, { polling: 'raf', timeout: 5_000 });
+  }, null, { polling: 'raf', timeout: 20_000 });
 }
 
 test.describe('3D battle', () => {
@@ -44,6 +44,54 @@ test.describe('3D battle', () => {
     const [s, g] = [await snapshot(page), await diagnostics(page)];
     expect(s.totalUnits).toBe(40);
     expect(g.renderedUnits).toBe(40);
+  });
+
+  test('[m2.render.soldier-models] the soldiers are drawn with the rigged Blender models, both sides, with their animations', async ({ page }) => {
+    expect((await diagnostics(page)).soldierModel).toBe('blender');
+    const models = await page.evaluate(async () => {
+      const { loadSoldierModels } = await import('/m2/M2_SoldierModels.js');
+      const loaded = await loadSoldierModels();
+      return Object.fromEntries(Object.entries(loaded).map(([side, model]) => {
+        let skinned = 0;
+        model.scene.traverse((object) => { if (object.isSkinnedMesh) skinned += 1; });
+        return [side, { skinned, clips: Object.keys(model.clips).sort(), gait: model.gait }];
+      }));
+    });
+    for (const side of ['ally', 'enemy']) {
+      expect(models[side].skinned).toBeGreaterThan(0);
+      expect(models[side].clips).toEqual([
+        'attack', 'attack_over', 'block', 'death', 'draw', 'f_block', 'f_death', 'f_idle', 'f_overhead',
+        'f_run', 'f_swing_l', 'f_swing_r', 'f_thrust', 'f_walk', 'idle', 'low_idle', 'low_run', 'low_walk',
+        'n_attack', 'n_attack_over', 'n_block', 'n_death', 'n_idle', 'n_run', 'n_walk', 'run', 's_block',
+        's_death', 's_idle', 's_low_idle', 's_low_run', 's_low_walk', 's_overhead', 's_run', 's_swing_l',
+        's_swing_r', 's_thrust', 's_walk', 't_block', 't_death', 't_idle', 't_overhead', 't_run', 't_swing_l',
+        't_swing_r', 't_thrust', 't_walk', 'walk',
+      ]);
+      // The walk and run clips say how fast their feet move, so the renderer can match the soldiers' speed.
+      expect(models[side].gait.walk).toBeGreaterThan(0.5);
+      expect(models[side].gait.run).toBeGreaterThan(models[side].gait.walk);
+    }
+  });
+
+  test('[m2.render.soldier-gait] soldiers crossing the field at full speed run, not walk', async ({ page }) => {
+    // The battle starts with everyone standing: send an ally formation 15 m forward. Units move at about
+    // 3.2 m/s; the walk clip's feet move at about 1.3 m/s, so walking would skate.
+    const receipt = await page.evaluate(() => {
+      const f = window.ArsM2Battle.getSnapshot().formations.find((item) => item.sideId === 'ally');
+      return window.ArsM2Battle.issueCommand({ commandId: 'gait_move', type: 'formation_move', formationId: f.formationId,
+        target: { x: f.anchor.x, z: f.anchor.z - 15 } });
+    });
+    expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
+    // (Only that some run: while a soldier speeds up or arrives he passes through walking speeds. The run
+    // clips are "run", "low_run", "s_low_run", ...)
+    await page.waitForFunction(() => Object.entries(window.ArsM2Diagnostics.getSnapshot().soldierAnimations || {})
+      .some(([clip, count]) => /run$/.test(clip) && count > 0), null, { timeout: 20_000 });
+  });
+
+  test('[m2.render.shield-low] with no enemy near, soldiers carry their shields low at their side', async ({ page }) => {
+    // The armies start more than 12 m apart: shields are carried low until an enemy comes within 9 m.
+    await page.waitForFunction(() => Object.entries(window.ArsM2Diagnostics.getSnapshot().soldierAnimations || {})
+      .some(([clip, count]) => /^(s_)?low_/.test(clip) && count > 0), null, { timeout: 20_000 });
   });
 
   test('[m2.camera.starts-third-person] the camera starts behind the player with input attached', async ({ page }) => {
@@ -300,7 +348,7 @@ test.describe('3D battle', () => {
       snapshot.formations = snapshot.formations.filter((f) => f.sideId === 'ally')
         .map((f) => ({ ...f, memberUnitIds: f.memberUnitIds.filter((id) => ids.has(id)) }));
     `);
-    await page.waitForFunction(() => window.ArsM2Battle.getResult(), null, { timeout: 5_000 });
+    await page.waitForFunction(() => window.ArsM2Battle.getResult(), null, { timeout: 20_000 });
     const [result, g] = await page.evaluate(() => [window.ArsM2Battle.getResult(), window.ArsM2Diagnostics.getSnapshot()]);
     expect(result.outcome).toBe('ally_victory');
     expect(g.moraleSummary.enemy).toBe(0);

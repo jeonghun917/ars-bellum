@@ -22,6 +22,8 @@ export default defineConfig({
     {
       name: 'webgl',
       testMatch: '**/m2-*.spec.mjs',
+      // Without a GPU (as on CI) SwiftShader draws the skinned soldiers slowly; give each test room for that.
+      timeout: 60_000,
       use: {
         launchOptions: {
           executablePath: process.env.PW_CHROMIUM_PATH || undefined,
