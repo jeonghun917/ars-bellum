@@ -460,7 +460,8 @@ def _grid_arrays(r, axis, edge_axis):
     return _GRIDS[key]
 
 
-def _best_grip(r, hinge, fore, axis, direction, edge=None, edge_weight=0.0, edge_axis=None, slack=EDGE_AIM_SLACK):
+def _best_grip(r, hinge, fore, axis, direction, edge=None, edge_weight=0.0, edge_axis=None, slack=EDGE_AIM_SLACK,
+               signed=False):
     """edge: the way the blade moves (armature space): either edge should lead into it, the more so the
     larger edge_weight (degrees of the weapon's aim one degree of the edge's is worth)."""
     to_fore = _forearm(r, hinge, fore, 0.0).inverted()
@@ -487,8 +488,9 @@ def _best_grip(r, hinge, fore, axis, direction, edge=None, edge_weight=0.0, edge
         m = want_e[None, :] - got * (got @ want_e)[:, None]
         ne, nm = np.linalg.norm(e, axis=1), np.linalg.norm(m, axis=1)
         ok = (ne > 1e-6) & (nm > 1e-6)
-        cos = np.abs(np.sum(e * m, axis=1)) / np.where(ok, ne * nm, 1.0)
-        lead = np.where(ok, np.degrees(np.arccos(np.clip(cos, 0, 1))), 0.0)
+        cos = np.sum(e * m, axis=1) / np.where(ok, ne * nm, 1.0)
+        cos = cos if signed else np.abs(cos)   # (a sword has two edges; a crossbow one top)
+        lead = np.where(ok, np.degrees(np.arccos(np.clip(cos, -1, 1))), 0.0)
         score = score + edge_weight * lead
     if use_edge:
         # The edge may only cost the aim a few degrees more than the best aim there is.
@@ -497,7 +499,7 @@ def _best_grip(r, hinge, fore, axis, direction, edge=None, edge_weight=0.0, edge
     return (float(score[i]), float(off[i]), float(tw[i]), float(bends[i, 0]), float(bends[i, 1]), float(lead[i]))
 
 
-def grip(skeleton, side, direction, swivel=60, edge=None, edge_weight=0.0, slack=None):
+def grip(skeleton, side, direction, swivel=60, edge=None, edge_weight=0.0, slack=None, edge_axis=None, signed=False):
     """Turn the forearm about itself and bend the wrist, within a man's reach, so the weapon in that hand
     points as nearly along direction as it can; if that is not near enough, also swing the elbow round
     (up to swivel degrees, the wrist staying where it is). With edge (a sword in the right hand: the way
@@ -507,7 +509,8 @@ def grip(skeleton, side, direction, swivel=60, edge=None, edge_weight=0.0, slack
     axis = GRIP_AXIS.get(side)
     if axis is None:
         return 0.0
-    edge_axis = EDGE_AXIS["local"] if side == "r" else None
+    if edge_axis is None:
+        edge_axis = EDGE_AXIS["local"] if side == "r" else None
     slack = EDGE_AIM_SLACK if slack is None else slack
     if edge is None or edge_axis is None or Vector(edge).length < 1e-6:
         edge, edge_weight = None, 0.0
@@ -525,7 +528,7 @@ def grip(skeleton, side, direction, swivel=60, edge=None, edge_weight=0.0, slack
         if hinge.length < 0.05:
             continue
         hinge = hinge.normalized() * r["sign"]
-        found = _best_grip(r, hinge, fore, axis, direction, edge, edge_weight, edge_axis, slack)
+        found = _best_grip(r, hinge, fore, axis, direction, edge, edge_weight, edge_axis, slack, signed)
         tried.append((found[0] + 0.15 * abs(turn_by), e, found))
         if found[1] < 4 and found[5] < 10:
             break
@@ -554,8 +557,15 @@ def reset_pose(skeleton):
 # bone. glTF cannot animate whether a mesh is shown, but it can animate a bone's scale: a bone scaled to
 # nothing hides everything bound to it.
 PROP_BONES = {"prop_spear": "hand_r", "prop_sword": "hand_r", "prop_sheath": "pelvis", "prop_shield": "lowerarm_l",
-              "prop_great": "hand_r"}
+              "prop_great": "hand_r", "prop_xbow": "Root", "prop_bolt": "prop_xbow", "prop_quiver": "pelvis",
+              "prop_bolt_hand": "hand_r"}
 HIDDEN = 1e-4
+# The crossbow is not on a hand's bone: in the reload it stands in its stirrup on the ground while both hands
+# pull the string. Its bone hangs from Root and is set where the right hand holds it every frame
+# (carry_crossbow()), except while a pose has let go of it (CARRY["free"]); it is keyed by position too.
+CARRY = {"free": False}
+KEYED_LOCATION = {"Root", "prop_xbow"}
+NOCK = "xbow_nock"   # the middle of the string: scaled along the stock from the prod (loose) to the nut (spanned)
 
 
 def add_prop_bones(skeleton):
@@ -564,34 +574,60 @@ def add_prop_bones(skeleton):
     bones = skeleton.data.edit_bones
     for name, parent in PROP_BONES.items():
         b = bones.new(name)
-        b.head, b.tail, b.roll = bones[parent].head.copy(), bones[parent].tail.copy(), bones[parent].roll
+        like = bones["hand_r"] if name in ("prop_xbow", "prop_bolt") else bones[parent]
+        b.head, b.tail, b.roll = like.head.copy(), like.tail.copy(), like.roll
         b.parent = bones[parent]
     bpy.ops.object.mode_set(mode="OBJECT")
     reset_pose(skeleton)
 
 
-def show(skeleton, spear=True, sword=False, sheathed=True, shield=True, great=False):
+def show(skeleton, spear=True, sword=False, sheathed=True, shield=True, great=False, crossbow=False, loaded=True):
     for name, on in (("prop_spear", spear), ("prop_sword", sword), ("prop_sheath", sheathed), ("prop_shield", shield),
-                     ("prop_great", great)):
+                     ("prop_great", great), ("prop_xbow", crossbow), ("prop_bolt", loaded), ("prop_quiver", crossbow),
+                     ("prop_bolt_hand", False)):
         k = 1.0 if on else HIDDEN
         skeleton.pose.bones[name].scale = (k, k, k)
+    if NOCK in skeleton.pose.bones:
+        span_string(skeleton, 1.0 if loaded else 0.0)
 
 
-def add_scabbard_bone(skeleton, top, up):
-    """A bone at the top of the scabbard (child of the pelvis); the sheathed sword's bone hangs from it.
-    It swings, with the weight of the sword in it, on the skirt panel it hangs over (see push_skirts()): a
-    knee that pushes the skirt out pushes the scabbard too."""
+def span_string(skeleton, k):
+    """The string's middle from loose at the prod (0) to caught on the nut (1)."""
+    s = STRING_LOOSE + (1 - STRING_LOOSE) * k
+    skeleton.pose.bones[NOCK].scale = (1, s, 1)
+
+
+STRING_LOOSE = 0.04
+
+
+def carry_crossbow(skeleton):
+    """The crossbow where the right fist holds it (as bound), unless a pose has let go of it."""
+    if CARRY["free"] or "prop_xbow" not in skeleton.pose.bones:
+        return
+    bpy.context.view_layer.update()
+    pb, bones = skeleton.pose.bones, skeleton.data.bones
+    held = bones["hand_r"].matrix_local.inverted() @ bones["prop_xbow"].matrix_local
+    scale = pb["prop_xbow"].scale.copy()
+    pb["prop_xbow"].matrix = pb["hand_r"].matrix @ held
+    pb["prop_xbow"].scale = scale
+    bpy.context.view_layer.update()
+
+
+def add_hanger_bone(skeleton, name, top, up, prop):
+    """A bone at the top of something hung from the belt (child of the pelvis: the scabbard, the bolt case);
+    the prop's bone hangs from it. It swings, with its weight (WEIGHT[name]), on the skirt panel it hangs over
+    (see push_skirts()): a knee that pushes the skirt out pushes it too."""
     coat = SKIRTS["skirt"]
     centre = Vector((coat["rings"][0][1], coat["rings"][0][2], 0))
     out = Vector((top.x, top.y, 0)) - centre
-    coat["scabbard_panel"] = max(range(PANELS), key=lambda j: out.normalized().dot(_panel_dir(j)))
+    coat.setdefault("hangers", {})[name] = max(range(PANELS), key=lambda j: out.normalized().dot(_panel_dir(j)))
     bpy.context.view_layer.objects.active = skeleton
     bpy.ops.object.mode_set(mode="EDIT")
     bones = skeleton.data.edit_bones
-    b = bones.new("scabbard")
+    b = bones.new(name)
     b.head, b.tail = top, top - up * 0.2
     b.parent = bones["pelvis"]
-    bones["prop_sheath"].parent = b
+    bones[prop].parent = b
     bpy.ops.object.mode_set(mode="OBJECT")
     reset_pose(skeleton)
 
@@ -614,6 +650,7 @@ WEIGHT = {
                                                                    # flutters, settles quickly
     "scabbard": dict(hz=1.4, damping=0.6, throw=0.6),              # a sword's weight hanging from the belt: it
                                                                    # swings slowly and does not bounce
+    "quiver": dict(hz=1.7, damping=0.5, throw=0.7),                # a case of bolts: lighter, swings a little more
 }
 SKIRTS = {}   # bone prefix ("skirt" for the coat, "mail") -> rings, heights, what pushes it, ...
 
@@ -917,21 +954,20 @@ def push_skirt(skeleton, prefix, swing, dt):
     low, high = bounds(legs, things)
     upper = settle("", low, high, [0.0] * n)
     apply("", upper)
-    if prefix == "skirt" and "scabbard" in pb:
-        # The scabbard lies on its panel and swings out from it with the sword's weight.
-        j = sk["scabbard_panel"]
-        pb["scabbard"].rotation_quaternion = (1, 0, 0, 0)
+    for name, j in (sk.get("hangers", {}) if prefix == "skirt" else {}).items():
+        # The scabbard (the bolt case) lies on its panel and swings out from it with its weight.
+        pb[name].rotation_quaternion = (1, 0, 0, 0)
         bpy.context.view_layer.update()
         down = (rest[f"skirt_{j:02d}"].tail_local - rest[f"skirt_{j:02d}"].head_local).normalized()
         axis = moved.to_3x3() @ down.cross(_panel_dir(j)).normalized()
         on_skirt = upper[j]
         angle = on_skirt
         if swing is not None:
-            end = pb["scabbard"].tail.copy()
-            angle = swing.step("scabbard", WEIGHT["scabbard"], on_skirt, 9.0, on_skirt, end,
+            end = pb[name].tail.copy()
+            angle = swing.step(name, WEIGHT[name], on_skirt, 9.0, on_skirt, end,
                                moved.to_3x3() @ _panel_dir(j), 0.8, dt)
         if angle:
-            turn(skeleton, "scabbard", axis, math.degrees(angle))
+            turn(skeleton, name, axis, math.degrees(angle))
     bpy.context.view_layer.update()
     # Lower halves: what is left below the middle, after the upper half has moved. At rest the lower half
     # hangs back down from a panel the knee has pushed out (it drapes over the knee instead of flying out
@@ -1046,7 +1082,7 @@ def bend_leg(skeleton, side, forward_deg, knee_deg, foot_pitch=0.0, out=0.04):
 # Stances, built up from the rest pose. Directions are in armature space: -Y front, +Z up, -X the soldier's right.
 
 def stance(skeleton, spear_up=True, breathe=0.0, shift=0.0, look=0.0, crouch=0.0, sword=False, shield="guard",
-           great=False, high=False):
+           great=False, high=False, crossbow=False):
     """The guard: shield across the body on the left forearm; in the right fist the spear upright, or with
     sword=True the sword held ready, point up and a little forward.
     breathe -1..1 lifts the chest, shift -1..1 moves the weight onto the left or right leg, look turns the
@@ -1078,7 +1114,11 @@ def stance(skeleton, spear_up=True, breathe=0.0, shift=0.0, look=0.0, crouch=0.0
         face_shield(skeleton, SHIELD_LOW["face"])
     else:
         arm(skeleton, "l", (0.7, 0.0, -1), (0.4, -0.3, -1))
-    if great:
+    if crossbow:
+        # Carried in both hands at the right hip, the nose forward and down, the prod level.
+        xbow_hold(skeleton, *XBOW_PORT)
+        show(skeleton, spear=False, sword=False, sheathed=True, shield=False, crossbow=True)
+    elif great:
         bpy.context.view_layer.update()
         shoulder = skeleton.pose.bones["upperarm_r"].head.copy()
         wrist, blade = GREAT_GUARD_WRIST, GREAT_GUARD
@@ -1150,6 +1190,197 @@ def both_hands(skeleton, direction, amount=1.0, pole=(0.8, -0.5, -1)):
     if "l" in GRIP_AXIS:
         grip(skeleton, "l", point, swivel=20)   # (the elbow mostly where pole puts it)
 
+# The crossbow in both hands: the right fist round the stock's wrist at `at` (relative to the right shoulder)
+# pointing it along `direction`, its top turned up so the prod is level; the left hand under the fore-stock
+# `along` metres ahead of the right. PORT is how it is carried, AIM at the shoulder, the cheek on the stock.
+XBOW_PORT = (Vector((0.04, -0.27, -0.38)), Vector((0.2, -0.85, -0.3)))
+XBOW_AIM = (Vector((0.07, -0.26, 0.03)), Vector((0.0, -1.0, 0.03)))
+
+
+def xbow_hold(skeleton, at, direction, along=0.3, pole=(-1, 0.2, -0.8), pole_l=(0.7, -0.6, -0.8), left=1.0):
+    pb = skeleton.pose.bones
+    bpy.context.view_layer.update()
+    direction = Vector(direction).normalized()
+    reach(skeleton, "r", pb["upperarm_r"].head + Vector(at), pole=pole)
+    xbow_level(skeleton, direction)
+    left_on_stock(skeleton, along, pole_l, left)
+
+
+def xbow_level(skeleton, direction):
+    """Point the crossbow in the right fist along direction, its top as near up as the wrist allows."""
+    level = UP - direction * UP.dot(direction)
+    grip(skeleton, "r", direction, edge=level, edge_weight=1.5, slack=6, edge_axis=XBOW_AXES["top"], signed=True)
+
+
+def xbow_frame(skeleton):
+    """Where the crossbow in the right fist is: (the fist, the way the stock points, its top)."""
+    bpy.context.view_layer.update()
+    hand = skeleton.pose.bones["hand_r"]
+    m = hand.matrix.to_3x3()
+    return (hand.head + Vector(hand.matrix.col[1][:3]) * 0.065, (m @ SPEAR_AXIS["local"]).normalized(),
+            (m @ XBOW_AXES["top"]).normalized())
+
+
+def left_on_stock(skeleton, along, pole=(0.7, -0.6, -0.8), amount=1.0):
+    """The left hand from where it hangs onto the fore-stock, under it, `along` metres ahead of the right fist."""
+    pb = skeleton.pose.bones
+    fist, point, top = xbow_frame(skeleton)
+    hang = pb["lowerarm_l"].tail.copy()
+    reach(skeleton, "l", hang.lerp(fist + point * along - top * 0.04, amount), pole=pole)
+    if amount > 0 and "l" in GRIP_AXIS:
+        bpy.context.view_layer.update()
+        loose = (pb["hand_l"].matrix.to_3x3() @ GRIP_AXIS["l"]).normalized()
+        grip(skeleton, "l", loose.lerp(point, amount))
+
+
+def xbow_shoot(skeleton, t):
+    """Up to the shoulder (0..0.3), the cheek down on the stock and a steady aim (0.3..0.55), the loose: the
+    string snaps forward, the bolt is gone, the crossbow kicks up (0.55..0.66); held a moment, then down to
+    the carry (0.75..1)."""
+    up = smooth(span(t, 0.0, 0.3))
+    loose = t >= 0.55
+    kick = math.sin(math.pi * span(t, 0.55, 0.68)) * (1 - span(t, 0.55, 0.68)) * 2.2
+    down = smooth(span(t, 0.75, 1.0))
+    raised = up * (1 - down)
+    stance(skeleton, crossbow=True, look=0)
+    # Side on, the left foot forward a little; the head down to the stock.
+    feet = fight_footwork(skeleton, 0.35 * raised, 0.2 * raised)
+    turn(skeleton, "pelvis", UP, -14 * raised)
+    turn(skeleton, "spine_02", UP, 6 * raised)
+    turn(skeleton, "head", UP, 8 * raised)
+    turn(skeleton, "head", RIGHT, 10 * raised)
+    turn(skeleton, "head", FRONT, 8 * raised)
+    plant_feet(skeleton, feet)
+    port_at, port_dir = XBOW_PORT
+    aim_at, aim_dir = XBOW_AIM
+    at = port_at.lerp(aim_at, raised) + Vector((0, 0.02, 0.015)) * kick
+    direction = port_dir.lerp(aim_dir, raised).normalized()
+    direction = (direction + UP * 0.07 * kick).normalized()
+    xbow_hold(skeleton, at, direction)
+    show(skeleton, spear=False, sword=False, sheathed=True, shield=False, crossbow=True, loaded=not loose)
+
+
+# The reload with the stirrup: the crossbow nose down, its stirrup on the ground in front of him and his right
+# foot in it; he bends, takes the string in both hands either side of the stock and draws it up onto the
+# nut; takes a bolt from the case at his hip and lays it in the groove; and lifts the crossbow back to the
+# carry. While the crossbow stands in the stirrup no hand carries it (CARRY["free"]).
+XBOW_STAND = dict(stirrup=Vector((-0.06, -0.46, 0.02)), lean=Vector((0.0, 0.3, 1.0)).normalized())
+
+
+def xbow_stand_matrix(skeleton):
+    """Where the crossbow's bone is as it stands in its stirrup: as if a fist held it with the stock leaning
+    back up towards him, the prod level, the stirrup on the ground."""
+    pb, bones = skeleton.pose.bones, skeleton.data.bones
+    rest_hand = bones["hand_r"].matrix_local
+    # In the bone's own (rest = hand) frame: the stock's axis and its top; the fist's place on the stock.
+    axis, top = SPEAR_AXIS["local"], XBOW_AXES["top"]
+    point = -XBOW_STAND["lean"]   # the stock from the fist down to the stirrup
+    want_top = (Vector((0, -1, 0)) - point * Vector((0, -1, 0)).dot(point)).normalized()   # the top towards the front
+    # A rotation taking (axis, top) onto (point, want_top).
+    a = Matrix((axis, top, axis.cross(top))).transposed()
+    b = Matrix((point, want_top, point.cross(want_top))).transposed()
+    rot = b @ a.inverted()
+    fist_in_hand = Vector((0, 0.065, 0))   # the fist is 6.5 cm along the hand from its head
+    stirrup_end = XBOW["prod"] + XBOW["stirrup"] * 0.9
+    fist_at = XBOW_STAND["stirrup"] - point * stirrup_end
+    m = rot.to_4x4()
+    m.translation = fist_at - rot @ fist_in_hand
+    return m @ (rest_hand.inverted() @ bones["prop_xbow"].matrix_local)
+
+
+def xbow_block(skeleton, t):
+    """No shield: the crossbow comes up across in front of the face in both hands, held there."""
+    k = span(t, 0.0, 0.3)
+    up = ease_out(k) + 0.08 * math.sin(math.pi * k) * (1 - k)
+    stance(skeleton, crouch=0.5 * smooth(k), crossbow=True)
+    turn(skeleton, "spine_02", RIGHT, -6 * up)
+    port_at, port_dir = XBOW_PORT
+    xbow_hold(skeleton, port_at.lerp(Vector((0.12, -0.32, 0.1)), up), port_dir.lerp(Vector((1, -0.3, 0.3)), up).normalized(),
+              along=0.3 + 0.05 * up, pole_l=(0.6, -0.8, -0.5))
+
+
+def xbow_reload(skeleton, t):
+    lower = smooth(span(t, 0.0, 0.16))            # nose down into the stirrup
+    step_in = smooth(span(t, 0.1, 0.24))          # the right foot into it
+    bend = smooth(span(t, 0.18, 0.34)) * (1 - smooth(span(t, 0.62, 0.8)))
+    draw = smooth(span(t, 0.36, 0.58))            # the string from the prod up onto the nut
+    fetch = span(t, 0.6, 0.76)                    # the right hand to the case and back with a bolt
+    lift = smooth(span(t, 0.82, 0.98))            # back up to the carry
+    stance(skeleton, crossbow=True)
+    pb = skeleton.pose.bones
+    feet = fight_footwork(skeleton, 0.0, 0.6 * bend)
+    turn(skeleton, "spine_01", RIGHT, -22 * bend)
+    turn(skeleton, "spine_02", RIGHT, -30 * bend)
+    turn(skeleton, "head", RIGHT, 20 * bend)
+    ankle0 = skeleton.data.bones["foot_r"].head_local
+    stirrup = XBOW_STAND["stirrup"]
+    in_stirrup = Vector((stirrup.x, stirrup.y + 0.1, ankle0.z))
+    foot_in = step_in * (1 - lift)
+    raise_foot = 0.08 * (math.sin(math.pi * step_in) + math.sin(math.pi * lift))
+    feet["r"] = (feet["r"][0].lerp(in_stirrup, foot_in) + Vector((0, 0, raise_foot)), -25 * (1 - foot_in))
+    plant_feet(skeleton, feet)
+    bpy.context.view_layer.update()
+
+    stand = xbow_stand_matrix(skeleton)
+    rot = stand.to_3x3()
+    point, top = -XBOW_STAND["lean"], (rot @ XBOW_AXES["top"]).normalized()
+    side = point.cross(top).normalized()
+    fist = stand.translation + rot @ Vector((0, 0.065, 0))
+    loose_at = fist + point * (XBOW["prod"] - XBOW["sweep"]) + top * 0.03
+    string_at = loose_at.lerp(fist + point * XBOW["nut"] + top * 0.03, draw)
+    mouth = pb["pelvis"].matrix @ (skeleton.data.bones["pelvis"].matrix_local.inverted() @ QUIVER["mouth"])
+    groove = fist + point * (XBOW["nut"] + 0.1) + top * 0.08
+    shoulder = pb["upperarm_r"].head.copy()
+
+    # The right hand: on the stock's wrist going down and coming up; on the string; to the case and back.
+    port_at, port_dir = XBOW_PORT
+    down = lower * (1 - lift)
+    on_string = smooth(span(t, 0.26, 0.36))
+    if t < 0.26 or t >= 0.82:
+        reach(skeleton, "r", (shoulder + port_at).lerp(stand.translation, down), pole=(-1, 0.2, -0.8))
+        direction = port_dir.normalized().lerp(point, down).normalized()
+        want_top = (UP - direction * UP.dot(direction)).lerp(top, down)
+        grip(skeleton, "r", direction, edge=want_top, edge_weight=1.5, slack=6, edge_axis=XBOW_AXES["top"], signed=True)
+    elif t < 0.6:
+        reach(skeleton, "r", stand.translation.lerp(string_at - side * 0.07 + top * 0.04, on_string), pole=(-0.7, -0.6, -0.8))
+    elif t < 0.76:
+        to_case = smooth(min(1.0, fetch * 2))
+        back = smooth(max(0.0, fetch * 2 - 1))
+        reach(skeleton, "r", string_at.lerp(mouth + UP * 0.05, to_case).lerp(groove, back), pole=(-1, 0.3, -0.6))
+    else:
+        reach(skeleton, "r", groove.lerp(stand.translation, smooth(span(t, 0.76, 0.82))), pole=(-1, 0.2, -0.8))
+        grip(skeleton, "r", point, edge=top, edge_weight=1.5, slack=6, edge_axis=XBOW_AXES["top"], signed=True)
+
+    # The crossbow: carried in the fist, or standing in its stirrup (slipping from one to the other in the
+    # fist as it comes to rest on the ground and as it is lifted).
+    CARRY["free"] = True
+    bpy.context.view_layer.update()
+    bones = skeleton.data.bones
+    carried = pb["hand_r"].matrix @ (bones["hand_r"].matrix_local.inverted() @ bones["prop_xbow"].matrix_local)
+    w = smooth(span(t, 0.1, 0.18)) * (1 - smooth(span(t, 0.8, 0.88)))
+    m = carried.to_quaternion().slerp(stand.to_quaternion(), w).to_matrix().to_4x4()
+    m.translation = carried.translation.lerp(stand.translation, w)
+    scale = pb["prop_xbow"].scale.copy()
+    pb["prop_xbow"].matrix = m
+    pb["prop_xbow"].scale = scale
+    bpy.context.view_layer.update()
+
+    # The left hand: under the fore-stock of the crossbow where it is, or on the string beside the right.
+    held = pb["prop_xbow"].matrix.to_3x3()
+    x_fist = pb["prop_xbow"].matrix.translation + held @ Vector((0, 0.065, 0))
+    x_point, x_top = (held @ SPEAR_AXIS["local"]).normalized(), (held @ XBOW_AXES["top"]).normalized()
+    on_l = on_string * (1 - smooth(span(t, 0.58, 0.68)))
+    stock_l = x_fist + x_point * 0.3 - x_top * 0.04
+    reach(skeleton, "l", stock_l.lerp(string_at + side * 0.07 + top * 0.04, on_l), pole=(0.7, -0.6, -0.8))
+    if "l" in GRIP_AXIS:
+        grip(skeleton, "l", x_point.lerp(side, on_l).normalized())
+
+    show(skeleton, spear=False, sword=False, sheathed=True, shield=False, crossbow=True, loaded=t >= 0.78)
+    span_string(skeleton, draw if t < 0.82 else 1.0)
+    k = 1.0 if 0.66 <= t < 0.78 else HIDDEN
+    pb["prop_bolt_hand"].scale = (k, k, k)
+
+
 # The carried shield: arm directions, and where its face turns. SHIELD_FACE["local"] is the face's outward
 # normal in the left forearm's frame, measured when the shield is bound (see infantry()).
 SHIELD_LOW = {"upperarm": Vector((0.55, 0.06, -1)), "lowerarm": Vector((0.14, -0.85, -0.2)),
@@ -1186,12 +1417,12 @@ def bell(x, centre, width):
     return math.exp(-wrap(x - centre) ** 2 / (2 * width * width))
 
 
-def idle_pose(skeleton, t, sword=False, shield="guard", great=False):
+def idle_pose(skeleton, t, sword=False, shield="guard", great=False, crossbow=False):
     """Four seconds of standing: two breaths, a slow weight shift and a glance aside. Loops cleanly."""
     a = 2 * math.pi * t
     stance(skeleton, breathe=math.sin(2 * a), shift=0.8 * math.sin(a), look=7 * math.sin(a + 1.3) + 2 * math.sin(3 * a),
-           sword=sword, shield=shield, great=great)
-    if not great:
+           sword=sword, shield=shield, great=great, crossbow=crossbow)
+    if not great and not crossbow:
         turn(skeleton, "upperarm_r", RIGHT, 1.5 * math.sin(a + 0.6))
 
 
@@ -1297,10 +1528,10 @@ def hip_height(skeleton, g, t, centre_y):
     return curve[i % len(curve)] + (curve[(i + 1) % len(curve)] - curve[i % len(curve)]) * (x - i)
 
 
-def gait_pose(skeleton, t, g, sword=False, shield="guard", great=False):
+def gait_pose(skeleton, t, g, sword=False, shield="guard", great=False, crossbow=False):
     """One cycle of a gait (see GAITS): the left foot lands at t = 0, the right at t = 0.5."""
     a = 2 * math.pi * t
-    stance(skeleton, sword=sword, shield=shield, great=great, high=great)
+    stance(skeleton, sword=sword, shield=shield, great=great, high=great, crossbow=crossbow)
     if shield == "guard" or (shield == "low" and g is GAITS["run"]):
         # Moving, the shield is held ready at his left side, its face turned out and forward, not square in
         # front: the knees come up into a shield held there, and push the skirt into it at the front-left.
@@ -1320,10 +1551,10 @@ def gait_pose(skeleton, t, g, sword=False, shield="guard", great=False):
     turn(skeleton, "head", UP, -0.4 * g["twist"] * math.cos(a))
     # Arms swing against the legs: the weapon arm more, the shield arm a little (a free arm fully). Both
     # hands on a longsword keep it still in front of him.
-    if not great:
+    if not great and not crossbow:
         turn(skeleton, "upperarm_r", RIGHT, (1.0 if sword else 0.5) * g["arm"] * math.cos(a))
         turn(skeleton, "upperarm_l", RIGHT, -{"guard": 0.35, "low": 0.5, "none": 0.6}[shield] * g["arm"] * math.cos(a))
-    if not sword and not great:
+    if not sword and not great and not crossbow:
         # The spear leans a little: its butt out to his right and behind, clear of the skirt where the right
         # knee pushes it out in front.
         point_spear(skeleton, Vector((0.45 if g is GAITS["run"] else 0.3, -0.25, 1)).normalized())
@@ -1341,12 +1572,12 @@ def gait_pose(skeleton, t, g, sword=False, shield="guard", great=False):
         aim(skeleton, f"ball_{side}", bones[f"ball_{side}"].tail_local - bones[f"ball_{side}"].head_local)
 
 
-def walk_pose(skeleton, t, sword=False, shield="guard", great=False):
-    gait_pose(skeleton, t, GAITS["walk"], sword, shield, great)
+def walk_pose(skeleton, t, sword=False, shield="guard", great=False, crossbow=False):
+    gait_pose(skeleton, t, GAITS["walk"], sword, shield, great, crossbow)
 
 
-def run_pose(skeleton, t, sword=False, shield="guard", great=False):
-    gait_pose(skeleton, t, GAITS["run"], sword, shield, great)
+def run_pose(skeleton, t, sword=False, shield="guard", great=False, crossbow=False):
+    gait_pose(skeleton, t, GAITS["run"], sword, shield, great, crossbow)
 
 
 # Footwork for the attacks: the feet stand on the ground and the legs reach them (as in walking), the left
@@ -1759,7 +1990,7 @@ def block_pose(skeleton, t, sword=False):
 SHIELD_ROLL = -90
 
 
-def death_pose(skeleton, t, sword=False, shield="guard", great=False):
+def death_pose(skeleton, t, sword=False, shield="guard", great=False, crossbow=False):
     """Struck (0..0.15): the body jerks back. Knees buckle (0.1..0.45). Gravity takes him backwards
     (0.35..0.8), he hits the ground with a small rebound (0.8..0.95) and lies still, head rolled aside."""
     hit = ease_out(span(t, 0.0, 0.15)) * (1 - 0.6 * smooth(span(t, 0.15, 0.4)))
@@ -1767,7 +1998,7 @@ def death_pose(skeleton, t, sword=False, shield="guard", great=False):
     fall = ease_in(span(t, 0.4, 0.82))
     rebound = math.sin(math.pi * span(t, 0.8, 0.95)) * 0.06
     settle = smooth(span(t, 0.8, 1.0))
-    stance(skeleton, spear_up=False, sword=sword, shield=shield, great=great)
+    stance(skeleton, spear_up=False, sword=sword, shield=shield, great=great, crossbow=crossbow)
     for side, sign in (("l", 1), ("r", -1)):
         # Knees fold as he sinks, then the legs straighten out along the ground as he lands.
         bend_leg(skeleton, side, (26 + 8 * sign) * buckle * (1 - fall) + 4 * fall, 70 * buckle * (1 - fall) + 12 * fall,
@@ -1804,7 +2035,9 @@ def death_pose(skeleton, t, sword=False, shield="guard", great=False):
 def bind(obj, skeleton, bone, stance_fn):
     """obj was modelled where it should sit in the stance; move it back to the rest pose of `bone`, give it
     that bone's full weight and the skeleton."""
+    CARRY["free"] = False
     stance_fn(skeleton)
+    carry_crossbow(skeleton)
     for name in PROP_BONES:
         skeleton.pose.bones[name].scale = (1, 1, 1)
     bpy.context.view_layer.update()
@@ -1996,6 +2229,145 @@ def sword(mats, name, blade_length=0.78, grip_length=0.1, guard_width=0.19):
         v.co.z -= 0.025 + grip_length
     parts.append(mesh_obj(f"{name}_pommel", pommel, mats["steel"]))
     return parts
+
+
+# The crossbow, as held in the stance: the fist round the stock's wrist at the origin, the stock along +Z
+# (forward when aimed), its top (the groove the bolt lies in) towards XBOW_TOP, the steel prod across X at the
+# front with the stirrup beyond it, the string spanned back to the nut.
+XBOW = dict(butt=-0.2, nut=0.3, prod=0.6, half_prod=0.36, sweep=0.07, stirrup=0.14, bolt=0.34)
+XBOW_TOP = Vector((0, -1, 0))
+
+
+def _box(center, size, axes=None):
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    x, y, z = axes or (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1)))
+    for v in bm.verts:
+        v.co = Vector(center) + x * v.co.x * size[0] + y * v.co.y * size[1] + z * v.co.z * size[2]
+    return bm
+
+
+def _rod(a, b, radius, segments=6):
+    """A thin round rod from a to b."""
+    a, b = Vector(a), Vector(b)
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=segments, radius1=radius, radius2=radius, depth=(b - a).length)
+    m = Matrix.Translation((a + b) / 2) @ (b - a).to_track_quat("Z", "Y").to_matrix().to_4x4()
+    for v in bm.verts:
+        v.co = m @ v.co
+    return bm
+
+
+def prod_tip(sign):
+    return Vector((sign * XBOW["half_prod"], 0, XBOW["prod"] - XBOW["sweep"]))
+
+
+def crossbow(mats):
+    """(rigid parts, the string, the bolt in the groove, a bolt for the hand). The string's middle vertices
+    are the ones nearest the nut (see infantry(), which ties them to the nock's bone)."""
+    top = XBOW_TOP
+    parts = []
+    # The stock, a little deeper at the butt, and the trigger lever under it.
+    parts.append(mesh_obj("xbow_stock", _box((0, 0, (XBOW["butt"] + XBOW["prod"] + 0.02) / 2),
+                                             (0.04, 0.045, XBOW["prod"] + 0.02 - XBOW["butt"])), mats["dark_wood"], smooth=False))
+    parts.append(mesh_obj("xbow_butt", _box((0, 0.008, XBOW["butt"] + 0.06), (0.046, 0.07, 0.12)), mats["dark_wood"], smooth=False))
+    parts.append(mesh_obj("xbow_lever", _rod((0, 0.03, 0.05), (0, 0.07, -0.16), 0.006), mats["steel"]))
+    parts.append(mesh_obj("xbow_nut", _rod((-0.015, -0.026, XBOW["nut"]), (0.015, -0.026, XBOW["nut"]), 0.011, 8), mats["steel"]))
+    # The prod: a steel bow across the front, its ends swept back.
+    prod = bmesh.new()
+    n = 9
+    for i in range(n):
+        x0, x1 = (-1 + 2 * i / n), (-1 + 2 * (i + 1) / n)
+        a = Vector((x0 * XBOW["half_prod"], 0, XBOW["prod"] - XBOW["sweep"] * x0 * x0))
+        b = Vector((x1 * XBOW["half_prod"], 0, XBOW["prod"] - XBOW["sweep"] * x1 * x1))
+        thick = 0.016 - 0.006 * max(abs(x0), abs(x1))
+        piece = _rod(a, b, thick, 6)
+        piece.to_mesh(tmp := bpy.data.meshes.new("tmp"))
+        prod.from_mesh(tmp)
+        bpy.data.meshes.remove(tmp)
+    parts.append(mesh_obj("xbow_prod", prod, mats["steel"]))
+    # The stirrup, an iron loop in front of the prod.
+    st = bmesh.new()
+    front = XBOW["prod"] + 0.01
+    corners = [(-0.05, front), (-0.06, front + XBOW["stirrup"]), (0.06, front + XBOW["stirrup"]), (0.05, front)]
+    for (xa, za), (xb, zb) in zip(corners, corners[1:]):
+        _rod((xa, 0, za), (xb, 0, zb), 0.006).to_mesh(tmp := bpy.data.meshes.new("tmp"))
+        st.from_mesh(tmp)
+        bpy.data.meshes.remove(tmp)
+    parts.append(mesh_obj("xbow_stirrup", st, mats["steel"]))
+    # The string: two straight lengths from the prod's tips to its middle (on the nut when spanned).
+    middle = Vector((0, top.y * 0.02, XBOW["nut"]))
+    string = bmesh.new()
+    for sign in (-1, 1):
+        _rod(prod_tip(sign), middle, 0.003, 4).to_mesh(tmp := bpy.data.meshes.new("tmp"))
+        string.from_mesh(tmp)
+        bpy.data.meshes.remove(tmp)
+    string_obj = mesh_obj("xbow_string", string, mats["leather"])
+
+    def bolt(name):
+        bm = _rod((0, 0, 0), (0, 0, XBOW["bolt"]), 0.006, 6)
+        head = bmesh.new()
+        bmesh.ops.create_cone(head, cap_ends=True, segments=4, radius1=0.012, radius2=0.0, depth=0.04)
+        for v in head.verts:
+            v.co.z += XBOW["bolt"] + 0.02
+        head.to_mesh(tmp := bpy.data.meshes.new("tmp"))
+        bm.from_mesh(tmp)
+        bpy.data.meshes.remove(tmp)
+        for sign in (-1, 1):   # two leather vanes at the back
+            _box((sign * 0.012, 0, 0.04), (0.018, 0.002, 0.06)).to_mesh(tmp := bpy.data.meshes.new("tmp"))
+            bm.from_mesh(tmp)
+            bpy.data.meshes.remove(tmp)
+        return mesh_obj(name, bm, mats["steel"], smooth=False)
+
+    in_groove = bolt("xbow_bolt")
+    in_groove.data.transform(Matrix.Translation((0, top.y * 0.03, XBOW["nut"] + 0.005)))
+    return parts, string_obj, in_groove, bolt("hand_bolt")
+
+
+XBOW_AXES = {"top": None}   # the crossbow's top in the right hand's frame (measured when it is bound)
+QUIVER = {"mouth": None}     # where the bolts are taken from, in the rest pose
+
+
+def tie_string(skeleton, string, fist):
+    """Bind the string: its ends to the crossbow, its middle to the nock's bone, which runs from where the
+    loose string lies (by the prod) to the nut, so scaling it along its length moves the middle between the
+    two (span_string())."""
+    CARRY["free"] = False
+    stance(skeleton)
+    carry_crossbow(skeleton)
+    pb, bones = skeleton.pose.bones, skeleton.data.bones
+    for name in PROP_BONES:
+        pb[name].scale = (1, 1, 1)
+    bpy.context.view_layer.update()
+    to_rest = bones["prop_xbow"].matrix_local @ pb["prop_xbow"].matrix.inverted()
+    loose = to_rest @ (fist + Vector((0, XBOW_TOP.y * 0.02, XBOW["prod"] - XBOW["sweep"])))
+    spanned = to_rest @ (fist + Vector((0, XBOW_TOP.y * 0.02, XBOW["nut"])))
+    reset_pose(skeleton)
+    bpy.context.view_layer.objects.active = skeleton
+    bpy.ops.object.mode_set(mode="EDIT")
+    b = skeleton.data.edit_bones.new(NOCK)
+    b.head, b.tail = loose, spanned
+    b.parent = skeleton.data.edit_bones["prop_xbow"]
+    bpy.ops.object.mode_set(mode="OBJECT")
+    reset_pose(skeleton)
+    string.data.transform(to_rest)
+    ends, middle = string.vertex_groups.new(name="prop_xbow"), string.vertex_groups.new(name=NOCK)
+    for v in string.data.vertices:
+        (middle if (v.co - spanned).length < 0.02 else ends).add([v.index], 1.0, "REPLACE")
+    string.parent = skeleton
+    mod = string.modifiers.new("skeleton", "ARMATURE")
+    mod.object = skeleton
+    return string
+
+
+def quiver(mats, length=0.4):
+    """A bolt case: open at the top (the origin), hanging down along -Z, the bolts' vanes showing."""
+    bm = _box((0, 0, -length / 2), (0.1, 0.06, length))
+    for i, (x, y) in enumerate(((-0.03, -0.012), (0.0, 0.01), (0.028, -0.008), (-0.012, 0.014), (0.02, 0.016))):
+        _box((x, y, 0.03), (0.014, 0.003, 0.06)).to_mesh(tmp := bpy.data.meshes.new("tmp"))
+        bm.from_mesh(tmp)
+        bpy.data.meshes.remove(tmp)
+    return mesh_obj("quiver", bm, mats["leather"], smooth=False)
 
 
 def spear(mat_wood, mat_steel, length=2.6):
@@ -2353,39 +2725,46 @@ def infantry(zf, f):
         v.co = Vector((v.co.x * 0.05, v.co.y * 0.01, v.co.z * 0.045)) + Vector((0, by0 - 0.004, belt_z))
     buckle = rigid(mesh_obj("buckle", buckle_bm, mats["steel"], smooth=False), skeleton, "pelvis")
 
-    # Scabbard hanging from the front-left of the belt, hilt forward, angled back (as swords were worn), its
-    # flat side along the body and outside the skirt all the way down: by its own half thickness plus 6 mm at
-    # the belt, growing to 3 cm more at the tip (the hem swings with the legs).
-    angle = math.radians(62)
-    out = Vector((math.sin(angle), -math.cos(angle), 0))
     belt_tree = BVHTree.FromPolygons([v.co for v in belt.data.vertices], [p.vertices for p in belt.data.polygons])
 
-    def belt_here(z):
-        """The belt's outside in that direction, at height z."""
-        z = min(max(z, belt_z - 0.018), belt_z + 0.018)
-        return 0.3 - belt_tree.ray_cast(round_waist(angle, 0.3, z), -out, 0.3)[3]
+    def hang_from_belt(angle, length, bulk):
+        """Something hung from the belt at angle (0 the front, + to his left): its top just outside the belt,
+        tilted out from hanging straight (down and a little back) only as far as it must be to stay outside
+        the cloth all the way down, by bulk at the belt growing to 3 cm more at its foot (the hem swings with
+        the legs). Returns its top, its foot, the way round the waist towards the back, the way out from the
+        body, and the belt's outside there at a height (a function)."""
+        out = Vector((math.sin(angle), -math.cos(angle), 0))
 
-    hip = round_waist(angle, belt_here(belt_z - 0.015) + 0.026, belt_z - 0.015)
-    along = Vector((math.cos(angle), math.sin(angle), 0))   # round the waist, towards the back
-    # Tilted out from hanging straight (down and a little back) only as far as it must be.
-    hang = Vector((0.0, 0.3, -0.95)).normalized()
+        def belt_here(z):
+            z = min(max(z, belt_z - 0.018), belt_z + 0.018)
+            return 0.3 - belt_tree.ray_cast(round_waist(angle, 0.3, z), -out, 0.3)[3]
 
-    def clear(tip):
-        for k in (0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0):
-            point = hip.lerp(tip, k)
-            a, r = polar(point)
-            if cloth_radius(a, point.z, step / 2, 0.015) + 0.018 + 0.03 * k > r:
-                return False
-        return True
+        top = round_waist(angle, belt_here(belt_z - 0.015) + 0.026, belt_z - 0.015)
+        along = Vector((math.cos(angle), math.sin(angle), 0)) * (1 if angle > 0 else -1)
+        hang = Vector((0.0, 0.3, -0.95)).normalized()
 
-    low, high = 0.0, 1.5
-    for _ in range(24):
-        tilt = (low + high) / 2
-        if clear(hip + (hang + out * tilt).normalized() * 0.84):
-            high = tilt
-        else:
-            low = tilt
-    tip = hip + (hang + out * high).normalized() * 0.84
+        def clear(foot):
+            for k in (0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0):
+                point = top.lerp(foot, k)
+                a, r = polar(point)
+                if cloth_radius(a, point.z, step / 2, 0.015) + bulk + 0.03 * k > r:
+                    return False
+            return True
+
+        low, high = 0.0, 1.5
+        for _ in range(24):
+            tilt = (low + high) / 2
+            if clear(top + (hang + out * tilt).normalized() * length):
+                high = tilt
+            else:
+                low = tilt
+        return top, top + (hang + out * high).normalized() * length, along, out, belt_here
+
+    # Scabbard hanging from the front-left of the belt, hilt forward, angled back (as swords were worn), its
+    # flat side along the body and outside the skirt all the way down: by its own half thickness plus 6 mm at
+    # the belt.
+    angle = math.radians(62)
+    hip, tip, along, out, belt_here = hang_from_belt(angle, 0.84, 0.018)
     up = (hip - tip).normalized()
     scab = bmesh.new()
     bmesh.ops.create_cone(scab, cap_ends=True, segments=10, radius1=0.02, radius2=0.026, depth=(tip - hip).length)
@@ -2394,7 +2773,7 @@ def infantry(zf, f):
     scabbard = mesh_obj("scabbard", scab, mats["leather"])
     # Flat side against the hip: thin out from the body, wide along it.
     scabbard.data.transform(Matrix.Translation((hip + tip) / 2) @ frame(up, along))
-    add_scabbard_bone(skeleton, hip + up * 0.1, up)   # pivot at the hilt, so the hilt stays put as it swings
+    add_hanger_bone(skeleton, "scabbard", hip + up * 0.1, up, "prop_sheath")   # pivot at the hilt: it stays put as it swings
     rigid(scabbard, skeleton, "scabbard")
     # The strap it hangs by: down the outside of the belt and over the scabbard's mouth.
     strap_bm = bmesh.new()
@@ -2414,6 +2793,15 @@ def infantry(zf, f):
     # A point in front of the belly that the right hand passes on its way to the hilt (draw_pose).
     SHEATH["front"] = Vector((0.0, by0 - 0.36, belt_z + 0.1))
     SHEATH["up"] = up.copy()
+    # The bolt case, on the right of the belt and a little behind (out of the way of the crossbow's butt
+    # carried at the right hip), hung like the scabbard.
+    q_top, q_foot, q_along, _, _ = hang_from_belt(math.radians(-118), 0.4, 0.036)
+    q_up = (q_top - q_foot).normalized()
+    bolt_case = quiver(mats)
+    bolt_case.data.transform(Matrix.Translation(q_top) @ frame(q_up, q_along))
+    add_hanger_bone(skeleton, "quiver", q_top, q_up, "prop_quiver")
+    rigid(bolt_case, skeleton, "prop_quiver")
+    QUIVER["mouth"] = q_top + q_up * 0.04
 
     # Eyes: a white ball with a dark iris looking ahead, in each eye socket.
     eyes = []
@@ -2467,6 +2855,12 @@ def infantry(zf, f):
     great = sword(mats, "great", blade_length=0.95, grip_length=0.24, guard_width=0.25)
     for part in great:
         part.data.transform(Matrix.Translation(fists["r"] + Vector((0, 0, 0.05))) @ roll)
+    # The crossbow, its stock upright in the fist as the spear's shaft is (see crossbow()), and a bolt held
+    # in the fist the same way (taken from the case in the reload).
+    xbow_parts, xbow_string, xbow_bolt, hand_bolt = crossbow(mats)
+    for part in xbow_parts + [xbow_string, xbow_bolt]:
+        part.data.transform(Matrix.Translation(fists["r"]))
+    hand_bolt.data.transform(Matrix.Translation(fists["r"] - Vector((0, 0, XBOW["bolt"] / 2))))
     EDGE_AXIS["world"] = (roll.to_3x3() @ Vector((1, 0, 0))).normalized()
     mittens = []
     for side in ("l", "r"):
@@ -2509,6 +2903,11 @@ def infantry(zf, f):
         bind(part, skeleton, "prop_sword", stance)
     for part in great:
         bind(part, skeleton, "prop_great", stance)
+    for part in xbow_parts:
+        bind(part, skeleton, "prop_xbow", stance)
+    bind(xbow_bolt, skeleton, "prop_bolt", stance)
+    bind(hand_bolt, skeleton, "prop_bolt_hand", stance)
+    tie_string(skeleton, xbow_string, fists["r"])
     for mitten, bone in mittens:
         # The shield hand grips the shield's strap: it moves with the forearm, as the shield does.
         bind(mitten, skeleton, "lowerarm_l" if bone == "hand_l" else bone, stance)
@@ -2518,6 +2917,7 @@ def infantry(zf, f):
     SPEAR_AXIS["local"] = (skeleton.pose.bones["hand_r"].matrix.to_3x3().inverted() @ Vector((0, 0, 1))).normalized()
     GRIP_AXIS["r"] = SPEAR_AXIS["local"].copy()
     EDGE_AXIS["local"] = (skeleton.pose.bones["hand_r"].matrix.to_3x3().inverted() @ EDGE_AXIS["world"]).normalized()
+    XBOW_AXES["top"] = (skeleton.pose.bones["hand_r"].matrix.to_3x3().inverted() @ XBOW_TOP).normalized()
     # The left fist holds a shaft the same way, mirrored: the same mix of its knuckle line, its length and
     # the back of the hand (the back of the hand is the other way round in a mirrored hand).
     bases = {}
@@ -2532,10 +2932,11 @@ def infantry(zf, f):
     face = Matrix.Rotation(math.radians(-6), 3, "Z") @ Vector((0, -1, 0))
     SHIELD_FACE["local"] = (skeleton.pose.bones["lowerarm_l"].matrix.to_3x3().inverted() @ face).normalized()
     reset_pose(skeleton)
-    for part in spear_parts + held + great + sheathed + helm_parts + [m for m, _ in mittens] + [belt, buckle, scabbard, strap] + shield_parts[:1] + shield_parts[2:]:
+    for part in (spear_parts + held + great + sheathed + helm_parts + [m for m, _ in mittens] + [belt, buckle, scabbard, strap]
+                 + shield_parts[:1] + shield_parts[2:] + xbow_parts + [xbow_string, xbow_bolt, hand_bolt, bolt_case]):
         box_uvs(part, 0.3)
     mitten = {bone[-1]: m for m, bone in mittens}
-    SKIRTS["skirt"]["outside"] = shield_parts + spear_parts + held + great + [m for m, _ in mittens]
+    SKIRTS["skirt"]["outside"] = shield_parts + spear_parts + held + great + xbow_parts + [m for m, _ in mittens]
     BESIDE_SKIRT["l"] = shield_parts + [mitten["l"]]
     BESIDE_SKIRT["r"] = spear_parts + held + [mitten["r"]]
     CHECK_PARTS.clear()
@@ -2547,6 +2948,7 @@ def infantry(zf, f):
         "spear": spear_parts, "sword": held, "great": great, "sheathed": sheathed,
         "shield": shield_parts, "shield_face": [shield_parts[1]], "boss": [shield_parts[2]],
         "scabbard": [scabbard, strap], "belt": [belt], "surcoat": [surcoat], "coat_skirt": [coat_skirt],
+        "xbow": xbow_parts + [xbow_bolt], "quiver": [bolt_case],
         "surcoat_or_skirt": [surcoat, coat_skirt], "shoes": [shoes], "legs": [hose], "mail_skirt": [mail_skirt],
         # (what the bones bend: none of it may be drawn out far past its own size)
         "stretch": [hauberk, surcoat, coif, coat_skirt, mail_skirt, hose, shoes],
@@ -2592,6 +2994,13 @@ def single_material(obj):
     obj.data.materials.append(mat)
 
 
+def posed(skeleton, pose_fn, t):
+    """pose_fn at t, the crossbow carried in the right fist unless the pose let go of it."""
+    CARRY["free"] = False
+    pose_fn(skeleton, t)
+    carry_crossbow(skeleton)
+
+
 def bake_action(skeleton, name, length_s, pose_fn, loop=False, step=2, free_arms=True):
     """Record pose_fn(t in 0..1) as an action with a key every `step` frames."""
     action = bpy.data.actions.new(name)
@@ -2604,18 +3013,19 @@ def bake_action(skeleton, name, length_s, pose_fn, loop=False, step=2, free_arms
     swing = Swing()
     if loop:
         for frame in range(0, frames, step):
-            pose_fn(skeleton, frame / frames)
+            posed(skeleton, pose_fn, frame / frames)
             dress(skeleton, swing, step / FPS, free_arms)
     for frame in list(range(0, frames, step)) + [frames]:
         t = frame / frames
-        pose_fn(skeleton, 0.0 if (loop and frame == frames) else t)
+        posed(skeleton, pose_fn, 0.0 if (loop and frame == frames) else t)
         dress(skeleton, swing, step / FPS, free_arms)
+        carry_crossbow(skeleton)
         bpy.context.view_layer.update()
         for pb in skeleton.pose.bones:
             pb.keyframe_insert("rotation_quaternion", frame=frame + 1)
-            if pb.name == "Root":
+            if pb.name in KEYED_LOCATION:
                 pb.keyframe_insert("location", frame=frame + 1)
-            if pb.name in PROP_BONES:
+            if pb.name in PROP_BONES or pb.name == NOCK:
                 pb.keyframe_insert("scale", frame=frame + 1)
     skeleton.animation_data.action = None
     return action
@@ -2632,6 +3042,8 @@ def attack_aims():
         aims["f_" + name[2:]] = (0.57, Vector(cut["end"][1]).normalized(), 0.8)
     for name, cut in GREAT_CUTS.items():
         aims[name] = (0.57, Vector(cut["end"][1]).normalized(), 0.8)
+    # The crossbow straight at its mark as it looses.
+    aims["x_shoot"] = (0.5, XBOW_AIM[1].normalized(), 0.95)
     return aims
 
 
@@ -2654,7 +3066,7 @@ def animate(skeleton):
 
     def clip(name, length, fn, loop=False):
         # (with both hands on one weapon, an arm moved out alone would let go of it)
-        two_hands = name.startswith("t_") or name in ("n_attack", "n_attack_over", "n_block")
+        two_hands = name.startswith(("t_", "x_")) or name in ("n_attack", "n_attack_over", "n_block")
         return bake_action(skeleton, name, length, fn, loop=loop, step=1, free_arms=not two_hands)
 
     actions = [
@@ -2704,6 +3116,14 @@ def animate(skeleton):
         clip("n_attack_over", 0.8, lambda s, t: spear_thrust(s, t, "over", "none")),
         clip("n_block", 0.35, spear_block_pose),
         clip("n_death", 1.4, lambda s, t: death_pose(s, t, shield="none")),
+        # A crossbowman: no shield, the crossbow in both hands, bolts in a case at his right hip.
+        clip("x_idle", 4.0, lambda s, t: idle_pose(s, t, shield="none", crossbow=True), loop=True),
+        clip("x_walk", walk, lambda s, t: walk_pose(s, t, shield="none", crossbow=True), loop=True),
+        clip("x_run", run, lambda s, t: run_pose(s, t, shield="none", crossbow=True), loop=True),
+        clip("x_shoot", 1.2, xbow_shoot),
+        clip("x_reload", 3.2, xbow_reload),
+        clip("x_block", 0.35, xbow_block),
+        clip("x_death", 1.4, lambda s, t: death_pose(s, t, shield="none", crossbow=True)),
     ]
     # The glTF exporter writes every action that is placed on the skeleton's NLA tracks.
     for action in actions:
@@ -2746,7 +3166,7 @@ def main():
         report = os.path.join(mh.CACHE, f"check_{side}.json")
         gaits = {name: g["speed"] for base, g in GAITS.items() for name in (base, "s_" + base, "low_" + base,
                                                                               "s_low_" + base, "n_" + base, "f_" + base,
-                                                                              "t_" + base)}
+                                                                              "t_" + base, "x_" + base)}
         problems = check_soldier.check(skeleton, CHECK_PARTS, [t.strips[0].action for t in skeleton.animation_data.nla_tracks],
                                        report, SPEAR_AXIS["local"], side, gaits, attack_aims(),
                                        (EDGE_AXIS["local"], edge_cuts()))
