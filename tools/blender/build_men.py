@@ -443,6 +443,7 @@ _GRIDS = {}
 WRIST_TWIST_LIMIT = 10
 # The sword's edge (its width) in the right hand's frame, measured when the swords are bound (see infantry()).
 EDGE_AXIS = {"local": None, "world": None}
+EDGE_WEIGHT = 1.0   # in a cut, how many degrees of the blade's aim one degree of its edge's is worth
 
 
 def _grid_arrays(r, axis, edge_axis):
@@ -1468,10 +1469,7 @@ def sword_cut(skeleton, t, cut, style="shield"):
                           rise=wind * (1 - strike) * (1 if cut["wind"][0][2] > 0.2 else 0))
     # Turning the body about the vertical (a positive turn brings the right shoulder forward): the hips lead,
     # the shoulders follow, the arm comes last.
-    hips_s = smooth(span(t, 0.3, 0.5))
-    shoulders_s = smooth(span(t, 0.32, 0.54))
-    hips = 0.4 * (cut["twist"][0] * wind * (1 - hips_s) + cut["twist"][1] * hips_s * (1 - back))
-    shoulders = 0.6 * (cut["twist"][0] * wind * (1 - shoulders_s) + cut["twist"][1] * shoulders_s * (1 - back))
+    hips, shoulders = _cut_turns(cut, t)
     turn(skeleton, "pelvis", UP, hips)
     turn(skeleton, "spine_02", UP, shoulders)
     turn(skeleton, "spine_02", RIGHT, -(cut["lean"][0] * wind * (1 - strike) + cut["lean"][1] * held))
@@ -1497,7 +1495,13 @@ def sword_cut(skeleton, t, cut, style="shield"):
         a0, b0 = _cut_path(cut, e_t - 0.01, guard, rest_blade)
         a1, b1 = _cut_path(cut, e_t + 0.01, guard, rest_blade)
         edge = (a1 + b1.normalized() * reach_out) - (a0 + b0.normalized() * reach_out)
-        edge_weight = 0.5 * smooth(span(t, 0.05, 0.3)) * (1 - back)
+        # (and as the hips and the shoulders turn, they carry the arm round with them)
+        pb = skeleton.pose.bones
+        point = pb["upperarm_r"].head + (a0 + a1) / 2 + (b0 + b1).normalized() * reach_out
+        (h0, s0), (h1, s1) = _cut_turns(cut, e_t - 0.01), _cut_turns(cut, e_t + 0.01)
+        for pivot, degrees in ((pb["pelvis"].head, h1 - h0), (pb["spine_02"].head, s1 - s0)):
+            edge += UP.cross(point - pivot) * math.radians(degrees)
+        edge_weight = EDGE_WEIGHT * smooth(span(t, 0.05, 0.3)) * (1 - back)
     if style == "great":
         # (to his left at the end of a cut that way, the left elbow goes forward, off his chest)
         two_handed(skeleton, at, blade.normalized(), cut["pole"],
@@ -1507,6 +1511,18 @@ def sword_cut(skeleton, t, cut, style="shield"):
         shoulder = skeleton.pose.bones["upperarm_r"].head.copy()
         reach(skeleton, "r", shoulder + at, pole=cut["pole"])
         point_spear(skeleton, blade.normalized(), edge, edge_weight)
+
+
+def _cut_turns(cut, t):
+    """How far (degrees) a cut has the hips and the shoulders turned at time t: the hips lead, the
+    shoulders follow."""
+    wind = smooth(span(t, 0.0, 0.32))
+    back = smooth(span(t, 0.72, 1.0))
+    hips_s = smooth(span(t, 0.3, 0.5))
+    shoulders_s = smooth(span(t, 0.32, 0.54))
+    hips = 0.4 * (cut["twist"][0] * wind * (1 - hips_s) + cut["twist"][1] * hips_s * (1 - back))
+    shoulders = 0.6 * (cut["twist"][0] * wind * (1 - shoulders_s) + cut["twist"][1] * shoulders_s * (1 - back))
+    return hips, shoulders
 
 
 def _cut_path(cut, t, guard, rest_blade):

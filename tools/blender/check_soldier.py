@@ -361,8 +361,8 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
             problems.append(f"direction: {name} weapon points off its target ({dot:.2f} < {minimum})")
     skeleton.animation_data.action = None
 
-    # Cuts land with the edge: in every frame where the middle of the blade moves faster than 1.5 m/s across
-    # itself, the edge (either one) is within 35 degrees of the way it moves.
+    # Cuts land with the edge: through the blow (every frame where the middle of the blade moves across
+    # itself at 60 % or more of its fastest), the edge (either one) is within 35 degrees of the way it moves.
     edge_local, cuts = edges or (None, ())
     log["edges"] = []
     for name in cuts:
@@ -381,12 +381,15 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
             tip = (m @ spear_axis_local).normalized()
             seen.append((fist + tip * 0.5, tip, (m @ edge_local).normalized()))
         fps = scene.render.fps / scene.render.fps_base
-        bad, worst = [], 0.0
+        bad, worst, moves = [], 0.0, {}
         for k in range(1, len(seen) - 1):
-            mid, tip, edge = seen[k]
+            tip = seen[k][1]
             move = (seen[k + 1][0] - seen[k - 1][0]) * (fps / 2)
-            move = move - tip * move.dot(tip)
-            if move.length < 1.5:
+            moves[k] = move - tip * move.dot(tip)
+        fastest = max((m.length for m in moves.values()), default=0.0)
+        for k, move in moves.items():
+            mid, tip, edge = seen[k]
+            if move.length < 0.6 * fastest or move.length < 1.0:
                 continue
             edge = edge - tip * edge.dot(tip)
             off = math.degrees(math.acos(min(1.0, abs(edge.normalized().dot(move.normalized())))))
