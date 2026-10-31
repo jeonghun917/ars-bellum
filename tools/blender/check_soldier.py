@@ -6,7 +6,8 @@ What used to be caught by eye (and mostly by the user) is measured here, in ever
 - contact: parts that must touch, in the guard (the shield boss on the shield face, the belt on the
   surcoat, each mitten on its sleeve, the scabbard at the belt): the gap between them, in millimetres;
 - feet: in a walk or run, a foot on the ground stays on it and moves back at the gait's speed (no skating),
-  a swinging foot clears the ground (no dragging), and no foot sinks into it;
+  a swinging foot clears the ground (no dragging), and no foot sinks into it; in an attack the back foot
+  stays planted;
 - holes: rays from inside the man (spine, neck, head) all meet some part on the way out;
 - joints: elbows bend only as hinges, forearms and wrists turn only as far as a man's can; both hands stay on
   a longsword's grip;
@@ -20,6 +21,7 @@ import math
 import os
 
 import bpy  # must come first
+import numpy as np
 from mathutils import Quaternion, Vector
 from mathutils.bvhtree import BVHTree
 
@@ -122,10 +124,66 @@ def _dir(skeleton, bone):
     return Vector(pb.matrix.col[1][:3]).normalized()
 
 
-def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=None, aims=None):
+SPIKE_CM = 5.5
+
+
+def _bulges(obj, depsgraph):
+    """How far (m) each vertex stands off the middle of the vertices joined to it."""
+    ev = obj.evaluated_get(depsgraph)
+    mesh = ev.to_mesh()
+    co = np.empty(len(mesh.vertices) * 3)
+    mesh.vertices.foreach_get("co", co)
+    pairs = np.empty(len(mesh.edges) * 2, dtype=np.int64)
+    mesh.edges.foreach_get("vertices", pairs)
+    ev.to_mesh_clear()
+    co, pairs = co.reshape(-1, 3), pairs.reshape(-1, 2)
+    total, count = np.zeros_like(co), np.zeros(len(co))
+    np.add.at(total, pairs[:, 0], co[pairs[:, 1]])
+    np.add.at(total, pairs[:, 1], co[pairs[:, 0]])
+    np.add.at(count, pairs[:, 0], 1)
+    np.add.at(count, pairs[:, 1], 1)
+    return np.linalg.norm(co - total / np.maximum(count, 1)[:, None], axis=1)
+
+
+def spikes(skeleton, objs, actions):
+    """action name -> (the most any vertex of objs stands further off its neighbours than at rest, cm; the
+    frames it is more than SPIKE_CM; which part). A vertex the wrong bone carries is drawn out of the cloth
+    into a spike; the cloth stretching evenly (an arm raised) moves its vertices along with their neighbours."""
+    scene = bpy.context.scene
+    skeleton.animation_data.action = None
+    for pb in skeleton.pose.bones:
+        pb.location, pb.rotation_quaternion, pb.scale = (0, 0, 0), (1, 0, 0, 0), (1, 1, 1)
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    rest = {o.name: _bulges(o, depsgraph) for o in objs}
+    out = {}
+    for action in actions:
+        skeleton.animation_data.action = action
+        f0, f1 = (int(x) for x in action.frame_range)
+        worst, frames, part = 0.0, [], ""
+        for frame in range(f0, f1 + 1, FRAME_STEP):
+            scene.frame_set(frame)
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            for o in objs:
+                now = _bulges(o, depsgraph)
+                if len(now) != len(rest[o.name]):
+                    continue
+                grown = float(np.max(now - rest[o.name])) * 100
+                if grown > worst:
+                    worst, part = grown, o.name
+                if grown > SPIKE_CM and (not frames or frames[-1] != frame):
+                    frames.append(frame)
+        out[action.name] = (round(worst, 1), ",".join(str(f) for f in frames[:6]), part)
+    skeleton.animation_data.action = None
+    return out
+
+
+def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=None, aims=None, edges=None):
     """parts: name -> list of objects (see build_men.infantry, CHECK_PARTS). actions: the baked actions.
     gaits: walking and running action name -> the speed (m/s) its feet should keep to the ground at.
-    aims: attack action name -> (t 0..1, direction the weapon must point then, least cosine to it)."""
+    aims: attack action name -> (t 0..1, direction the weapon must point then, least cosine to it).
+    edges: (the sword's edge in the right hand's frame, the cuts): in each cut, wherever the blade moves fast,
+    an edge, not the flat, must go first."""
     problems = []
     log = {"label": label, "clipping": [], "contact": [], "direction": []}
     scene = bpy.context.scene
@@ -244,6 +302,42 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
             problems.append(f"feet: a shoe sinks {-lowest * 1000:.0f} mm into the ground in {action.name}")
     skeleton.animation_data.action = None
 
+    # Feet in the attacks: the back (right) foot stays planted, not sliding by more than 3 mm a frame, and
+    # no shoe goes 1 cm under the ground.
+    for name in (aims or {}):
+        action = next((a for a in actions if a.name == name), None)
+        if action is None:
+            continue
+        skeleton.animation_data.action = action
+        f0, f1 = (int(x) for x in action.frame_range)
+        last, slides, lowest = None, [], 0.0
+        for frame in range(f0, f1 + 1):
+            scene.frame_set(frame)
+            ball = skeleton.pose.bones["ball_r"].head.copy()
+            if last is not None and (ball - last).length > 0.003:
+                slides.append(f"{frame}:{(ball - last).length * 1000:.0f}mm")
+            last = ball
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            for o in parts.get("shoes", []):
+                ev = o.evaluated_get(depsgraph)
+                mesh = ev.to_mesh()
+                lowest = min(lowest, min((o.matrix_world @ v.co).z for v in mesh.vertices))
+                ev.to_mesh_clear()
+        if slides:
+            problems.append(f"feet: the back foot slides in {name} (frames {', '.join(slides[:4])})")
+        if lowest < -0.01:
+            problems.append(f"feet: a shoe sinks {-lowest * 1000:.0f} mm into the ground in {name}")
+    skeleton.animation_data.action = None
+
+    # Spikes: nothing the bones bend (the mail, the coat, the skirts, the hose and the shoes) may have a
+    # vertex drawn out of its surface, in any frame: one left on the wrong bone (a sleeve's end held to the
+    # hips) becomes a spike, which no other check sees.
+    found = spikes(skeleton, parts.get("stretch", []), actions)
+    log["spikes"] = found
+    for name, (worst, frames, part) in found.items():
+        if worst > SPIKE_CM:
+            problems.append(f"spike: {part} has a point {worst:.0f} cm out of its surface in {name} (frames {frames})")
+
     # Holes: from points on the spine, neck and head, rays outwards in every direction must meet some part of
     # the soldier. One that gets out unmet has found a gap where the inside of the man shows (two layers that
     # meet edge to edge, an opening wider than what fills it). In the guard and halfway through each action.
@@ -329,6 +423,46 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
         log["direction"].append({"action": name, "what": "weapon direction vs intended", "value": round(dot, 3)})
         if dot < minimum:
             problems.append(f"direction: {name} weapon points off its target ({dot:.2f} < {minimum})")
+    skeleton.animation_data.action = None
+
+    # Cuts land with the edge: through the blow (every frame where the middle of the blade moves across
+    # itself at 60 % or more of its fastest), the edge (either one) is within 35 degrees of the way it moves.
+    edge_local, cuts = edges or (None, ())
+    log["edges"] = []
+    for name in cuts:
+        action = next((a for a in actions if a.name == name), None)
+        if action is None:
+            problems.append(f"edge: no action {name}")
+            continue
+        skeleton.animation_data.action = action
+        f0, f1 = (int(x) for x in action.frame_range)
+        seen = []
+        for frame in range(f0, f1 + 1):
+            scene.frame_set(frame)
+            hand = skeleton.pose.bones["hand_r"]
+            m = hand.matrix.to_3x3()
+            fist = hand.head + Vector(m.col[1][:3]) * 0.065
+            tip = (m @ spear_axis_local).normalized()
+            seen.append((fist + tip * 0.5, tip, (m @ edge_local).normalized()))
+        fps = scene.render.fps / scene.render.fps_base
+        bad, worst, moves = [], 0.0, {}
+        for k in range(1, len(seen) - 1):
+            tip = seen[k][1]
+            move = (seen[k + 1][0] - seen[k - 1][0]) * (fps / 2)
+            moves[k] = move - tip * move.dot(tip)
+        fastest = max((m.length for m in moves.values()), default=0.0)
+        for k, move in moves.items():
+            mid, tip, edge = seen[k]
+            if move.length < 0.6 * fastest or move.length < 1.0:
+                continue
+            edge = edge - tip * edge.dot(tip)
+            off = math.degrees(math.acos(min(1.0, abs(edge.normalized().dot(move.normalized())))))
+            worst = max(worst, off)
+            if off > 35:
+                bad.append(f"{f0 + k}:{off:.0f}")
+        log["edges"].append({"action": name, "worst degrees": round(worst, 1)})
+        if bad:
+            problems.append(f"edge: {name} strikes with the flat (frame:degrees {', '.join(bad[:5])})")
     skeleton.animation_data.action = None
 
     for e in log["clipping"]:
