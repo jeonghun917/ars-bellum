@@ -123,10 +123,12 @@ def _dir(skeleton, bone):
     return Vector(pb.matrix.col[1][:3]).normalized()
 
 
-def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=None, aims=None):
+def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=None, aims=None, edges=None):
     """parts: name -> list of objects (see build_men.infantry, CHECK_PARTS). actions: the baked actions.
     gaits: walking and running action name -> the speed (m/s) its feet should keep to the ground at.
-    aims: attack action name -> (t 0..1, direction the weapon must point then, least cosine to it)."""
+    aims: attack action name -> (t 0..1, direction the weapon must point then, least cosine to it).
+    edges: (the sword's edge in the right hand's frame, the cuts): in each cut, wherever the blade moves fast,
+    an edge, not the flat, must go first."""
     problems = []
     log = {"label": label, "clipping": [], "contact": [], "direction": []}
     scene = bpy.context.scene
@@ -357,6 +359,43 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
         log["direction"].append({"action": name, "what": "weapon direction vs intended", "value": round(dot, 3)})
         if dot < minimum:
             problems.append(f"direction: {name} weapon points off its target ({dot:.2f} < {minimum})")
+    skeleton.animation_data.action = None
+
+    # Cuts land with the edge: in every frame where the middle of the blade moves faster than 1.5 m/s across
+    # itself, the edge (either one) is within 35 degrees of the way it moves.
+    edge_local, cuts = edges or (None, ())
+    log["edges"] = []
+    for name in cuts:
+        action = next((a for a in actions if a.name == name), None)
+        if action is None:
+            problems.append(f"edge: no action {name}")
+            continue
+        skeleton.animation_data.action = action
+        f0, f1 = (int(x) for x in action.frame_range)
+        seen = []
+        for frame in range(f0, f1 + 1):
+            scene.frame_set(frame)
+            hand = skeleton.pose.bones["hand_r"]
+            m = hand.matrix.to_3x3()
+            fist = hand.head + Vector(m.col[1][:3]) * 0.065
+            tip = (m @ spear_axis_local).normalized()
+            seen.append((fist + tip * 0.5, tip, (m @ edge_local).normalized()))
+        fps = scene.render.fps / scene.render.fps_base
+        bad, worst = [], 0.0
+        for k in range(1, len(seen) - 1):
+            mid, tip, edge = seen[k]
+            move = (seen[k + 1][0] - seen[k - 1][0]) * (fps / 2)
+            move = move - tip * move.dot(tip)
+            if move.length < 1.5:
+                continue
+            edge = edge - tip * edge.dot(tip)
+            off = math.degrees(math.acos(min(1.0, abs(edge.normalized().dot(move.normalized())))))
+            worst = max(worst, off)
+            if off > 35:
+                bad.append(f"{f0 + k}:{off:.0f}")
+        log["edges"].append({"action": name, "worst degrees": round(worst, 1)})
+        if bad:
+            problems.append(f"edge: {name} strikes with the flat (frame:degrees {', '.join(bad[:5])})")
     skeleton.animation_data.action = None
 
     for e in log["clipping"]:
