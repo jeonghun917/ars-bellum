@@ -1541,7 +1541,7 @@ def draw_pose(skeleton, t):
     shoulder = pb["upperarm_r"].head.copy()
     rest = pb["lowerarm_r"].tail.copy()
     at_hilt = hilt + Vector((-0.02, -0.08, 0.05))   # the hand closes on the grip from in front and above
-    drawn = at_hilt + up * 0.62 + Vector((-0.05, -0.2, 0.04))
+    drawn = at_hilt + up * 0.62 + Vector((-0.05, -0.3, 0.1))   # (out in front, the blade clear of the skirt)
     front = pelvis @ SHEATH["front"]
     s_ = to_hilt
     across = rest * (1 - s_) ** 2 + front * (2 * s_ * (1 - s_)) + at_hilt * s_ ** 2
