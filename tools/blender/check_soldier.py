@@ -73,9 +73,10 @@ def _dir(skeleton, bone):
     return Vector(pb.matrix.col[1][:3]).normalized()
 
 
-def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=None):
+def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=None, aims=None):
     """parts: name -> list of objects (see build_men.infantry, CHECK_PARTS). actions: the baked actions.
-    gaits: walking and running action name -> the speed (m/s) its feet should keep to the ground at."""
+    gaits: walking and running action name -> the speed (m/s) its feet should keep to the ground at.
+    aims: attack action name -> (t 0..1, direction the weapon must point then, least cosine to it)."""
     problems = []
     log = {"label": label, "clipping": [], "contact": [], "direction": []}
     scene = bpy.context.scene
@@ -84,8 +85,9 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
     keep_apart = [
         ("forearm_r", "torso"), ("forearm_l", "torso"),
         ("mitten_r", "torso"), ("mitten_l", "torso"),
-        ("spear", "torso"), ("sword", "torso"), ("sword", "head"),
-        ("shield", "torso"), ("shield", "head"), ("shield", "mitten_l"),
+        ("spear", "torso"), ("spear", "head"), ("spear", "shield"), ("sword", "torso"), ("sword", "head"),
+        ("sword", "shield"), ("mitten_r", "shield"), ("forearm_r", "shield"),
+        ("shield", "torso"), ("shield", "head"), ("shield", "mitten_l"), ("shield", "coat_skirt"), ("shield", "legs"),
         ("scabbard", "coat_skirt"), ("sheathed", "coat_skirt"),
         ("belt", "surcoat"), ("belt", "coat_skirt"),
     ]
@@ -240,9 +242,10 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
             problems.append(f"direction: shield face is not convex (bulge {bulge:.1f} mm)")
 
     # Weapon points where the attack sends it, at the moment of reach.
-    for name, t, want, minimum in (("attack", 0.45, Vector((0, -1, 0)), 0.85), ("s_attack", 0.6, Vector((0.6, -0.6, -0.5)).normalized(), 0.7)):
+    for name, (t, want, minimum) in (aims or {}).items():
         action = next((a for a in actions if a.name == name), None)
         if action is None:
+            problems.append(f"direction: no action {name}")
             continue
         skeleton.animation_data.action = action
         f0, f1 = action.frame_range

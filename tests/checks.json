@@ -187,6 +187,12 @@
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.render.shield-low",
+      "title": "with no enemy near, soldiers carry their shields low at their side",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
       "id": "m2.camera.starts-third-person",
       "title": "the camera starts behind the player with input attached",
       "kind": "browser",

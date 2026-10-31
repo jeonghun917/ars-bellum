@@ -59,7 +59,12 @@ test.describe('3D battle', () => {
     });
     for (const side of ['ally', 'enemy']) {
       expect(models[side].skinned).toBeGreaterThan(0);
-      expect(models[side].clips).toEqual(['attack', 'block', 'death', 'draw', 'idle', 'run', 's_attack', 's_block', 's_death', 's_idle', 's_run', 's_walk', 'walk']);
+      expect(models[side].clips).toEqual([
+        'attack', 'attack_over', 'block', 'death', 'draw', 'idle', 'low_idle', 'low_run', 'low_walk',
+        'n_attack', 'n_attack_over', 'n_block', 'n_death', 'n_idle', 'n_run', 'n_walk', 'run', 's_block',
+        's_death', 's_idle', 's_low_idle', 's_low_run', 's_low_walk', 's_overhead', 's_run', 's_swing_l',
+        's_swing_r', 's_thrust', 's_walk', 'walk',
+      ]);
       // The walk and run clips say how fast their feet move, so the renderer can match the soldiers' speed.
       expect(models[side].gait.walk).toBeGreaterThan(0.5);
       expect(models[side].gait.run).toBeGreaterThan(models[side].gait.walk);
@@ -75,8 +80,16 @@ test.describe('3D battle', () => {
         target: { x: f.anchor.x, z: f.anchor.z - 15 } });
     });
     expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
-    // (Only that some run: while a soldier speeds up or arrives he passes through walking speeds.)
-    await page.waitForFunction(() => (window.ArsM2Diagnostics.getSnapshot().soldierAnimations?.run || 0) > 0, null, { timeout: 20_000 });
+    // (Only that some run: while a soldier speeds up or arrives he passes through walking speeds. The run
+    // clips are "run", "low_run", "s_low_run", ...)
+    await page.waitForFunction(() => Object.entries(window.ArsM2Diagnostics.getSnapshot().soldierAnimations || {})
+      .some(([clip, count]) => /run$/.test(clip) && count > 0), null, { timeout: 20_000 });
+  });
+
+  test('[m2.render.shield-low] with no enemy near, soldiers carry their shields low at their side', async ({ page }) => {
+    // The armies start more than 12 m apart: shields are carried low until an enemy comes within 9 m.
+    await page.waitForFunction(() => Object.entries(window.ArsM2Diagnostics.getSnapshot().soldierAnimations || {})
+      .some(([clip, count]) => /^(s_)?low_/.test(clip) && count > 0), null, { timeout: 20_000 });
   });
 
   test('[m2.camera.starts-third-person] the camera starts behind the player with input attached', async ({ page }) => {
