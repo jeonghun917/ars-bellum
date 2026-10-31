@@ -444,6 +444,7 @@ WRIST_TWIST_LIMIT = 10
 # The sword's edge (its width) in the right hand's frame, measured when the swords are bound (see infantry()).
 EDGE_AXIS = {"local": None, "world": None}
 EDGE_WEIGHT = 1.0   # in a cut, how many degrees of the blade's aim one degree of its edge's is worth
+EDGE_AIM_SLACK = 3   # degrees: how much worse than its best aim a sword may point to bring its edge round
 
 
 def _grid_arrays(r, axis, edge_axis):
@@ -485,6 +486,9 @@ def _best_grip(r, hinge, fore, axis, direction, edge=None, edge_weight=0.0, edge
         cos = np.abs(np.sum(e * m, axis=1)) / np.where(ok, ne * nm, 1.0)
         lead = np.where(ok, np.degrees(np.arccos(np.clip(cos, 0, 1))), 0.0)
         score = score + edge_weight * lead
+    if use_edge:
+        # The edge may only cost the aim a few degrees more than the best aim there is.
+        score = np.where(off <= off.min() + EDGE_AIM_SLACK, score, np.inf)
     i = int(np.argmin(score))
     return (float(score[i]), float(off[i]), float(tw[i]), float(bends[i, 0]), float(bends[i, 1]), float(lead[i]))
 
@@ -508,7 +512,7 @@ def grip(skeleton, side, direction, swivel=60, edge=None, edge_weight=0.0):
     shoulder = skeleton.pose.bones[f"upperarm_{side}"].head.copy()
     direction = Vector(direction).normalized()
     along = (wrist - shoulder).normalized()
-    best = None
+    tried = []
     for turn_by in sorted(range(-swivel, swivel + 1, 10), key=abs):
         e = shoulder + Quaternion(along, math.radians(turn_by)) @ (elbow - shoulder)
         fore = (wrist - e).normalized()
@@ -517,11 +521,12 @@ def grip(skeleton, side, direction, swivel=60, edge=None, edge_weight=0.0):
             continue
         hinge = hinge.normalized() * r["sign"]
         found = _best_grip(r, hinge, fore, axis, direction, edge, edge_weight, edge_axis)
-        score = found[0] + 0.15 * abs(turn_by)
-        if best is None or score < best[0]:
-            best = (score, e, found)
+        tried.append((found[0] + 0.15 * abs(turn_by), e, found))
         if found[1] < 4 and found[5] < 10:
             break
+    # (with an edge to bring round, only among the elbows that aim the blade nearly as well as the best)
+    least = min(found[1] for _, _, found in tried)
+    best = min((x for x in tried if x[2][1] <= least + (EDGE_AIM_SLACK if edge is not None else 1e9)), key=lambda x: x[0])
     _, e, (_, off, tw, flex, dev, _) = best
     set_arm(skeleton, side, e, wrist, tw, flex, dev)
     return off
@@ -1108,7 +1113,7 @@ def two_handed(skeleton, at, blade, pole, pole_l=(0.8, -0.5, -1), edge=None, edg
         bpy.context.view_layer.update()
         shoulder = pb["upperarm_r"].head.copy()
         reach(skeleton, "r", shoulder + at, pole=pole)
-        point_spear(skeleton, blade, edge, edge_weight)
+        point_spear(skeleton, blade)
         bpy.context.view_layer.update()
         hand = pb["hand_r"]
         fist = hand.head + Vector(hand.matrix.col[1][:3]) * 0.065
@@ -1118,6 +1123,11 @@ def two_handed(skeleton, at, blade, pole, pole_l=(0.8, -0.5, -1), edge=None, edg
         if over <= 0:
             break
         at = at - to_grip.normalized() * (over + 0.01)
+    if edge is not None and edge_weight > 0:
+        # (where the hands are settled by the aim alone; then the edge is brought round there)
+        bpy.context.view_layer.update()
+        reach(skeleton, "r", pb["upperarm_r"].head + at, pole=pole)
+        point_spear(skeleton, blade, edge, edge_weight)
     both_hands(skeleton, blade, pole=pole_l)
 
 
@@ -1390,6 +1400,9 @@ def look_ahead(skeleton, body_turn):
     turn(skeleton, "head", UP, -0.6 * body_turn)
 
 
+SPEAR_ARM_OUT = 0.45   # how far out to his right the upper arm is in the underarm thrust (with the shield)
+
+
 def attack_pose(skeleton, t):
     """Spear thrust: gather and draw back (0..0.35), drive forward hard with a step (0.36..0.47), hold the
     reach a moment, then recover to the guard."""
@@ -1411,8 +1424,8 @@ def attack_pose(skeleton, t):
     # Underarm thrust: the spear comes down from upright to level as he gathers, then the arm drives it
     # straight ahead, point first.
     level = smooth(span(t, 0.0, 0.3)) * (1 - smooth(span(t, 0.7, 1.0)))
-    arm(skeleton, "r", (-0.45, -0.15 + 0.85 * draw - 0.75 * reach_, -1 + 0.25 * draw + 0.75 * reach_),
-        (-0.08 + 0.2 * reach_, -1 + 0.3 * draw, 0.15 - 0.15 * reach_))
+    arm(skeleton, "r", (-SPEAR_ARM_OUT - 0.15 * draw, -0.15 + 0.85 * draw - 0.75 * reach_, -1 + 0.25 * draw + 0.75 * reach_),
+        (-0.08 + 0.03 * reach_, -1 + 0.3 * draw, 0.15 - 0.35 * reach_))
     upright = Vector((0, -0.05, 1))
     forward = Vector((0.12, -1, 0.06))   # the butt out to his right, clear of the skirt
     point_spear(skeleton, upright.lerp(forward, level).normalized())
@@ -1437,7 +1450,7 @@ SWORD_CUTS = {
                       end=((0.12, -0.52, 0.02), (0.45, -0.88, -0.05)), twist=(-28, 30), lean=(0, 6),
                       pole=(-1, 0.4, -0.5), open=1.0, length=0.9),
     # Backhand: from his left, across to his right.
-    "s_swing_r": dict(wind=((0.24, -0.42, 0.12), (0.55, 0.45, 0.6)), mid=((0.0, -0.52, 0.02), (-0.05, -1, 0.05)),
+    "s_swing_r": dict(wind=((0.24, -0.42, 0.2), (0.55, 0.45, 0.6)), mid=((0.0, -0.52, 0.02), (-0.05, -1, 0.05)),
                       end=((-0.4, -0.3, -0.06), (-0.85, -0.45, -0.05)), twist=(26, -30), lean=(0, 6),
                       pole=(-0.6, 0.2, -1), open=1.0, length=0.9),
     # Overhead: raised above the head, brought straight down in front.
@@ -1558,7 +1571,7 @@ GREAT_CUTS = {
     "t_swing_l": dict(wind=((-0.16, -0.38, 0.14), (-0.6, 0.55, 0.55)), mid=((0.06, -0.52, 0.02), (0.1, -1, 0.05)),
                       end=((0.18, -0.57, -0.02), (0.6, -0.8, -0.08)), twist=(-40, 40), lean=(0, 6),
                       pole=(-1, 0.3, -0.6), pole_l=(0.6, -1, -0.2), open=0.0, length=1.0),
-    "t_swing_r": dict(wind=((0.26, -0.45, 0.16), (0.6, 0.45, 0.65)), mid=((0.06, -0.52, 0.02), (-0.1, -1, 0.05)),
+    "t_swing_r": dict(wind=((0.24, -0.5, 0.18), (0.6, 0.45, 0.65)), mid=((0.06, -0.52, 0.02), (-0.1, -1, 0.05)),
                       end=((-0.16, -0.54, -0.04), (-0.75, -0.65, -0.1)), twist=(25, -40), lean=(0, 6),
                       pole=(-0.8, 0.2, -1), open=0.0, length=1.0),
     # (wound up through point-up: the blade goes up before it goes back, over his head rather than through it)
@@ -1598,7 +1611,7 @@ def sword_parry(skeleton, t, style):
 # for the elbow; twist (degrees, + turns the left shoulder forward). Without a shield the left hand takes
 # the shaft 55 cm ahead of the right.
 SPEAR_THRUSTS = {
-    ("under", "none"): dict(wind=((-0.16, 0.2, -0.33), (0.2, -1, 0.15)), hit=((-0.09, -0.32, -0.25), (0.18, -1, 0.06)),
+    ("under", "none"): dict(wind=((-0.13, 0.2, -0.33), (0.2, -1, 0.15)), hit=((-0.07, -0.32, -0.25), (0.18, -1, 0.06)),
                             pole=(-1, 0.3, -0.7), twist=28),
     ("over", "guard"): dict(wind=((-0.1, 0.1, 0.28), (0.04, -0.9, -0.42)), hit=((0.0, -0.42, 0.2), (0.03, -0.92, -0.38)),
                             pole=(-1, 0.5, 0.3), twist=8),
@@ -1616,7 +1629,7 @@ def left_hand_on_shaft(skeleton, amount, along=0.55):
     fist = hand.head + Vector(hand.matrix.col[1][:3]) * 0.065
     point = (hand.matrix.to_3x3() @ SPEAR_AXIS["local"]).normalized()
     # Forward round the belly on the way, not across it.
-    target = hang.lerp(fist + point * along, amount) + Vector((0, -0.16, 0.04)) * math.sin(math.pi * amount)
+    target = hang.lerp(fist + point * along, amount) + Vector((0, -0.2, 0.04)) * math.sin(math.pi * amount)
     reach(skeleton, "l", target, pole=(0.6, -1, -0.4))
     if amount > 0 and "l" in GRIP_AXIS:
         bpy.context.view_layer.update()
