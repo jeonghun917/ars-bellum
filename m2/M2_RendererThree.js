@@ -39,7 +39,7 @@ function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, l
     marker.position.y = 0.02;
     group.add(marker);
   }
-  group.userData.animator = new SoldierAnimator(soldier, model.clips, loadout);
+  group.userData.animator = new SoldierAnimator(soldier, model.clips, loadout, model.gait);
   return group;
 }
 
@@ -48,13 +48,16 @@ const FAR_MODEL_DISTANCE = 14;
 
 // Which clip plays each role, for a spearman and for a swordsman.
 const LOADOUT_CLIPS = Object.freeze({
-  spear: Object.freeze({ idle: "idle", walk: "walk", attack: "attack", block: "block", death: "death" }),
-  sword: Object.freeze({ idle: "s_idle", walk: "s_walk", attack: "s_attack", block: "s_block", death: "s_death" })
+  spear: Object.freeze({ idle: "idle", walk: "walk", run: "run", attack: "attack", block: "block", death: "death" }),
+  sword: Object.freeze({ idle: "s_idle", walk: "s_walk", run: "s_run", attack: "s_attack", block: "s_block", death: "s_death" })
 });
 
-// Picks a soldier's animation from its state each frame: idle, walk (faster when routing), block (held),
-// death (held), and an attack played once each time the attack cooldown restarts. A swordsman first draws
-// his sword.
+// Below this speed (m/s) a soldier who is meant to be moving stands.
+const STANDING_SPEED = 0.15;
+
+// Picks a soldier's animation from its state each frame: idle, walk or run by how fast he actually moves
+// (played at his speed / the clip's, so his feet keep to the ground), block (held), death (held), and an
+// attack played once each time the attack cooldown restarts. A swordsman first draws his sword.
 class SoldierAnimator {
   #mixer;
   #actions;
@@ -63,7 +66,10 @@ class SoldierAnimator {
   #lastCooldown = 0;
   #draw = null;
 
-  constructor(root, clips, loadout = "spear") {
+  #gait;
+
+  constructor(root, clips, loadout = "spear", gait = { walk: 1.3, run: 3.2 }) {
+    this.#gait = gait;
     this.#mixer = new THREE.AnimationMixer(root);
     const roles = LOADOUT_CLIPS[loadout] || LOADOUT_CLIPS.spear;
     this.#actions = Object.fromEntries(Object.entries(roles).map(([role, name]) => [role, this.#mixer.clipAction(clips[name])]));
@@ -89,11 +95,20 @@ class SoldierAnimator {
     const next = this.#actions[name];
     next.reset().play();
     const previous = this.#base === "draw" ? this.#draw : this.#actions[this.#base];
+    // Between walking and running, carry on from the same point of the stride: the feet stay in step.
+    if (previous && (name === "walk" || name === "run") && (this.#base === "walk" || this.#base === "run")) {
+      next.time = (previous.time / previous.getClip().duration) * next.getClip().duration;
+    }
     if (previous) next.crossFadeFrom(previous, name === "death" ? 0.12 : 0.25, false);
     this.#base = name;
   }
 
-  update(unit, deltaSeconds) {
+  get playing() {
+    return this.#base;
+  }
+
+  // speed: how fast (m/s) the soldier is moving across the ground, as drawn.
+  update(unit, deltaSeconds, speed = 0) {
     const down = unit.state === "dead" || unit.state === "incapacitated";
     // The draw plays to the end before anything but a fall interrupts it.
     if (this.#base === "draw" && !down && this.#draw.time < this.#draw.getClip().duration) {
@@ -102,9 +117,12 @@ class SoldierAnimator {
     }
     if (down) this.#play("death");
     else if (unit.blocking) this.#play("block");
-    else if (unit.state === "moving" || unit.state === "routing") this.#play("walk");
-    else this.#play("idle");
-    this.#actions.walk.timeScale = unit.state === "routing" ? 1.5 : 1;
+    else if ((unit.state === "moving" || unit.state === "routing") && speed > STANDING_SPEED) {
+      const gait = speed > (this.#gait.walk + this.#gait.run) / 2 ? "run" : "walk";
+      this.#play(gait);
+      const range = gait === "run" ? [0.6, 1.5] : [0.4, 1.7];
+      this.#actions[gait].timeScale = Math.min(range[1], Math.max(range[0], speed / this.#gait[gait]));
+    } else this.#play("idle");
     const cooldown = unit.attackCooldownTicks || 0;
     if (!down && cooldown > this.#lastCooldown) this.#attack.reset().setEffectiveWeight(1).fadeIn(0.06).play();
     this.#lastCooldown = cooldown;
@@ -360,16 +378,24 @@ export class M2RendererThree {
       const actor = this.#units.get(unit.unitId);
       if (!actor) continue;
       const group = actor.group;
+      const lastX = group.position.x;
+      const lastZ = group.position.z;
       group.position.set(
         unit.previousPosition.x + (unit.position.x - unit.previousPosition.x) * alpha,
         unit.previousPosition.y + (unit.position.y - unit.previousPosition.y) * alpha,
         unit.previousPosition.z + (unit.position.z - unit.previousPosition.z) * alpha
       );
+      // Ground speed as drawn, smoothed over about a tenth of a second (ticks and frames do not line up).
+      if (deltaSeconds > 0 && actor.placed) {
+        const measured = Math.hypot(group.position.x - lastX, group.position.z - lastZ) / deltaSeconds;
+        actor.speed = (actor.speed || 0) + (measured - (actor.speed || 0)) * Math.min(1, deltaSeconds * 10);
+      }
+      actor.placed = true;
       group.rotation.y = unit.heading;
       const animator = group.userData.animator;
       if (animator) {
         // A Blender soldier stays on the field when he falls; his animator plays the fall.
-        animator.update(unit, deltaSeconds);
+        animator.update(unit, deltaSeconds, actor.speed || 0);
         continue;
       }
       group.visible = unit.state !== "dead";
@@ -390,7 +416,14 @@ export class M2RendererThree {
 
   getInfo() {
     const info = this.#renderer.info.render;
+    // How many Blender soldiers are playing each animation (idle, walk, run, ...).
+    const soldierAnimations = {};
+    for (const { group } of this.#units.values()) {
+      const playing = group.userData.animator?.playing;
+      if (playing) soldierAnimations[playing] = (soldierAnimations[playing] || 0) + 1;
+    }
     return {
+      soldierAnimations,
       drawCalls: info.calls,
       triangles: info.triangles,
       renderedUnits: this.#units.size,

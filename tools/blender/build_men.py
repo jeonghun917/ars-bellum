@@ -360,16 +360,16 @@ def show(skeleton, spear=True, sword=False, sheathed=True):
 
 # The scabbard hangs from the belt on its own bone and swings with the left thigh, as far as this, so it rides
 # on the skirt (which follows the thighs towards its hem) instead of the leg pushing the skirt through it.
-SCABBARD_SWING = 0.5
+SCABBARD_SWING = (1.0, 0.8)  # as far as this when the thigh swings forward, and back
 
 
-def add_scabbard_bone(skeleton, mouth, up):
-    """A bone at the scabbard's mouth (child of the pelvis); the sheathed sword's bone hangs from it."""
+def add_scabbard_bone(skeleton, top, up):
+    """A bone at the top of the scabbard (child of the pelvis); the sheathed sword's bone hangs from it."""
     bpy.context.view_layer.objects.active = skeleton
     bpy.ops.object.mode_set(mode="EDIT")
     bones = skeleton.data.edit_bones
     b = bones.new("scabbard")
-    b.head, b.tail = mouth, mouth - up * 0.2
+    b.head, b.tail = top, top - up * 0.2
     b.parent = bones["pelvis"]
     bones["prop_sheath"].parent = b
     bpy.ops.object.mode_set(mode="OBJECT")
@@ -377,27 +377,39 @@ def add_scabbard_bone(skeleton, mouth, up):
 
 
 def swing_scabbard(skeleton):
-    """Turn the scabbard about its mouth by part of the left thigh's turn (both measured against the pelvis)."""
+    """Turn the scabbard about its top by part of the left thigh's swing (measured against the pelvis)."""
     bpy.context.view_layer.update()
     pb, rest = skeleton.pose.bones, skeleton.data.bones
 
     def turned(name):
         return pb[name].matrix.to_3x3() @ rest[name].matrix_local.to_3x3().inverted()
 
-    thigh = (turned("pelvis").inverted() @ turned("thigh_l")).to_quaternion()
-    want = Quaternion().slerp(thigh, SCABBARD_SWING).to_matrix()
+    # Only the thigh's swing forward and back counts (its twist and its spread would turn the scabbard into
+    # the skirt).
+    def pitch(d):
+        return math.atan2(-d.y, -d.z)
+
+    thigh_rest = rest["thigh_l"].tail_local - rest["thigh_l"].head_local
+    thigh_now = turned("pelvis").inverted() @ (pb["thigh_l"].tail - pb["thigh_l"].head)
+    swing = pitch(thigh_now) - pitch(thigh_rest)
+    want = Matrix.Rotation(-SCABBARD_SWING[0 if swing > 0 else 1] * swing, 3, "X")
     own = rest["scabbard"].matrix_local.to_3x3()
     pb["scabbard"].rotation_quaternion = (own.inverted() @ want @ own).to_quaternion()
 
 
 def reach(skeleton, side, wrist, pole):
     """Two-bone arm: put the wrist at `wrist` (armature space), the elbow bending towards `pole`."""
+    two_bone(skeleton, f"upperarm_{side}", f"lowerarm_{side}", wrist, pole)
+
+
+def two_bone(skeleton, upper, lower, target, pole):
+    """Put the end of lower at target (armature space), the middle joint bending towards pole."""
     bpy.context.view_layer.update()
     pb = skeleton.pose.bones
-    shoulder = pb[f"upperarm_{side}"].head.copy()
-    l1 = (pb[f"upperarm_{side}"].tail - pb[f"upperarm_{side}"].head).length
-    l2 = (pb[f"lowerarm_{side}"].tail - pb[f"lowerarm_{side}"].head).length
-    to = Vector(wrist) - shoulder
+    shoulder = pb[upper].head.copy()
+    l1 = (pb[upper].tail - pb[upper].head).length
+    l2 = (pb[lower].tail - pb[lower].head).length
+    to = Vector(target) - shoulder
     d = max(1e-4, min(to.length, (l1 + l2) * 0.999))
     to.normalize()
     # Distance from the shoulder, along the reach, to the point under the elbow, and the elbow's offset.
@@ -406,9 +418,9 @@ def reach(skeleton, side, wrist, pole):
     bend = Vector(pole) - to * Vector(pole).dot(to)
     bend = bend.normalized() if bend.length > 1e-6 else Vector((0, 0, -1))
     elbow = shoulder + to * a + bend * h
-    aim(skeleton, f"upperarm_{side}", elbow - shoulder)
+    aim(skeleton, upper, elbow - shoulder)
     bpy.context.view_layer.update()
-    aim(skeleton, f"lowerarm_{side}", shoulder + to * d - pb[f"lowerarm_{side}"].head)
+    aim(skeleton, lower, shoulder + to * d - pb[lower].head)
 
 
 def fist(skeleton, side, closed=1.0):
@@ -524,28 +536,145 @@ def idle_pose(skeleton, t, sword=False):
     turn(skeleton, "upperarm_r", RIGHT, 1.5 * math.sin(a + 0.6))
 
 
-def walk_pose(skeleton, t, sword=False):
-    """One stride (two steps) per second, from the phase p of each leg (thigh angle 22 sin p: furthest
-    forward at heel strike, p = 90 deg, furthest back at toe-off, p = -90 deg).
-    The knee bends most early in the swing (60 deg, while the thigh is still behind) and is nearly straight
-    at heel strike, takes a little give as the weight lands, and the foot rolls off the toes. The body leans
-    slightly into the walk; the hips rise over the planted leg, sway towards it and turn against the shoulders."""
+# Walking and running. Each foot is placed on the ground and the leg reaches it (two-bone IK), so a planted
+# foot stays planted: it slides back under the body at exactly the gait's speed, as the ground does under a
+# man moving at that speed, and the renderer plays the clip at (actual speed / this speed) so the feet keep
+# to the ground in the battle. (Swinging the thighs by angle instead let the body lean carry the legs behind
+# it and the feet skate: the body went ahead and the legs dragged.)
+#   speed m/s, cycle s (two steps), stance: share of the cycle each foot is on the ground (under a half:
+#   both feet off the ground between steps), lift: how high the foot rises in the swing, lean degrees,
+#   sink: how much lower the hips ride, bounce: hips rise and fall per step, sway m side to side, twist
+#   degrees of the hips, arm: degrees of arm swing.
+GAITS = {
+    "walk": dict(speed=1.3, cycle=1.0, stance=0.6, lift=0.07, lean=4, sink=0.015, bounce=0.0, sway=0.022,
+                 twist=6, arm=7, heel_strike=True),
+    "run": dict(speed=3.2, cycle=0.7, stance=0.34, lift=0.26, lean=10, sink=0.06, bounce=0.03, sway=0.012,
+                twist=9, arm=14, heel_strike=False),
+}
+
+
+def rot_x(degrees):
+    return Matrix.Rotation(math.radians(degrees), 3, "X")
+
+
+def foot_placement(skeleton, side, u, g, centre_y):
+    """Where the ankle and the ball of one foot are at phase u (0: the foot lands), in armature space."""
+    bones = skeleton.data.bones
+    ankle0 = bones[f"foot_{side}"].head_local
+    ball_rel = bones[f"ball_{side}"].head_local - ankle0
+    heel_rel = Vector((0, 0.045, -ankle0.z))
+    x = math.copysign(0.115, ankle0.x)
+    reach_ = g["speed"] * g["cycle"] * g["stance"]          # ground the foot covers while planted
+    flat_from, flat_to = (0.12, 0.62) if g["heel_strike"] else (0.0, 0.45)
+    land_pitch = -14.0 if g["heel_strike"] else -4.0          # toes up as the heel lands
+    off_pitch = 28.0 if g["heel_strike"] else 34.0             # heel up as the toes push off
+
+    def planted(q):
+        flat = Vector((x, centre_y - reach_ / 2 + reach_ * q, ankle0.z))   # it moves back, +Y
+        if q < flat_from:       # rolling onto the foot about the heel
+            pitch = land_pitch * (1 - smooth(q / flat_from))
+            heel = flat + heel_rel
+            return heel + rot_x(pitch) @ -heel_rel, pitch
+        if q > flat_to:         # heel rising about the ball
+            pitch = off_pitch * smooth((q - flat_to) / (1 - flat_to))
+            ball = flat + ball_rel
+            return ball + rot_x(pitch) @ -ball_rel, pitch
+        return flat, 0.0
+
+    if u < g["stance"]:
+        ankle, pitch = planted(u / g["stance"])
+    else:
+        # The swing: leaving the ground and landing on it at the ground's speed (no jerk at either end),
+        # lifted most at mid-swing.
+        w = (u - g["stance"]) / (1 - g["stance"])
+        (a0, p0), (a1, p1) = planted(1.0), planted(0.0)
+        back = g["speed"] * g["cycle"] * (1 - g["stance"])     # ground moved during the swing, per unit of w
+        h00, h10, h01, h11 = 2 * w**3 - 3 * w**2 + 1, w**3 - 2 * w**2 + w, -2 * w**3 + 3 * w**2, w**3 - w**2
+        ankle = a0.lerp(a1, smooth(w))
+        # (landing a little slower than the ground: matched exactly, the foot overshoots ahead and paws back)
+        ankle.y = h00 * a0.y + h10 * back + h01 * a1.y + h11 * back * 0.75
+        # Up at once as the toes leave and down steeply onto the heel: a foot that rises or lands slowly
+        # skims the ground at the wrong speed.
+        ankle.z = a0.z + (a1.z - a0.z) * smooth(w) + g["lift"] * math.sin(math.pi * w)
+        # The toes leave the ground before the foot starts to level out, so they lift off without sliding.
+        pitch = p0 + (p1 - p0) * smooth(max(0.0, (w - 0.15) / 0.85))
+    return ankle, ankle + rot_x(pitch) @ ball_rel
+
+
+_HIP_HEIGHTS = {}
+
+
+def hip_height(skeleton, g, t, centre_y):
+    """How far the hips ride below standing at time t: lower by sink, rising and falling with each step, and
+    never so high that a leg on the ground (or about to land) cannot reach its foot without locking straight.
+    Worked out round the whole cycle and smoothed, so the body does not jolt as a foot lands or leaves."""
+    key = (skeleton.name, tuple(sorted(g.items())))
+    if key not in _HIP_HEIGHTS:
+        bones = skeleton.data.bones
+        n = 120
+        flight_mid = (g["stance"] + 0.5) / 2
+        raw = []
+        for i in range(n):
+            ti = i / n
+            height = -g["sink"] + g["bounce"] * math.cos(2 * math.pi * 2 * (ti - flight_mid))
+            sway = g["sway"] * math.sin(2 * math.pi * ti - 0.4)
+            for side, phase in (("l", 0.0), ("r", 0.5)):
+                u = (ti + phase) % 1.0
+                if g["stance"] <= u < g["stance"] + 0.6 * (1 - g["stance"]):
+                    continue    # early in the swing the knee bends; that foot does not hold the hips
+                hip = bones[f"thigh_{side}"].head_local + Vector((sway, 0, 0))
+                legs = (bones[f"thigh_{side}"].length + bones[f"calf_{side}"].length) * 0.97
+                ankle = foot_placement(skeleton, side, u, g, centre_y)[0]
+                flat = (ankle - hip).to_2d().length
+                height = min(height, ankle.z + math.sqrt(max(0.0, legs * legs - flat * flat)) - hip.z)
+            raw.append(height)
+        width = 4   # samples: 1/30 of a cycle
+        weights = [math.exp(-k * k / (2 * width * width)) for k in range(-3 * width, 3 * width + 1)]
+        _HIP_HEIGHTS[key] = [sum(w * raw[(i + k - 3 * width) % n] for k, w in enumerate(weights)) / sum(weights)
+                             for i in range(n)]
+    curve = _HIP_HEIGHTS[key]
+    x = (t % 1.0) * len(curve)
+    i = int(x)
+    return curve[i % len(curve)] + (curve[(i + 1) % len(curve)] - curve[i % len(curve)]) * (x - i)
+
+
+def gait_pose(skeleton, t, g, sword=False):
+    """One cycle of a gait (see GAITS): the left foot lands at t = 0, the right at t = 0.5."""
     a = 2 * math.pi * t
     stance(skeleton, sword=sword)
-    for side, phase in (("l", 0.0), ("r", math.pi)):
-        p = a + phase
-        knee = 4 + 58 * bell(p, -0.45, 0.6) + 12 * bell(p, 1.9, 0.45)
-        toes = -22 * bell(p, -1.75, 0.35) + 12 * bell(p, 1.45, 0.35)
-        bend_leg(skeleton, side, 22 * math.sin(p), knee, foot_pitch=toes)
-    turn(skeleton, "pelvis", RIGHT, -4)
-    turn(skeleton, "spine_02", RIGHT, -3)
-    turn(skeleton, "pelvis", UP, 7 * math.sin(a))
-    turn(skeleton, "spine_02", UP, -9 * math.sin(a))
-    turn(skeleton, "pelvis", FRONT, 3 * math.cos(a))
-    turn(skeleton, "head", UP, 5 * math.sin(a))
-    turn(skeleton, "upperarm_r", RIGHT, -9 * math.sin(a - 0.5))
-    turn(skeleton, "upperarm_l", RIGHT, 3 * math.sin(a + math.pi - 0.5))
-    skeleton.pose.bones["Root"].location = (0.018 * math.sin(a), 0, -0.035 * math.sin(a) ** 2 + 0.005)
+    pb, bones = skeleton.pose.bones, skeleton.data.bones
+    for bone in ("thigh_l", "calf_l", "foot_l", "thigh_r", "calf_r", "foot_r"):
+        pb[bone].rotation_quaternion = (1, 0, 0, 0)
+    turn(skeleton, "pelvis", RIGHT, -0.3 * g["lean"])
+    turn(skeleton, "pelvis", UP, -g["twist"] * math.cos(a))
+    turn(skeleton, "spine_01", RIGHT, -0.4 * g["lean"])
+    turn(skeleton, "spine_02", RIGHT, -0.3 * g["lean"])
+    turn(skeleton, "spine_02", UP, 1.3 * g["twist"] * math.cos(a))
+    turn(skeleton, "head", RIGHT, 0.7 * g["lean"])
+    turn(skeleton, "head", UP, -0.4 * g["twist"] * math.cos(a))
+    # Arms swing against the legs: the weapon arm more, the shield arm a little.
+    turn(skeleton, "upperarm_r", RIGHT, g["arm"] * math.cos(a))
+    turn(skeleton, "upperarm_l", RIGHT, -0.35 * g["arm"] * math.cos(a))
+    centre_y = bones["thigh_l"].head_local.y + 0.02
+    feet = {side: foot_placement(skeleton, side, (t + phase) % 1.0, g, centre_y)
+            for side, phase in (("l", 0.0), ("r", 0.5))}
+    sway = g["sway"] * math.sin(a - 0.4)
+    pb["Root"].location = (sway, 0, hip_height(skeleton, g, t, centre_y))
+    for side in ("l", "r"):
+        ankle, ball = feet[side]
+        two_bone(skeleton, f"thigh_{side}", f"calf_{side}", ankle, pole=(0, -1, 0.1))
+        bpy.context.view_layer.update()
+        aim(skeleton, f"foot_{side}", ball - ankle)
+        # The toes stay level: flat on the ground as the heel rises over them.
+        aim(skeleton, f"ball_{side}", bones[f"ball_{side}"].tail_local - bones[f"ball_{side}"].head_local)
+
+
+def walk_pose(skeleton, t, sword=False):
+    gait_pose(skeleton, t, GAITS["walk"], sword)
+
+
+def run_pose(skeleton, t, sword=False):
+    gait_pose(skeleton, t, GAITS["run"], sword)
 
 
 def attack_pose(skeleton, t):
@@ -1064,7 +1193,10 @@ def infantry(zf, f):
                             smoothing=3, edge_smoothing=12)
     coat_skirt, _ = skirt(body, dom, skeleton, "coat_skirt", hip_z + 0.06, knee_z - 0.12, 0.05, mats["cloth"], flare=0.1)
     hose = surface_layer(body, "hose", lambda i: dom[i] in LEG_BONES, lambda co: 0.006, mats["hose"], decimate=0.2)
-    shoes = surface_layer(body, "shoes", lambda i: dom[i] in FOOT_BONES, lambda co: 0.014, mats["leather"], decimate=0.12)
+    # Leather 14 mm out round the foot, but a thin sole: the skin's sole is on the ground (z = 0), and a thick
+    # one sank the shoes into it.
+    shoes = surface_layer(body, "shoes", lambda i: dom[i] in FOOT_BONES, lambda co: 0.003 + 0.011 * min(1.0, co.z / 0.03),
+                          mats["leather"], decimate=0.12)
     # Test-only shapes for check_soldier: the body's torso, head and forearms, shrunk a little inside the
     # skin, so anything that enters them is inside the man. Removed before export.
     cores = {
@@ -1137,8 +1269,8 @@ def infantry(zf, f):
     buckle = rigid(mesh_obj("buckle", buckle_bm, mats["steel"], smooth=False), skeleton, "pelvis")
 
     # Scabbard hanging from the front-left of the belt, hilt forward, angled back (as swords were worn), its
-    # flat side along the body and outside the skirt all the way down: by its own half thickness plus 2 mm at
-    # the belt, growing to 2 cm more at the tip (the hem swings with the legs).
+    # flat side along the body and outside the skirt all the way down: by its own half thickness plus 6 mm at
+    # the belt, growing to 3 cm more at the tip (the hem swings with the legs).
     angle = math.radians(52)
     out = Vector((math.sin(angle), -math.cos(angle), 0))
     belt_tree = BVHTree.FromPolygons([v.co for v in belt.data.vertices], [p.vertices for p in belt.data.polygons])
@@ -1148,7 +1280,7 @@ def infantry(zf, f):
         z = min(max(z, belt_z - 0.018), belt_z + 0.018)
         return 0.3 - belt_tree.ray_cast(round_waist(angle, 0.3, z), -out, 0.3)[3]
 
-    hip = round_waist(angle, belt_here(belt_z - 0.015) + 0.016, belt_z - 0.015)
+    hip = round_waist(angle, belt_here(belt_z - 0.015) + 0.026, belt_z - 0.015)
     along = Vector((math.cos(angle), math.sin(angle), 0))   # round the waist, towards the back
     # Tilted out from hanging straight (down and a little back) only as far as it must be.
     hang = Vector((0.0, 0.3, -0.95)).normalized()
@@ -1157,7 +1289,7 @@ def infantry(zf, f):
         for k in (0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0):
             point = hip.lerp(tip, k)
             a, r = polar(point)
-            if cloth_radius(a, point.z, step / 2, 0.015) + 0.014 + 0.02 * k > r:
+            if cloth_radius(a, point.z, step / 2, 0.015) + 0.018 + 0.03 * k > r:
                 return False
         return True
 
@@ -1177,14 +1309,14 @@ def infantry(zf, f):
     scabbard = mesh_obj("scabbard", scab, mats["leather"])
     # Flat side against the hip: thin out from the body, wide along it.
     scabbard.data.transform(Matrix.Translation((hip + tip) / 2) @ frame(up, along))
-    add_scabbard_bone(skeleton, hip, up)
+    add_scabbard_bone(skeleton, hip + up * 0.1, up)   # pivot at the hilt, so the hilt stays put as it swings
     rigid(scabbard, skeleton, "scabbard")
     # The strap it hangs by: down the outside of the belt and over the scabbard's mouth.
     strap_bm = bmesh.new()
     bmesh.ops.create_cube(strap_bm, size=1.0)
     for v in strap_bm.verts:
         z = belt_z + v.co.z * 0.052
-        v.co = round_waist(angle, belt_here(z) + 0.003 + v.co.x * 0.008, z) + along * v.co.y * 0.022
+        v.co = round_waist(angle, belt_here(z) + 0.008 + v.co.x * 0.018, z) + along * v.co.y * 0.022
     strap = rigid(mesh_obj("scabbard_strap", strap_bm, mats["leather"], smooth=False), skeleton, "pelvis")
     # The sword in it: crossguard at the scabbard's mouth, blade down inside. It rides on its own bone, so the
     # draw animation can hide it at the moment the hand takes it.
@@ -1300,7 +1432,7 @@ def infantry(zf, f):
         "spear": spear_parts, "sword": held, "sheathed": sheathed,
         "shield": shield_parts, "shield_face": [shield_parts[1]], "boss": [shield_parts[2]],
         "scabbard": [scabbard, strap], "belt": [belt], "surcoat": [surcoat], "coat_skirt": [coat_skirt],
-        "surcoat_or_skirt": [surcoat, coat_skirt],
+        "surcoat_or_skirt": [surcoat, coat_skirt], "shoes": [shoes],
     })
     return body, skeleton
 
@@ -1366,16 +1498,21 @@ def bake_action(skeleton, name, length_s, pose_fn, loop=False, step=2):
 
 
 def animate(skeleton):
+    # The clips are keyed at FPS frames a second, and the glTF export turns frames into seconds at the scene's
+    # rate: left at Blender's 24, every motion played a quarter slower than it was made.
+    bpy.context.scene.render.fps, bpy.context.scene.render.fps_base = FPS, 1.0
     # A key on every frame (30 a second): the motions are curves, not straight lines between few keys.
     actions = [
         bake_action(skeleton, "idle", 4.0, idle_pose, loop=True, step=1),
-        bake_action(skeleton, "walk", 1.0, walk_pose, loop=True, step=1),
+        bake_action(skeleton, "walk", GAITS["walk"]["cycle"], walk_pose, loop=True, step=1),
+        bake_action(skeleton, "run", GAITS["run"]["cycle"], run_pose, loop=True, step=1),
         bake_action(skeleton, "attack", 0.8, attack_pose, step=1),
         bake_action(skeleton, "block", 0.35, block_pose, step=1),
         bake_action(skeleton, "death", 1.4, death_pose, step=1),
         # The same man with sword and shield.
         bake_action(skeleton, "s_idle", 4.0, lambda s, t: idle_pose(s, t, sword=True), loop=True, step=1),
-        bake_action(skeleton, "s_walk", 1.0, lambda s, t: walk_pose(s, t, sword=True), loop=True, step=1),
+        bake_action(skeleton, "s_walk", GAITS["walk"]["cycle"], lambda s, t: walk_pose(s, t, sword=True), loop=True, step=1),
+        bake_action(skeleton, "s_run", GAITS["run"]["cycle"], lambda s, t: run_pose(s, t, sword=True), loop=True, step=1),
         bake_action(skeleton, "s_attack", 0.9, slash_pose, step=1),
         bake_action(skeleton, "s_block", 0.35, lambda s, t: block_pose(s, t, sword=True), step=1),
         bake_action(skeleton, "s_death", 1.4, lambda s, t: death_pose(s, t, sword=True), step=1),
@@ -1395,7 +1532,8 @@ def export(path):
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_yup=True,
                               export_skins=True, export_animations=True, export_animation_mode="NLA_TRACKS",
                               export_apply=False, export_image_format="AUTO", export_texcoords=True,
-                              export_normals=True, export_rest_position_armature=True, export_def_bones=False)
+                              export_normals=True, export_rest_position_armature=True, export_def_bones=False,
+                              export_extras=True, export_anim_slide_to_zero=True)
 
 
 def main():
@@ -1414,9 +1552,14 @@ def main():
                     if mod.type == "DECIMATE":
                         bpy.ops.object.modifier_apply(modifier=mod.name)
         animate(skeleton)
+        # The speed (m/s) each gait clip moves the feet at, for the renderer to match the soldier's speed.
+        # Written into the model (glTF "extras" of the skeleton node).
+        for name, g in GAITS.items():
+            skeleton[f"{name}_speed"] = g["speed"]
         report = os.path.join(mh.CACHE, f"check_{side}.json")
+        gaits = {name: g["speed"] for base, g in GAITS.items() for name in (base, "s_" + base)}
         problems = check_soldier.check(skeleton, CHECK_PARTS, [t.strips[0].action for t in skeleton.animation_data.nla_tracks],
-                                       report, SPEAR_AXIS["local"], side)
+                                       report, SPEAR_AXIS["local"], side, gaits)
         for p in problems:
             print(f"CHECK {side}: {p}")
         print(f"CHECK {side}: {len(problems)} problem(s), report {report}")

@@ -5,6 +5,8 @@ What used to be caught by eye (and mostly by the user) is measured here, in ever
   through the body, the shield through the hand behind it, the scabbard through the surcoat skirt, ...);
 - contact: parts that must touch, in the guard (the shield boss on the shield face, the belt on the
   surcoat, each mitten on its sleeve, the scabbard at the belt): the gap between them, in millimetres;
+- feet: in a walk or run, a foot on the ground stays on it and moves back at the gait's speed (no skating),
+  a swinging foot clears the ground (no dragging), and no foot sinks into it;
 - holes: rays from inside the man (spine, neck, head) all meet some part on the way out;
 - direction: the knee never folds forwards; the shield's face bulges outwards; the spear and the sword point
   where the attack sends them.
@@ -71,8 +73,9 @@ def _dir(skeleton, bone):
     return Vector(pb.matrix.col[1][:3]).normalized()
 
 
-def check(skeleton, parts, actions, report_path, spear_axis_local, label):
-    """parts: name -> list of objects (see build_men.infantry, CHECK_PARTS). actions: the baked actions."""
+def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=None):
+    """parts: name -> list of objects (see build_men.infantry, CHECK_PARTS). actions: the baked actions.
+    gaits: walking and running action name -> the speed (m/s) its feet should keep to the ground at."""
     problems = []
     log = {"label": label, "clipping": [], "contact": [], "direction": []}
     scene = bpy.context.scene
@@ -115,6 +118,55 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label):
         for key, (first, last, most) in worst.items():
             entry = {"action": action.name, "pair": key, "frames": f"{first}-{last}", "triangles": most}
             log["clipping"].append(entry)
+    skeleton.animation_data.action = None
+
+    # Feet in the gaits. Each frame the ball of each foot is on the ground (within 6 mm of where it stands)
+    # or not. On the ground it must move straight back at the gait's speed (within 10 %); off it and moving
+    # forward its toes must clear the ground by 5 mm; and the shoes never go 1 cm under it.
+    rest = skeleton.data.bones
+    for action in actions:
+        speed = (gaits or {}).get(action.name)
+        if speed is None:
+            continue
+        skeleton.animation_data.action = action
+        f0, f1 = (int(x) for x in action.frame_range)
+        fps = scene.render.fps / scene.render.fps_base
+        track = {"l": [], "r": []}
+        lowest = 0.0
+        for frame in range(f0, f1 + 1):
+            scene.frame_set(frame)
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            for side in ("l", "r"):
+                ball, toe = skeleton.pose.bones[f"ball_{side}"].head.copy(), skeleton.pose.bones[f"ball_{side}"].tail.copy()
+                track[side].append((ball, toe))
+            if "shoes" in parts:
+                for o in parts["shoes"]:
+                    ev = o.evaluated_get(depsgraph)
+                    mesh = ev.to_mesh()
+                    lowest = min(lowest, min((o.matrix_world @ v.co).z for v in mesh.vertices))
+                    ev.to_mesh_clear()
+        skates, drags = [], []
+        for side in ("l", "r"):
+            ground_z = rest[f"ball_{side}"].head_local.z
+            toe_z = rest[f"ball_{side}"].tail_local.z
+            points = track[side]
+            for i in range(1, len(points)):
+                (b0, _), (b1, t1) = points[i - 1], points[i]
+                step = (b1 - b0) * fps
+                if b0.z < ground_z + 0.006 and b1.z < ground_z + 0.006:
+                    if abs(step.y - speed) > 0.1 * speed or abs(step.x) > 0.1 * speed:
+                        skates.append(f"{side}{f0 + i}:{step.y:.2f}")
+                elif step.y < -0.5 * speed and t1.z < toe_z + 0.005:
+                    drags.append(f"{side}{f0 + i}")
+        log["direction"].append({"action": action.name, "what": "feet (skating, dragging, lowest shoe mm)",
+                                 "value": [skates, drags, round(lowest * 1000, 1)]})
+        if skates:
+            problems.append(f"feet: a planted foot skates in {action.name} (frame:speed m/s {', '.join(skates[:4])}; "
+                            f"should be {speed})")
+        if drags:
+            problems.append(f"feet: a swinging foot drags its toes in {action.name} (frames {', '.join(drags[:4])})")
+        if lowest < -0.01:
+            problems.append(f"feet: a shoe sinks {-lowest * 1000:.0f} mm into the ground in {action.name}")
     skeleton.animation_data.action = None
 
     # Holes: from points on the spine, neck and head, rays outwards in every direction must meet some part of

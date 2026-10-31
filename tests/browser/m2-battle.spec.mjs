@@ -54,13 +54,29 @@ test.describe('3D battle', () => {
       return Object.fromEntries(Object.entries(loaded).map(([side, model]) => {
         let skinned = 0;
         model.scene.traverse((object) => { if (object.isSkinnedMesh) skinned += 1; });
-        return [side, { skinned, clips: Object.keys(model.clips).sort() }];
+        return [side, { skinned, clips: Object.keys(model.clips).sort(), gait: model.gait }];
       }));
     });
     for (const side of ['ally', 'enemy']) {
       expect(models[side].skinned).toBeGreaterThan(0);
-      expect(models[side].clips).toEqual(['attack', 'block', 'death', 'draw', 'idle', 's_attack', 's_block', 's_death', 's_idle', 's_walk', 'walk']);
+      expect(models[side].clips).toEqual(['attack', 'block', 'death', 'draw', 'idle', 'run', 's_attack', 's_block', 's_death', 's_idle', 's_run', 's_walk', 'walk']);
+      // The walk and run clips say how fast their feet move, so the renderer can match the soldiers' speed.
+      expect(models[side].gait.walk).toBeGreaterThan(0.5);
+      expect(models[side].gait.run).toBeGreaterThan(models[side].gait.walk);
     }
+  });
+
+  test('[m2.render.soldier-gait] soldiers crossing the field at full speed run, not walk', async ({ page }) => {
+    // The battle starts with everyone standing: send an ally formation 15 m forward. Units move at about
+    // 3.2 m/s; the walk clip's feet move at about 1.3 m/s, so walking would skate.
+    const receipt = await page.evaluate(() => {
+      const f = window.ArsM2Battle.getSnapshot().formations.find((item) => item.sideId === 'ally');
+      return window.ArsM2Battle.issueCommand({ commandId: 'gait_move', type: 'formation_move', formationId: f.formationId,
+        target: { x: f.anchor.x, z: f.anchor.z - 15 } });
+    });
+    expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
+    // (Only that some run: while a soldier speeds up or arrives he passes through walking speeds.)
+    await page.waitForFunction(() => (window.ArsM2Diagnostics.getSnapshot().soldierAnimations?.run || 0) > 0, null, { timeout: 20_000 });
   });
 
   test('[m2.camera.starts-third-person] the camera starts behind the player with input attached', async ({ page }) => {

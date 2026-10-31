@@ -17,6 +17,7 @@ export class M2Diagnostics {
   #activeCharacters = 0;
   #renderedUnits = 0;
   #soldierModel = "none";
+  #soldierAnimations = {};
   #lastError = null;
   #cameraMode = "third_person";
   #inputContextRevision = 0;
@@ -78,6 +79,7 @@ export class M2Diagnostics {
     this.#triangles = Number(rendererInfo.triangles || 0);
     this.#renderedUnits = Number(rendererInfo.renderedUnits || 0);
     this.#soldierModel = rendererInfo.soldierModel || "none";
+    this.#soldierAnimations = Object.freeze({ ...(rendererInfo.soldierAnimations || {}) });
   }
 
   getSnapshot() {
@@ -95,6 +97,7 @@ export class M2Diagnostics {
       activeCharacters: this.#activeCharacters,
       renderedUnits: this.#renderedUnits,
       soldierModel: this.#soldierModel,
+      soldierAnimations: this.#soldierAnimations,
       animationOwner: "M2BattleRuntime",
       runtimeNetworkImport: false,
       persistenceAccess: false,

@@ -181,6 +181,12 @@
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.render.soldier-gait",
+      "title": "soldiers crossing the field at full speed run, not walk",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
       "id": "m2.camera.starts-third-person",
       "title": "the camera starts behind the player with input attached",
       "kind": "browser",
