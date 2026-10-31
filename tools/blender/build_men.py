@@ -2758,7 +2758,7 @@ def infantry(zf, f):
     # The bolt case, on the right of the belt and a little behind (out of the way of the crossbow's butt
     # carried at the right hip), hung like the scabbard.
     q_top, q_foot, q_along, q_out, _ = hang_from_belt(math.radians(-118), 0.32, 0.045)
-    q_top, q_foot = q_top + q_out * 0.015, q_foot + q_out * 0.015   # (its box is deeper than the belt is thick)
+    q_top, q_foot = q_top + q_out * 0.035, q_foot + q_out * 0.045   # (its box is deeper than the belt is thick)
     q_up = (q_top - q_foot).normalized()
     bolt_case = quiver(mats, 0.32)
     bolt_case.data.transform(Matrix.Translation(q_top) @ frame(q_up, q_along))
