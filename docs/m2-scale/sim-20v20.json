@@ -1,0 +1,205 @@
+{
+  "format": "ars-bellum-m2-scale-sim/v1",
+  "perSide": 20,
+  "runs": 3,
+  "secondsEach": 60,
+  "budgetMsPerTick": 50,
+  "node": "v22.22.0",
+  "scenarios": {
+    "clash": [
+      {
+        "ticks": 1200,
+        "medianMs": 2.013,
+        "p95Ms": 4.098,
+        "maxMs": 33.433,
+        "overBudgetTicks": 0,
+        "phaseShare": {
+          "orders": 3,
+          "formation": 2.5,
+          "movement": 1.3,
+          "grid": 0.9,
+          "collision": 45.2,
+          "combat_plan": 19.8,
+          "combat_resolve": 2.1,
+          "morale_result": 18.2,
+          "render_snapshot": 7
+        },
+        "peakProjectiles": 11,
+        "peakRouting": 0,
+        "outcome": null
+      },
+      {
+        "ticks": 1200,
+        "medianMs": 1.884,
+        "p95Ms": 3.102,
+        "maxMs": 6.868,
+        "overBudgetTicks": 0,
+        "phaseShare": {
+          "orders": 2.3,
+          "formation": 1.9,
+          "movement": 0.9,
+          "grid": 0.9,
+          "collision": 47.9,
+          "combat_plan": 19.8,
+          "combat_resolve": 1.8,
+          "morale_result": 18,
+          "render_snapshot": 6.4
+        },
+        "peakProjectiles": 11,
+        "peakRouting": 0,
+        "outcome": null
+      },
+      {
+        "ticks": 1200,
+        "medianMs": 1.774,
+        "p95Ms": 3.491,
+        "maxMs": 9.023,
+        "overBudgetTicks": 0,
+        "phaseShare": {
+          "orders": 1.9,
+          "formation": 2,
+          "movement": 0.8,
+          "grid": 0.9,
+          "collision": 48.8,
+          "combat_plan": 20.1,
+          "combat_resolve": 1.6,
+          "morale_result": 17.4,
+          "render_snapshot": 6.4
+        },
+        "peakProjectiles": 11,
+        "peakRouting": 0,
+        "outcome": null
+      }
+    ],
+    "plans": [
+      {
+        "ticks": 1200,
+        "medianMs": 1.795,
+        "p95Ms": 2.642,
+        "maxMs": 5.129,
+        "overBudgetTicks": 0,
+        "phaseShare": {
+          "orders": 2.6,
+          "formation": 1.7,
+          "movement": 1,
+          "grid": 0.9,
+          "collision": 50.3,
+          "combat_plan": 18.1,
+          "combat_resolve": 1.6,
+          "morale_result": 17.1,
+          "render_snapshot": 6.6
+        },
+        "peakProjectiles": 7,
+        "peakRouting": 2,
+        "outcome": null
+      },
+      {
+        "ticks": 1200,
+        "medianMs": 1.709,
+        "p95Ms": 2.691,
+        "maxMs": 8.376,
+        "overBudgetTicks": 0,
+        "phaseShare": {
+          "orders": 2.3,
+          "formation": 1.7,
+          "movement": 0.8,
+          "grid": 0.9,
+          "collision": 51.9,
+          "combat_plan": 18,
+          "combat_resolve": 1.6,
+          "morale_result": 15.9,
+          "render_snapshot": 6.7
+        },
+        "peakProjectiles": 7,
+        "peakRouting": 2,
+        "outcome": null
+      },
+      {
+        "ticks": 1200,
+        "medianMs": 1.732,
+        "p95Ms": 3.429,
+        "maxMs": 5.526,
+        "overBudgetTicks": 0,
+        "phaseShare": {
+          "orders": 2.2,
+          "formation": 1.7,
+          "movement": 0.8,
+          "grid": 1,
+          "collision": 51.5,
+          "combat_plan": 18.4,
+          "combat_resolve": 1.6,
+          "morale_result": 16.1,
+          "render_snapshot": 6.7
+        },
+        "peakProjectiles": 7,
+        "peakRouting": 2,
+        "outcome": null
+      }
+    ],
+    "rout": [
+      {
+        "ticks": 1200,
+        "medianMs": 1.242,
+        "p95Ms": 1.882,
+        "maxMs": 5.798,
+        "overBudgetTicks": 0,
+        "phaseShare": {
+          "orders": 2,
+          "formation": 2.1,
+          "movement": 1.1,
+          "grid": 1.5,
+          "collision": 40.4,
+          "combat_plan": 18.1,
+          "combat_resolve": 1.8,
+          "morale_result": 23.1,
+          "render_snapshot": 9.7
+        },
+        "peakProjectiles": 11,
+        "peakRouting": 18,
+        "outcome": null
+      },
+      {
+        "ticks": 1200,
+        "medianMs": 1.147,
+        "p95Ms": 2.212,
+        "maxMs": 3.693,
+        "overBudgetTicks": 0,
+        "phaseShare": {
+          "orders": 1.9,
+          "formation": 2.2,
+          "movement": 1.1,
+          "grid": 1.5,
+          "collision": 41.3,
+          "combat_plan": 17.8,
+          "combat_resolve": 1.8,
+          "morale_result": 22.9,
+          "render_snapshot": 9.4
+        },
+        "peakProjectiles": 11,
+        "peakRouting": 18,
+        "outcome": null
+      },
+      {
+        "ticks": 1200,
+        "medianMs": 1.204,
+        "p95Ms": 1.701,
+        "maxMs": 3.901,
+        "overBudgetTicks": 0,
+        "phaseShare": {
+          "orders": 2,
+          "formation": 2.2,
+          "movement": 1.1,
+          "grid": 1.5,
+          "collision": 40.7,
+          "combat_plan": 18.2,
+          "combat_resolve": 1.8,
+          "morale_result": 22.9,
+          "render_snapshot": 9.5
+        },
+        "peakProjectiles": 11,
+        "peakRouting": 18,
+        "outcome": null
+      }
+    ]
+  }
+}

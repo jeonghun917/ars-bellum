@@ -3400,6 +3400,12 @@
       "title": "the same plans give the same battle",
       "kind": "unit",
       "source": "tests/unit/m2-plans.test.mjs"
+    },
+    {
+      "id": "m2.scale.fixture",
+      "title": "a 100-against-100 battle of the same kinds is a valid launch snapshot, everyone inside the field",
+      "kind": "unit",
+      "source": "tests/unit/m2-scale.test.mjs"
     }
   ]
 }
