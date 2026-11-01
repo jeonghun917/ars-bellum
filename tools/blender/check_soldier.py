@@ -310,7 +310,7 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
     # no shoe goes 1 cm under the ground.
     for name in (aims or {}):
         action = next((a for a in actions if a.name == name), None)
-        if action is None:
+        if action is None or name.startswith(("m_", "ms_")):   # (mounted: his feet ride the horse)
             continue
         skeleton.animation_data.action = action
         f0, f1 = (int(x) for x in action.frame_range)
