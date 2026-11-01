@@ -679,6 +679,7 @@
         "tests/unit/m2-pace-bodies.test.mjs",
         "tests/unit/m2-morale.test.mjs",
         "tests/unit/m2-hero.test.mjs",
+        "tests/unit/m2-commanders.test.mjs",
         "tests/unit/m2-sim-helpers.mjs",
         "tests/unit/ui-helpers.mjs",
         "playwright.config.mjs",
@@ -756,12 +757,13 @@
     {
       "id": "bellum-battle3d-rules",
       "title": "3D 전투 규칙(병종·적 지휘)",
-      "owner": "m2/M2_UnitKinds.js가 병종(보병·석궁병·기병)과 그 수치를 정하고, 어느 대형이 어떤 병종인지 정한다(발사 스냅샷에 병종 칸이 아직 없어서). 이동·대형·전투 시스템과 렌더러가 이 값을 읽는다. 바꾸면 tests/unit/m2-unit-kinds.test.mjs와 verify-m2를 돌린다. m2/M2_EnemyAI.js가 적 지휘(공격받으면 적 전체가 싸우러 나옴, 기병은 아군 석궁병부터)를 정한다. 바꾸면 tests/unit/m2-enemy-ai.test.mjs도 돌린다. m2/M2_CollisionSystem.js가 병사 몸(겹치지 않기, 무거운 쪽이 밀어냄)을 정하고, 이동 속도·행군·돌격 거리·타격 간격은 M2_UnitKinds.js에 있다. 바꾸면 tests/unit/m2-pace-bodies.test.mjs도 돌린다. m2/M2_HeroLoadout.js가 플레이어 영웅(부대 소속 없음)의 전투 능력을 그의 기술과 장비(전투 시작 데이터의 heroSheet)로 계산한다. 바꾸면 tests/unit/m2-hero.test.mjs도 돌린다",
+      "owner": "m2/M2_UnitKinds.js가 병종(보병·석궁병·기병)과 그 수치를 정하고, 어느 대형이 어떤 병종인지 정한다(발사 스냅샷에 병종 칸이 아직 없어서). 이동·대형·전투 시스템과 렌더러가 이 값을 읽는다. 바꾸면 tests/unit/m2-unit-kinds.test.mjs와 verify-m2를 돌린다. m2/M2_EnemyAI.js가 적 지휘(공격받으면 적 전체가 싸우러 나옴, 기병은 아군 석궁병부터)를 정한다. 바꾸면 tests/unit/m2-enemy-ai.test.mjs도 돌린다. m2/M2_CollisionSystem.js가 병사 몸(겹치지 않기, 무거운 쪽이 밀어냄)을 정하고, 이동 속도·행군·돌격 거리·타격 간격은 M2_UnitKinds.js에 있다. 바꾸면 tests/unit/m2-pace-bodies.test.mjs도 돌린다. m2/M2_HeroLoadout.js가 플레이어 영웅(부대 소속 없음)의 전투 능력을 그의 기술과 장비(전투 시작 데이터의 heroSheet)로 계산한다. 바꾸면 tests/unit/m2-hero.test.mjs도 돌린다. m2/M2_Commanders.js가 부대장(부대마다 별도 인물: 자기 장비·기술, 통솔은 사기, 지휘는 손실 부담, 전술은 작전 칸 수)을 정한다(전투 시작 데이터의 commanderSheets). 바꾸면 tests/unit/m2-commanders.test.mjs도 돌린다",
       "files": [
         "m2/M2_UnitKinds.js",
         "m2/M2_EnemyAI.js",
         "m2/M2_CollisionSystem.js",
-        "m2/M2_HeroLoadout.js"
+        "m2/M2_HeroLoadout.js",
+        "m2/M2_Commanders.js"
       ],
       "validators": [
         {
@@ -782,6 +784,10 @@
         },
         {
           "path": "tests/unit/m2-hero.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/m2-commanders.test.mjs",
           "kind": "TEST"
         }
       ],

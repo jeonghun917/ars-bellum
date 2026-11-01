@@ -3226,6 +3226,48 @@
       "title": "a battle launched with his sheet has him fight as equipped",
       "kind": "unit",
       "source": "tests/unit/battle-hero.test.mjs"
+    },
+    {
+      "id": "m2.commander.own-man",
+      "title": "each formation's commander carries his own sheet: his gear, his skills, a horse if he leads horsemen",
+      "kind": "unit",
+      "source": "tests/unit/m2-commanders.test.mjs"
+    },
+    {
+      "id": "m2.commander.leadership",
+      "title": "a formation led by a commander of high leadership holds higher morale",
+      "kind": "unit",
+      "source": "tests/unit/m2-commanders.test.mjs"
+    },
+    {
+      "id": "m2.commander.command",
+      "title": "under a commander of high command the same losses weigh less",
+      "kind": "unit",
+      "source": "tests/unit/m2-commanders.test.mjs"
+    },
+    {
+      "id": "m2.commander.falls",
+      "title": "when the commander falls his men are shaken, and the next man leads them on",
+      "kind": "unit",
+      "source": "tests/unit/m2-commanders.test.mjs"
+    },
+    {
+      "id": "m2.commander.tactics",
+      "title": "a commander's tactics skill sets how many plans his formation can carry out",
+      "kind": "unit",
+      "source": "tests/unit/m2-commanders.test.mjs"
+    },
+    {
+      "id": "m2.commander.strikes-with-his-weapon",
+      "title": "a commander fights with his own weapon, harder than his men",
+      "kind": "unit",
+      "source": "tests/unit/m2-commanders.test.mjs"
+    },
+    {
+      "id": "m2.commander.from-campaign",
+      "title": "a character's command skills reach the battle in his sheet",
+      "kind": "unit",
+      "source": "tests/unit/m2-commanders.test.mjs"
     }
   ]
 }

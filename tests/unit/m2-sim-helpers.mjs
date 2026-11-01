@@ -18,9 +18,9 @@ import { M2_TECHNICAL_COMBAT_PROFILES, M2_TECHNICAL_SNAPSHOT } from '../../m2/fi
 const DT = M2_CONFIG.fixedTickMs / 1000;
 
 // A battle with the enemy commander (M2_EnemyAI.js) when withAI is true, and the player's hero carrying
-// heroSheet (M2_HeroLoadout.js) when one is given.
-export function battle({ withAI = false, heroSheet = null } = {}) {
-  const snapshot = heroSheet ? { ...M2_TECHNICAL_SNAPSHOT, heroSheet } : M2_TECHNICAL_SNAPSHOT;
+// heroSheet (M2_HeroLoadout.js) and formations' commanders commanderSheets (M2_Commanders.js) when given.
+export function battle({ withAI = false, heroSheet = null, commanderSheets = null } = {}) {
+  const snapshot = { ...M2_TECHNICAL_SNAPSHOT, ...(heroSheet ? { heroSheet } : {}), ...(commanderSheets ? { commanderSheets } : {}) };
   const state = new M2BattleState(snapshot, createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES));
   const queue = new M2CommandQueue();
   queue.beginBattleEpoch();

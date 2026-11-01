@@ -1,5 +1,6 @@
 import { m2UnitKind, m2UnitKindForFormation } from "./M2_UnitKinds.js";
 import { DEFAULT_HERO_SHEET, damageThroughArmor, heroCombat } from "./M2_HeroLoadout.js";
+import { DEFAULT_COMMANDER_SHEETS, commanderFromSheet } from "./M2_Commanders.js";
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -59,6 +60,7 @@ export class M2BattleState {
         roleId: character.roleId,
         kindId,
         hero,
+        commander: null,
         armor: hero ? hero.armor : 0,
         combatProfileId: character.combatProfileId,
         isPlayer,
@@ -119,6 +121,20 @@ export class M2BattleState {
         morale,
         revision: 0
       });
+    }
+
+    // Each formation's commander (부대장) is his own man: his sheet sets how he fights and how he leads
+    // (M2_Commanders.js). The formation carries what his command skills give it.
+    for (const formation of this.#formations.values()) {
+      const unit = this.#units.get(formation.commanderUnitId);
+      if (!unit) { formation.command = null; continue; }
+      const sheet = snapshot.commanderSheets?.[formation.formationId] || DEFAULT_COMMANDER_SHEETS[formation.kindId] || DEFAULT_COMMANDER_SHEETS.infantry;
+      const commander = commanderFromSheet(sheet);
+      unit.commander = commander;
+      unit.maxHp = commander.combat.maxHp;
+      unit.hp = commander.combat.maxHp;
+      unit.armor = commander.combat.armor;
+      formation.command = Object.freeze({ commanderUnitId: unit.unitId, command: commander.command, leadership: commander.leadership, tactics: commander.tactics, tacticSlots: commander.tacticSlots });
     }
   }
 
@@ -223,6 +239,7 @@ export class M2BattleState {
         kindId: unit.kindId,
         isPlayer: unit.isPlayer,
         hero: unit.hero,
+        commander: unit.commander,
         armor: unit.armor,
         position: clone(unit.position),
         previousPosition: clone(unit.previousPosition),
@@ -255,6 +272,7 @@ export class M2BattleState {
         anchor: clone(formation.anchor),
         facing: formation.facing,
         formationTypeId: formation.formationTypeId,
+        command: formation.command,
         spacing: formation.spacing,
         order: clone(formation.order),
         cohesion: formation.cohesion,

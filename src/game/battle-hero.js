@@ -1,10 +1,11 @@
-// The hero sheet the 3D battle reads for the player's character (m2/M2_HeroLoadout.js): his combat skills and
+// The sheet the 3D battle reads for a character, the player's hero (m2/M2_HeroLoadout.js) or a formation's
+// commander (m2/M2_Commanders.js, as `commanderSheets`): his combat and command skills and
 // what he has equipped, with each item's battle numbers from the equipment definitions. Read-only: building
 // it changes nothing in the game.
 import { getEquipmentItem } from '../domains/inventory/index.js';
 
-// The skills the battle uses.
-export const HERO_SKILLS = Object.freeze(['athletics', 'bow', 'crossbow', 'one_handed', 'polearm', 'riding', 'two_handed']);
+// The skills the battle uses: fighting, and (for a formation's commander, 부대장) leading.
+export const HERO_SKILLS = Object.freeze(['athletics', 'bow', 'command', 'crossbow', 'leadership', 'one_handed', 'polearm', 'riding', 'tactics', 'two_handed']);
 // The slots the battle reads, in the battle's own terms.
 export const HERO_SLOTS = Object.freeze(['main_hand', 'off_hand', 'ranged', 'body', 'mount']);
 
