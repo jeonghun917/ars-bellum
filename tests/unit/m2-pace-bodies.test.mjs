@@ -131,5 +131,6 @@ test('[m2.pace.longer-battle] a battle now lasts minutes, not seconds', () => {
   let i = 0;
   for (; i < 20 * 600 && !b.outcome; i += 1) tick(b);
   assert.ok(b.outcome, 'the battle ends');
-  assert.ok(i / 20 >= 30, `ended after ${i / 20} s`);
+  // About two minutes when every formation is thrown in at once (the owner found 20 s far too short).
+  assert.ok(i / 20 >= 90, `ended after ${i / 20} s`);
 });

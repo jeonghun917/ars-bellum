@@ -5,11 +5,13 @@
 // Pace (the owner's season-2 design: a heavy, slow battlefield): a formation marches at marchScale times
 // the running speed and breaks into a run only for the last chargeDistance metres of an attack (and when
 // routing). speedScale is the running speed against a man on foot. A blow lands every meleeCooldownTicks
-// (1.5 s), not every half second. Each soldier is a circle of radius (m) on the field that others cannot
+// (1.5 s), not every half second. A soldier stands hpScale times his vitality in hits: mail and a
+// horse, in place of the equipment the battle does not carry yet; a 20-v-20 fight lasts about two minutes. Each soldier is a circle of radius (m) on the field that others cannot
 // enter; mass says who gives way when two push (a horse shoves men aside).
 export const M2_UNIT_KINDS = Object.freeze({
   infantry: Object.freeze({
     id: "infantry",
+    hpScale: 2.5,
     speedScale: 1,
     marchScale: 0.45,
     chargeDistance: 10,
@@ -25,6 +27,7 @@ export const M2_UNIT_KINDS = Object.freeze({
   // "x_shoot" and "x_reload" clips, 1.2 s + 3.2 s at 20 ticks a second).
   crossbow: Object.freeze({
     id: "crossbow",
+    hpScale: 2,
     speedScale: 1,
     marchScale: 0.45,
     chargeDistance: 0,
@@ -47,6 +50,7 @@ export const M2_UNIT_KINDS = Object.freeze({
   // does not renew it, only a new run-up does.
   cavalry: Object.freeze({
     id: "cavalry",
+    hpScale: 3,
     speedScale: 1.75,
     // A walk (1.7 m/s, the horse's walking clip) until the charge: the last 20 m at a gallop.
     marchScale: 0.3,
