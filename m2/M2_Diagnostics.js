@@ -32,6 +32,7 @@ export class M2Diagnostics {
   #projectileOverflowCount = 0;
   #crossbowLaunchCount = 0;
   #chargeHitCount = 0;
+  #stoppedCount = 0;
   #enemyAwake = false;
   #moraleSummary = Object.freeze({ ally: 0, enemy: 0 });
   #routingCounts = Object.freeze({ ally: 0, enemy: 0, total: 0 });
@@ -61,6 +62,7 @@ export class M2Diagnostics {
     this.#projectileOverflowCount = Math.max(0, observation.projectileOverflowCount | 0);
     this.#crossbowLaunchCount = Math.max(0, observation.crossbowLaunchCount | 0);
     this.#chargeHitCount = Math.max(0, observation.chargeHitCount | 0);
+    this.#stoppedCount = Math.max(0, observation.stoppedCount | 0);
     this.#enemyAwake = observation.enemyAwake === true;
   }
 
@@ -124,6 +126,8 @@ export class M2Diagnostics {
       projectileOverflowCount: this.#projectileOverflowCount,
       crossbowLaunchCount: this.#crossbowLaunchCount,
       chargeHitCount: this.#chargeHitCount,
+      // Blows and shots stopped by a shield or a parry (M2_Defense.js).
+      stoppedCount: this.#stoppedCount,
       enemyAwake: this.#enemyAwake,
       moraleSummary: this.#moraleSummary,
       routingCounts: this.#routingCounts,

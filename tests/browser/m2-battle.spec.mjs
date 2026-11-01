@@ -169,7 +169,7 @@ test.describe('3D battle', () => {
     await swingCooldownSeen(page);
   });
 
-  test('[m2.player.melee-hit] a sword swing with an enemy in reach damages it', async ({ page }) => {
+  test('[m2.player.melee-hit] a sword swing with an enemy in reach damages him, unless he stops it', async ({ page }) => {
     // Put one enemy one metre in front of the player (reach 1.6 m, 120 degree arc) and keep every
     // formation holding still, so the enemy is still in reach when the swing happens even on a busy machine.
     await loadVariant(page, `
@@ -193,9 +193,25 @@ test.describe('3D battle', () => {
     const unit = (id) => page.evaluate((unitId) => window.ArsM2Battle.getSnapshot().units.find((u) => u.unitId === unitId), id);
     const [me, foe] = [await player(page), await unit(foeId)];
     expect(Math.hypot(foe.position.x - me.position.x, foe.position.z - me.position.z)).toBeLessThan(1.6);
-    await tap(page, '#m2Attack');
-    await page.evaluate(() => window.ArsM2Battle.setTimeScale(1));
-    await swingCooldownSeen(page);
+    // Facing the player, the foe stops most blows (M2_Defense.js): each swing either hurts him or is stopped,
+    // and they keep coming until one lands.
+    let swings = 0;
+    for (; swings < 12 && (await unit(foeId)).hp >= foe.hp; swings += 1) {
+      // Ready to swing again (the last swing's cooldown run out), then held still while the swing goes in.
+      await page.evaluate(() => window.ArsM2Battle.setTimeScale(1));
+      await page.waitForFunction(() => {
+        const s = window.ArsM2Battle.getSnapshot();
+        return s.units.find((u) => u.unitId === s.playerCharacterId).attackCooldownTicks === 0;
+      }, null, { polling: 'raf', timeout: 20_000 });
+      await page.evaluate(() => window.ArsM2Battle.setTimeScale(0));
+      const before = await diagnostics(page);
+      await tap(page, '#m2Attack');
+      await page.evaluate(() => window.ArsM2Battle.setTimeScale(1));
+      await swingCooldownSeen(page);
+      const after = await diagnostics(page);
+      const hurt = (await unit(foeId)).hp < foe.hp;
+      expect(hurt || after.stoppedCount > before.stoppedCount, `swing ${swings}`).toBe(true);
+    }
     expect((await unit(foeId)).hp).toBeLessThan(foe.hp);
   });
 
