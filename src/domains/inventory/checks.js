@@ -204,8 +204,65 @@ registerOnce('equipment_slot', {
     { id: 'off_hand', compatibleTags: ['weapon', 'shield'], capacity: 1 },
     { id: 'body', compatibleTags: ['armor'], capacity: 1 },
     { id: 'mount', compatibleTags: ['mount'], capacity: 1 },
+    // A bow or crossbow carried as well as the hand weapons (as in Bannerlord, a slot of its own).
+    { id: 'ranged', compatibleTags: ['ranged'], capacity: 1 },
   ],
 });
+
+// Equipment items and what each does in battle. slot is the equipment slot it is worn or carried in; battle
+// holds the numbers the 3D battle reads (m2/M2_HeroLoadout.js): a hand weapon's weaponClass (the skill it
+// uses), damage, reach (m) and cooldownTicks (20 a second); a shield's block (the share of a blocked blow
+// that still lands); a bow or crossbow's damage, reloadTicks, speed (m/s) and range (m); body armor's armor
+// (20 halves a blow); a horse's speed (m/s) and hpBonus.
+export const EQUIPMENT_ITEMS = Object.freeze([
+  { id: 'spear', name: '창', slot: 'main_hand', tags: ['weapon'], battle: { weaponClass: 'polearm', damage: 8, reach: 2.0, cooldownTicks: 16 } },
+  { id: 'lance', name: '기병창', slot: 'main_hand', tags: ['weapon'], battle: { weaponClass: 'polearm', damage: 9, reach: 2.4, cooldownTicks: 20 } },
+  { id: 'arming_sword', name: '한손검', slot: 'main_hand', tags: ['weapon'], battle: { weaponClass: 'one_handed', damage: 7, reach: 1.3, cooldownTicks: 12 } },
+  { id: 'mace', name: '철퇴', slot: 'main_hand', tags: ['weapon'], battle: { weaponClass: 'one_handed', damage: 8, reach: 1.1, cooldownTicks: 14 } },
+  { id: 'long_sword', name: '장검', slot: 'main_hand', tags: ['weapon'], battle: { weaponClass: 'two_handed', damage: 11, reach: 1.6, cooldownTicks: 20 } },
+  { id: 'round_shield', name: '원형 방패', slot: 'off_hand', tags: ['shield'], battle: { kind: 'shield', block: 0.4 } },
+  { id: 'kite_shield', name: '연 방패', slot: 'off_hand', tags: ['shield'], battle: { kind: 'shield', block: 0.3 } },
+  { id: 'hunting_bow', name: '사냥활', slot: 'ranged', tags: ['ranged'], battle: { weaponClass: 'bow', damage: 10, reloadTicks: 20, speed: 12, range: 22 } },
+  { id: 'war_bow', name: '전쟁활', slot: 'ranged', tags: ['ranged'], battle: { weaponClass: 'bow', damage: 13, reloadTicks: 26, speed: 14, range: 26 } },
+  { id: 'crossbow', name: '석궁', slot: 'ranged', tags: ['ranged'], battle: { weaponClass: 'crossbow', damage: 18, reloadTicks: 60, speed: 30, range: 24 } },
+  { id: 'gambeson', name: '누비옷', slot: 'body', tags: ['armor'], battle: { armor: 6 } },
+  { id: 'mail_shirt', name: '사슬 셔츠', slot: 'body', tags: ['armor'], battle: { armor: 15 } },
+  { id: 'mail_hauberk', name: '사슬 갑옷', slot: 'body', tags: ['armor'], battle: { armor: 22 } },
+  { id: 'coat_of_plates', name: '판금 조끼', slot: 'body', tags: ['armor'], battle: { armor: 30 } },
+  { id: 'rouncey', name: '승용마', slot: 'mount', tags: ['mount'], battle: { speed: 5.0, hpBonus: 80 } },
+  { id: 'courser', name: '군마', slot: 'mount', tags: ['mount'], battle: { speed: 5.6, hpBonus: 100 } },
+  { id: 'destrier', name: '전마', slot: 'mount', tags: ['mount'], battle: { speed: 5.2, hpBonus: 160 } },
+].map((item) => Object.freeze({ ...item, tags: Object.freeze([...item.tags]), battle: Object.freeze({ ...item.battle }) })));
+
+const WEAPON_CLASSES = new Set(['one_handed', 'two_handed', 'polearm']);
+const RANGED_CLASSES = new Set(['bow', 'crossbow']);
+const positive = (value) => typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+// What an equipment item must say for its slot: the numbers the battle reads.
+function equipmentItemProblems(data, lookup) {
+  const problems = [];
+  if (typeof data.slot !== 'string' || !lookup.has('equipment_slot', data.slot)) return ['missing_slot_reference'];
+  if (!Array.isArray(data.tags) || !data.tags.every((tag) => typeof tag === 'string')) problems.push('invalid_tags');
+  const battle = data.battle;
+  if (!isRecord(battle)) return [...problems, 'invalid_battle'];
+  const need = (keys) => keys.filter((key) => !positive(battle[key])).map((key) => `invalid_battle_${key}`);
+  if (data.slot === 'main_hand') {
+    if (!WEAPON_CLASSES.has(battle.weaponClass)) problems.push('invalid_battle_weaponClass');
+    problems.push(...need(['damage', 'reach', 'cooldownTicks']));
+  } else if (data.slot === 'off_hand') {
+    if (battle.kind !== 'shield' || !(positive(battle.block) && battle.block < 1)) problems.push('invalid_battle_block');
+  } else if (data.slot === 'ranged') {
+    if (!RANGED_CLASSES.has(battle.weaponClass)) problems.push('invalid_battle_weaponClass');
+    problems.push(...need(['damage', 'reloadTicks', 'speed', 'range']));
+  } else if (data.slot === 'body') {
+    problems.push(...need(['armor']));
+  } else if (data.slot === 'mount') {
+    problems.push(...need(['speed', 'hpBonus']));
+  }
+  return problems;
+}
+
+registerOnce('equipment_item', { validate: equipmentItemProblems, defaults: EQUIPMENT_ITEMS });
 
 registerOnce('cargo_purpose', {
   defaults: [{ id: 'supply' }, { id: 'contract' }, { id: 'mission' }, { id: 'personal_assignment' }],
@@ -213,6 +270,7 @@ registerOnce('cargo_purpose', {
 
 export const getResource = (state, id) => getDefinition(state, 'resource', id);
 export const hasEquipmentSlot = (state, id) => getDefinition(state, 'equipment_slot', id) !== null;
+export const getEquipmentItem = (state, id) => getDefinition(state, 'equipment_item', id);
 export const hasCargoPurpose = (state, id) => getDefinition(state, 'cargo_purpose', id) !== null;
 
 // ---------------------------------------------------------------- record checks

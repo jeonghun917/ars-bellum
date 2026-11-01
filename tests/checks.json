@@ -3196,6 +3196,36 @@
       "title": "without a sheet the hero carries spear, shield, bow and mail",
       "kind": "unit",
       "source": "tests/unit/m2-hero.test.mjs"
+    },
+    {
+      "id": "battle-hero.items-defined",
+      "title": "every equipment item says what it does in battle for its slot, and bad ones are refused",
+      "kind": "unit",
+      "source": "tests/unit/battle-hero.test.mjs"
+    },
+    {
+      "id": "battle-hero.new-game",
+      "title": "a new character has no combat skill and carries nothing: he fights with his fists",
+      "kind": "unit",
+      "source": "tests/unit/battle-hero.test.mjs"
+    },
+    {
+      "id": "battle-hero.equipped",
+      "title": "his skills and the items equipped to him reach the battle, each with its numbers",
+      "kind": "unit",
+      "source": "tests/unit/battle-hero.test.mjs"
+    },
+    {
+      "id": "battle-hero.only-his",
+      "title": "items not equipped, in the wrong slot, unknown, or handed to someone else are not his in battle",
+      "kind": "unit",
+      "source": "tests/unit/battle-hero.test.mjs"
+    },
+    {
+      "id": "battle-hero.into-battle",
+      "title": "a battle launched with his sheet has him fight as equipped",
+      "kind": "unit",
+      "source": "tests/unit/battle-hero.test.mjs"
     }
   ]
 }

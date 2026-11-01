@@ -3,7 +3,7 @@ import { registerAreaCheck } from '../../persist/schema.js';
 import { checkInventory } from './checks.js';
 
 export {
-  RESOURCE_CATEGORIES, checkInventory, inventoryProblems, getResource, hasEquipmentSlot, hasCargoPurpose,
+  RESOURCE_CATEGORIES, EQUIPMENT_ITEMS, checkInventory, inventoryProblems, getResource, hasEquipmentSlot, getEquipmentItem, hasCargoPurpose,
 } from './checks.js';
 export {
   calculateLoad, getFoodSummary,
