@@ -19,7 +19,7 @@ export const DEFAULT_COMMANDER_SHEETS = Object.freeze({
   infantry: Object.freeze({
     skills: SKILLS,
     equipment: Object.freeze({
-      main_hand: Object.freeze({ itemId: "spear", weaponClass: "polearm", damage: 8, reach: 2.0, cooldownTicks: 16 }),
+      main_hand: Object.freeze({ itemId: "spear", weaponClass: "polearm", damage: 24, reach: 2.0, cooldownTicks: 16 }),
       off_hand: Object.freeze({ itemId: "kite_shield", kind: "shield", block: 0.3 }),
       ranged: null,
       body: Object.freeze({ itemId: "mail_hauberk", armor: 22 }),
@@ -29,9 +29,9 @@ export const DEFAULT_COMMANDER_SHEETS = Object.freeze({
   crossbow: Object.freeze({
     skills: SKILLS,
     equipment: Object.freeze({
-      main_hand: Object.freeze({ itemId: "arming_sword", weaponClass: "one_handed", damage: 7, reach: 1.3, cooldownTicks: 12 }),
+      main_hand: Object.freeze({ itemId: "arming_sword", weaponClass: "one_handed", damage: 21, reach: 1.3, cooldownTicks: 12 }),
       off_hand: null,
-      ranged: Object.freeze({ itemId: "crossbow", weaponClass: "crossbow", damage: 18, reloadTicks: 60, speed: 30, range: 24 }),
+      ranged: Object.freeze({ itemId: "crossbow", weaponClass: "crossbow", damage: 54, reloadTicks: 60, speed: 30, range: 24 }),
       body: Object.freeze({ itemId: "mail_shirt", armor: 15 }),
       mount: null
     })
@@ -39,7 +39,7 @@ export const DEFAULT_COMMANDER_SHEETS = Object.freeze({
   cavalry: Object.freeze({
     skills: SKILLS,
     equipment: Object.freeze({
-      main_hand: Object.freeze({ itemId: "lance", weaponClass: "polearm", damage: 9, reach: 2.4, cooldownTicks: 20 }),
+      main_hand: Object.freeze({ itemId: "lance", weaponClass: "polearm", damage: 27, reach: 2.4, cooldownTicks: 20 }),
       off_hand: null,
       ranged: null,
       body: Object.freeze({ itemId: "mail_hauberk", armor: 22 }),

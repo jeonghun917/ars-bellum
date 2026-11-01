@@ -262,6 +262,9 @@ function nearestEnemy(battleState, spatialGrid, unit, radius, test = () => true)
 // A shield wall keeps its shields up at a walk or slower (m/s); braced spearmen watch for horse this far (m).
 const SHIELD_WALL_BLOCK_SPEED = 1.7;
 const BRACE_WATCH = 12;
+// A man keeps his face to an enemy this near (m) while he moves no faster than a walk (m/s).
+const FACE_FOE_DISTANCE = 3;
+const FACE_FOE_SPEED = 1.8;
 
 export class M2CombatSystem {
   #projectileLaunchCount = 0;
@@ -302,6 +305,13 @@ export class M2CombatSystem {
       const formation = battleState.getFormation(unit.formationId);
       // In a shield wall the men keep their shields up, standing or walking (they block as a man blocking does).
       unit.blocking = formation?.formationTypeId === "shield_wall" && Math.hypot(unit.velocity.x, unit.velocity.z) <= SHIELD_WALL_BLOCK_SPEED;
+      // A man with an enemy at arm's length keeps his face to him, even while he steps back into his place
+      // (or is pushed about): he can stop only the blows he faces (M2_Defense.js). One running (charging,
+      // wheeling away, closing in) looks where he runs.
+      if (!unit.withdrawTo && Math.hypot(unit.velocity.x, unit.velocity.z) <= FACE_FOE_SPEED) {
+        const foe = nearestEnemy(battleState, spatialGrid, unit, FACE_FOE_DISTANCE);
+        if (foe) unit.heading = Math.atan2(foe.position.x - unit.position.x, foe.position.z - unit.position.z);
+      }
       const order = orderOf(formation);
       // Braced spearmen turn to face the nearest horseman coming at them.
       if (order?.id === "spear_brace") {

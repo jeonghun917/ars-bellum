@@ -7,9 +7,9 @@
 export const DEFAULT_HERO_SHEET = Object.freeze({
   skills: Object.freeze({ one_handed: 40, two_handed: 20, polearm: 40, bow: 30, crossbow: 10, riding: 30, athletics: 40 }),
   equipment: Object.freeze({
-    main_hand: Object.freeze({ itemId: "spear", weaponClass: "polearm", damage: 8, reach: 2.0, cooldownTicks: 16 }),
+    main_hand: Object.freeze({ itemId: "spear", weaponClass: "polearm", damage: 24, reach: 2.0, cooldownTicks: 16 }),
     off_hand: Object.freeze({ itemId: "round_shield", kind: "shield", block: 0.4 }),
-    ranged: Object.freeze({ itemId: "hunting_bow", weaponClass: "bow", damage: 10, reloadTicks: 20, speed: 12, range: 22 }),
+    ranged: Object.freeze({ itemId: "hunting_bow", weaponClass: "bow", damage: 30, reloadTicks: 20, speed: 12, range: 22 }),
     body: Object.freeze({ itemId: "mail_shirt", armor: 15 }),
     mount: null
   })
@@ -21,7 +21,7 @@ const skill = (sheet, id) => Math.max(0, Math.min(100, Number(sheet?.skills?.[id
 const number = (value, fallback) => (Number.isFinite(value) && value > 0 ? value : fallback);
 
 // Bare hands, when nothing is carried in the main hand.
-const FISTS = Object.freeze({ itemId: null, weaponClass: "one_handed", damage: 2, reach: 1.0, cooldownTicks: 20 });
+const FISTS = Object.freeze({ itemId: null, weaponClass: "one_handed", damage: 6, reach: 1.0, cooldownTicks: 20 });
 
 // What the hero can do in battle, worked out once when the battle starts.
 export function heroCombat(sheet = DEFAULT_HERO_SHEET) {
@@ -47,7 +47,7 @@ export function heroCombat(sheet = DEFAULT_HERO_SHEET) {
       // (his skill with it also helps him stop blows: M2_Defense.js)
       skill: mainSkill,
       // Skill makes the blow up to twice as hard and up to 40% quicker.
-      damage: Math.round(number(main.damage, 2) * (1 + mainSkill / 100)),
+      damage: Math.round(number(main.damage, 6) * (1 + mainSkill / 100)),
       reach: number(main.reach, 1.0),
       cooldownTicks: Math.max(4, Math.round(number(main.cooldownTicks, 20) * (1 - mainSkill / 250)))
     }),
@@ -56,7 +56,7 @@ export function heroCombat(sheet = DEFAULT_HERO_SHEET) {
     ranged: ranged ? Object.freeze({
       itemId: ranged.itemId,
       weaponClass: ranged.weaponClass,
-      damage: Math.round(number(ranged.damage, 8) * (1 + rangedSkill / 100)),
+      damage: Math.round(number(ranged.damage, 24) * (1 + rangedSkill / 100)),
       reloadTicks: Math.max(6, Math.round(number(ranged.reloadTicks, 20) * (1 - rangedSkill / 200))),
       speed: number(ranged.speed, 12),
       range: number(ranged.range, 20)

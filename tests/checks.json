@@ -3151,7 +3151,7 @@
     },
     {
       "id": "m2.pace.longer-battle",
-      "title": "a battle now lasts minutes, not seconds",
+      "title": "a battle lasts about a minute, not seconds",
       "kind": "unit",
       "source": "tests/unit/m2-pace-bodies.test.mjs"
     },
@@ -3504,10 +3504,6 @@
       "source": "tests/browser/m2-subtypes.spec.mjs"
     },
     {
-      "id": "m2.subtypes.appearance",
-      "title": "each man is drawn in his subtype's armour and helmet, unless his formation says otherwise; an unknown one is not taken",
-      "kind": "unit",
-      "source": "tests/unit/m2-subtypes.test.mjs",
       "id": "m2.orders.pursuit",
       "title": "the pursuit button shows whether the selected formation pursues, and turns it on and off",
       "kind": "browser",

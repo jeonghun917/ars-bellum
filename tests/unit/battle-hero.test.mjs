@@ -64,9 +64,9 @@ test('[battle-hero.equipped] his skills and the items equipped to him reach the 
   assert.equal(sheet.equipment.main_hand.itemId, 'long_sword');
   assert.equal(sheet.equipment.main_hand.weaponClass, 'two_handed');
   const combat = heroCombat(sheet);
-  assert.equal(combat.melee.damage, Math.round(11 * 1.6));
+  assert.equal(combat.melee.damage, Math.round(33 * 1.6));
   assert.equal(combat.armor, 22);
-  assert.equal(combat.ranged.damage, Math.round(13 * 1.5));
+  assert.equal(combat.ranged.damage, Math.round(39 * 1.5));
   assert.equal(combat.mounted, true);
   assert.equal(combat.blockMultiplier, 0.3);
   assert.equal(combat.appearance, 'cavs');
@@ -101,7 +101,7 @@ test('[battle-hero.into-battle] a battle launched with his sheet has him fight a
   const hero = battle.getUnit(M2_TECHNICAL_SNAPSHOT.playerCharacterId);
   assert.equal(hero.armor, 30);
   assert.equal(hero.hero.melee.itemId, 'arming_sword');
-  assert.equal(hero.hero.melee.damage, Math.round(7 * 1.5));
+  assert.equal(hero.hero.melee.damage, Math.round(21 * 1.5));
   assert.equal(hero.hero.appearance, 'sword_free');
   assert.equal(hero.hero.ranged, null);
 });

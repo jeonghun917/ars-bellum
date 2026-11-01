@@ -135,14 +135,17 @@ test('[m2.plan.feigned-retreat] the horse ride in, fall back behind their own fo
   standBack(b);
   plan(b, 'feigned_retreat');
   const stages = [];
-  for (let i = 0; i < 2400; i += 1) {
+  let again = null;
+  for (let i = 0; i < 2400 && !again; i += 1) {
     tick(b);
     const stage = b.state.getPlan('ally').stage;
     if (stages.at(-1) !== stage) stages.push(stage);
     if (stage === 1) assert.equal(f(b, 'ally_column').order.type, 'move', 'falling back');
+    // Charging again (looked at as it starts: the fight after may break them, and they withdraw).
+    if (stage === 2) { tick(b); again = f(b, 'ally_column').order.type; }
   }
   assert.deepEqual(stages, [0, 1, 2]);
-  assert.equal(f(b, 'ally_column').order.type, 'attack_target');
+  assert.equal(again, 'attack_target');
   assert.equal(f(b, 'ally_line').formationTypeId, 'shield_wall');
 });
 

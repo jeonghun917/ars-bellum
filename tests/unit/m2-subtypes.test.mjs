@@ -34,8 +34,12 @@ test('[m2.subtypes.assigned] a formation the snapshot names a subtype has its me
   check('enemy_loose', 'crossbow');
   // Body and equipment: armor, bolts carried, hit points against the kind's.
   const plain = battle();
-  for (const u of soldiers(b, 'ally_line')) assert.equal(u.armor, 12);
-  for (const u of soldiers(plain, 'ally_line')) assert.equal(u.armor, 0);
+  // Armour is what he wears (M2_ARMOR_VALUES): shield-bearers and the kind's men mail, longbowmen leather,
+  // heavy horse plate.
+  for (const u of soldiers(b, 'ally_line')) assert.equal(u.armor, 15);
+  for (const u of soldiers(plain, 'ally_loose')) assert.equal(u.armor, 15);
+  for (const u of soldiers(b, 'ally_loose')) assert.equal(u.armor, 7);
+  for (const u of soldiers(b, 'ally_column')) assert.equal(u.armor, 30);
   for (const u of soldiers(b, 'ally_loose')) assert.equal(u.ammo, 30);
   for (const u of soldiers(b, 'enemy_loose')) assert.equal(u.ammo, 15);
   for (const u of soldiers(plain, 'ally_loose')) assert.equal(u.ammo, null, 'the kind\'s crossbowmen never run out');
@@ -64,14 +68,17 @@ test('[m2.subtypes.shield-stops-bolts] shield-bearers stop bolts from in front w
     attack(b, 'enemy_loose', 'ally_line');
     run(b, 500);
     const line = new Set(soldiers(b, 'ally_line').map((u) => u.unitId));
-    return b.events.filter((e) => e.damageEventId.startsWith('projectile:') && line.has(e.targetUnitId)).map((e) => e.damage);
+    // Bolts aimed at the line's men, and those that struck them (a stopped bolt does no harm: M2_Defense.js).
+    const aimed = b.bolts.filter((x) => line.has(x.aimedAt)).length;
+    const struck = b.events.filter((e) => e.damageEventId.startsWith('projectile:') && line.has(e.targetUnitId)).length;
+    return { aimed, struck, share: struck / Math.max(1, aimed) };
   };
   const shielded = bolts({ ally_line: 'shield' });
   const plain = bolts({});
-  assert.ok(shielded.length > 3 && plain.length > 3, `${shielded.length} ${plain.length}`);
-  assert.ok(plain.every((d) => d === M2_UNIT_KINDS.crossbow.boltDamage), JSON.stringify(plain));
-  // Those shot from in front (the men at the ends of the line are shot from the side, past their shields).
-  assert.ok(shielded.filter((d) => d < M2_UNIT_KINDS.crossbow.boltDamage).length >= shielded.length / 3, JSON.stringify(shielded));
+  assert.ok(shielded.aimed > 5 && plain.aimed > 5, JSON.stringify({ shielded, plain }));
+  // Their big shields stop most of what comes at them from in front (the men at the ends of the line are shot
+  // from the side, past their shields); men of the kind, some with shields and some without, far fewer.
+  assert.ok(shielded.share < plain.share * 0.6, JSON.stringify({ shielded, plain }));
 });
 
 test('[m2.subtypes.pike-outreaches-horse] pikemen strike charging horse before the horse reaches them; men with short spears are struck first', () => {
@@ -108,7 +115,15 @@ test('[m2.subtypes.crossbow-pierces] the crossbowman\'s (석궁병) bolts go thr
 });
 
 test('[m2.subtypes.ammo] the crossbowmen (석궁병) shoot their bolts, then close in and fight with their short swords', () => {
+  // The enemy line alone (the enemy's crossbowmen and horse out of the way), standing however often it is hit
+  // (so there is always someone to shoot at).
+  const sturdy = (x) => {
+    shift(x, 'enemy_loose', 60, -40);
+    shift(x, 'enemy_column', 60, 40);
+    for (const u of members(x, 'enemy_line')) { u.maxHp = 1e6; u.hp = 1e6; }
+  };
   const b = battle({ unitTypes: { ally_loose: 'crossbow' } });
+  sturdy(b);
   attack(b, 'ally_loose', 'enemy_line');
   run(b, 3000, () => struckBy(b, 'ally_loose').length > 0);
   const shots = new Map();
@@ -119,9 +134,11 @@ test('[m2.subtypes.ammo] the crossbowmen (석궁병) shoot their bolts, then clo
   assert.ok(struckBy(b, 'ally_loose').every((e) => e.tick > Math.max(...b.bolts.filter((x) => x.ownerUnitId === e.sourceUnitId).map((x) => x.tick))), 'after his last bolt');
   // The kind's crossbowmen, the same time, shoot on.
   const plain = battle();
+  sturdy(plain);
   attack(plain, 'ally_loose', 'enemy_line');
   run(plain, b.state.tick);
-  assert.ok(plain.bolts.filter((x) => x.sideId === 'ally').length > b.bolts.filter((x) => x.sideId === 'ally').length);
+  const most = (x) => Math.max(...members(x, 'ally_loose').map((u) => x.bolts.filter((y) => y.ownerUnitId === u.unitId).length));
+  assert.ok(most(plain) > 15, `${most(plain)}`);
   assert.equal(struckBy(plain, 'ally_loose').length, 0);
 });
 
@@ -171,7 +188,8 @@ test('[m2.subtypes.horse] light horse reaches the enemy first, heavy horse last;
   const plain = ride(null);
   const heavy = ride('heavy_cav');
   assert.ok(light.first < plain.first && plain.first < heavy.first, JSON.stringify([light.first, plain.first, heavy.first]));
-  assert.ok(heavy.perBlow < 0.75 && plain.perBlow > 0.95, JSON.stringify([heavy.perBlow, plain.perBlow]));
+  // Plate (30) lets through 20/50 of a blow, mail (15) 20/35.
+  assert.ok(heavy.perBlow < 0.47 && plain.perBlow > 0.5, JSON.stringify([heavy.perBlow, plain.perBlow]));
 });
 
 test('[m2.subtypes.shock] shock foot strike harder than the kind\'s foot soldiers', () => {
@@ -211,7 +229,8 @@ test('[m2.subtypes.appearance] each man is drawn in his subtype\'s armour and he
   assert.deepEqual(wears(swapped, 'ally_column'), ['leather/nasal']);
   assert.deepEqual(wears(swapped, 'ally_line'), ['plate/great']);
   assert.deepEqual(wears(swapped, 'enemy_line'), ['mail/nasal']);
-  // Drawn only: what he wears does not change what his armor stops.
-  assert.deepEqual(soldiers(swapped, 'ally_line').map((u) => u.armor), soldiers(battle(), 'ally_line').map((u) => u.armor));
-  for (const u of soldiers(swapped, 'ally_line')) assert.equal(u.maxHp, soldiers(battle(), 'ally_line').find((x) => x.unitId === u.unitId).maxHp);
+  // What he wears is what stops blows (the owner, 2026-11-01: better armour, harder to bring down).
+  assert.ok(soldiers(swapped, 'ally_line').every((u) => u.armor === 30));
+  assert.ok(soldiers(swapped, 'ally_column').every((u) => u.armor === 7));
+  assert.ok(soldiers(battle(), 'ally_line').every((u) => u.armor === 15));
 });

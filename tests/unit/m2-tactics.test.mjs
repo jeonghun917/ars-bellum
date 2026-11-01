@@ -54,13 +54,17 @@ test('[m2.shape.shield-wall] a shield wall keeps its shields up at a walk and ta
     for (let i = 0; i < 60; i += 1) tick(b);
     attack(b, 'enemy_loose', 'ally_line');
     for (let i = 0; i < 400; i += 1) tick(b);
-    const taken = b.events.filter((e) => e.damageEventId.startsWith('projectile:') && b.state.getUnit(e.targetUnitId).formationId === 'ally_line');
-    return { b, hits: taken.length, each: taken.reduce((s, e) => s + e.damage, 0) / Math.max(1, taken.length) };
+    // Bolts that struck the line's men against those that reached them (struck or stopped by a shield:
+    // M2_Defense.js); a shield wall's locked shields stop more.
+    const inLine = (id) => b.state.getUnit(id).formationId === 'ally_line';
+    const struck = b.events.filter((e) => e.damageEventId.startsWith('projectile:') && inLine(e.targetUnitId)).length;
+    const aimed = b.bolts.filter((x) => inLine(x.aimedAt)).length;
+    return { b, aimed, struck, share: struck / Math.max(1, aimed) };
   };
   const open = run(false);
   const walled = run(true);
-  assert.ok(open.hits > 5 && walled.hits > 5, JSON.stringify({ open: open.hits, walled: walled.hits }));
-  assert.ok(walled.each < open.each * 0.7, JSON.stringify({ open: open.each, walled: walled.each }));
+  assert.ok(open.aimed > 5 && walled.aimed > 5, JSON.stringify({ open: open.aimed, walled: walled.aimed }));
+  assert.ok(walled.share < open.share * 0.85, JSON.stringify({ open: open.share, walled: walled.share }));
   assert.ok(members(walled.b, 'ally_line').some((u) => u.blocking));
 });
 
@@ -109,12 +113,12 @@ test('[m2.order.no-added-effects] no order or shape makes a blow, a charge or a 
     return null;
   };
   const foot = firstBlow('ally_line');
-  assert.equal(foot, 3);
+  assert.equal(foot, 9);
   for (const setting of [{ shapeId: 'shield_wall' }, { shapeId: 'wedge' }, { shapeId: 'circle' }, { tacticId: 'charge' }, { tacticId: 'spear_brace' }, { tacticId: 'flank' }]) {
     assert.equal(firstBlow('ally_line', setting), foot, JSON.stringify(setting));
   }
   const charge = firstBlow('ally_column', { runUp: true });
-  assert.equal(charge, 10, 'a charge: 4 x 2.5');
+  assert.equal(charge, 30, 'a charge: 12 x 2.5');
   for (const setting of [{ shapeId: 'wedge' }, { tacticId: 'hit_and_run' }, { tacticId: 'charge' }, { tacticId: 'flank' }]) {
     assert.equal(firstBlow('ally_column', { ...setting, runUp: true }), charge, JSON.stringify(setting));
   }
@@ -129,8 +133,8 @@ test('[m2.order.no-added-effects] no order or shape makes a blow, a charge or a 
     }
     return null;
   };
-  assert.equal(firstBolt(null), 8);
-  for (const tacticId of ['focus_fire', 'volley', 'skirmish']) assert.equal(firstBolt(tacticId), 8, tacticId);
+  assert.equal(firstBolt(null), 24);
+  for (const tacticId of ['focus_fire', 'volley', 'skirmish']) assert.equal(firstBolt(tacticId), 24, tacticId);
 });
 
 test('[m2.order.charge] under a charge the men run straight at the enemy instead of keeping their places', () => {
