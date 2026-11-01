@@ -5,8 +5,10 @@ import assert from 'node:assert/strict';
 import { battle, tick, attack, members, hpOf } from './m2-sim-helpers.mjs';
 
 const enemyFormations = (b) => b.state.getFormationIdsStable().map((id) => b.state.getFormation(id)).filter((f) => f.sideId === 'enemy');
+// To the centimetre: where the starting places overlap a little (a horse of the enemy column inside the
+// enemy line), bodies settle by fractions of a millimetre.
 const positions = (b, side) => JSON.stringify(b.state.getUnitIdsStable().map((id) => b.state.getUnit(id))
-  .filter((u) => u.sideId === side).map((u) => [Math.round(u.position.x * 1000), Math.round(u.position.z * 1000)]));
+  .filter((u) => u.sideId === side).map((u) => [Math.round(u.position.x * 100), Math.round(u.position.z * 100)]));
 
 test('[m2.ai.waits] left alone, the enemy holds its ground and nobody is hurt', () => {
   const b = battle({ withAI: true });

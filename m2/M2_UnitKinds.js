@@ -2,19 +2,22 @@
 // a horse ("cavalry"). The launch snapshot has no field for it yet, so the kind comes with the formation:
 // each side's loose formation carries crossbows and its column rides. Formations not listed are infantry.
 
-// Pace (the owner's season-2 design: a heavy, slow battlefield): a formation marches at marchScale times
-// the running speed and breaks into a run only for the last chargeDistance metres of an attack (and when
-// routing). speedScale is the running speed against a man on foot. A blow lands every meleeCooldownTicks
-// (1.5 s), not every half second. A soldier stands hpScale times his vitality in hits: mail and a
-// horse, in place of the equipment the battle does not carry yet; a 20-v-20 fight lasts about two minutes. Each soldier is a circle of radius (m) on the field that others cannot
-// enter; mass says who gives way when two push (a horse shoves men aside).
+// Pace: soldiers run to their places (speedScale is the running speed against a man on foot) and walk
+// (walkScale of it) only for the last walkDistance metres, settling into line. A blow lands every
+// meleeCooldownTicks (1.5 s), not every half second. A soldier stands hpScale times his vitality in hits:
+// mail and a horse, in place of the equipment the battle does not carry yet; a 20-v-20 fight lasts about two
+// minutes. Each soldier is a circle of radius (m) on the field that others cannot enter; mass says who gives
+// way when two push. Every enemy body a soldier presses against slows him by crowdDrag of his speed, so a horse
+// shoves through a man or two but stops in a crowd three deep (the owner's season-2 design: cavalry that
+// hits a thick block is trapped).
 export const M2_UNIT_KINDS = Object.freeze({
   infantry: Object.freeze({
     id: "infantry",
     hpScale: 2.5,
     speedScale: 1,
-    marchScale: 0.45,
-    chargeDistance: 10,
+    walkScale: 0.45,
+    walkDistance: 3,
+    crowdDrag: 0.25,
     spacingScale: 1,
     radius: 0.35,
     mass: 1,
@@ -29,8 +32,9 @@ export const M2_UNIT_KINDS = Object.freeze({
     id: "crossbow",
     hpScale: 2,
     speedScale: 1,
-    marchScale: 0.45,
-    chargeDistance: 0,
+    walkScale: 0.45,
+    walkDistance: 3,
+    crowdDrag: 0.25,
     spacingScale: 1,
     radius: 0.35,
     mass: 1,
@@ -52,11 +56,12 @@ export const M2_UNIT_KINDS = Object.freeze({
     id: "cavalry",
     hpScale: 3,
     speedScale: 1.75,
-    // A walk (1.7 m/s, the horse's walking clip) until the charge: the last 20 m at a gallop.
-    marchScale: 0.3,
-    chargeDistance: 20,
+    // Walking (1.7 m/s, the horse's walking clip) only to settle into place; a gallop otherwise.
+    walkScale: 0.3,
+    walkDistance: 4,
+    crowdDrag: 0.25,
     radius: 0.8,
-    mass: 6,
+    mass: 4,
     meleeCooldownTicks: 30,
     // A horse is about 2.4 m long: a column at the infantry's 1.25 m would stack them on one another.
     spacingScale: 2.2,

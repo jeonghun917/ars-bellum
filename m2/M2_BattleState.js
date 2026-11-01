@@ -67,6 +67,8 @@ export class M2BattleState {
         attackCooldownTicks: 0,
         // Ticks in a row a horseman has ridden at charging speed without striking (M2_UnitKinds.js).
         chargeRunTicks: 0,
+        // How many bodies pressed against him in the last tick (M2_CollisionSystem.js); slows him.
+        crowd: 0,
         targetUnitId: null,
         routeReasonId: null,
         routeTarget: null,

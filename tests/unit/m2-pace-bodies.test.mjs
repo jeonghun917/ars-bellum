@@ -10,44 +10,54 @@ import { battle, tick, attack, members } from './m2-sim-helpers.mjs';
 const speed = (u) => Math.hypot(u.velocity.x, u.velocity.z);
 const living = (b) => b.state.getUnitIdsStable().map((id) => b.state.getUnit(id)).filter(isM2UnitAlive);
 
-test('[m2.pace.march] a formation ordered to move marches at a walk, not a run', () => {
+test('[m2.pace.run-then-settle] soldiers run to their places and walk only the last few metres', () => {
   const b = battle();
-  const receipt = b.queue.enqueue({ commandId: 'm', type: 'formation_move', formationId: 'ally_column', target: { x: -8, z: 25 } }, b.state);
+  const receipt = b.queue.enqueue({ commandId: 'm', type: 'formation_move', formationId: 'ally_loose', target: { x: -3, z: 25 } }, b.state);
   assert.equal(receipt.ok, true);
-  // The middle speed of the column each tick (a horse shoving through the ally line on its way is pushed
-  // about for a moment).
-  const seen = [];
-  for (let i = 0; i < 100; i += 1) {
+  // The middle soldier by speed each tick, with how far he still has to go.
+  const samples = [];
+  for (let i = 0; i < 300; i += 1) {
     tick(b);
-    const speeds = members(b, 'ally_column').map(speed).sort((p, q) => p - q);
-    seen.push(speeds[Math.floor(speeds.length / 2)]);
+    const bySpeed = members(b, 'ally_loose').sort((p, q) => speed(p) - speed(q));
+    const u = bySpeed[Math.floor(bySpeed.length / 2)];
+    samples.push({ speed: speed(u), left: Math.hypot(u.slotTarget.x - u.position.x, u.slotTarget.z - u.position.z) });
   }
-  // A horse walks at about 1.7 m/s (its walking clip); running would be 5.6.
-  assert.ok(Math.max(...seen) < 2, `${Math.max(...seen)} m/s`);
-  assert.ok(Math.max(...seen) > 1.4, `${Math.max(...seen)} m/s`);
+  const far = samples.filter((s) => s.left > 4);
+  const near = samples.filter((s) => s.left > 0.1 && s.left < 2.5);
+  // Running is 3.2 m/s on foot; the walk clip's pace is about 1.3-1.5.
+  assert.ok(far.length > 20 && far.every((s) => s.speed > 3), 'running while far');
+  assert.ok(near.length > 0 && near.every((s) => s.speed < 1.6), 'walking at the end');
 });
 
-test('[m2.pace.charge] attacking soldiers march up and break into a run for the last stretch', () => {
+const ride = (ranks) => {
+  // One horseman rides at a block of enemy foot, `ranks` deep and six wide, who hold their places.
   const b = battle();
-  const far = b.state.getFormation('enemy_line');
-  far.anchor = { x: 5, z: -35 };
-  for (const u of members(b, 'enemy_line')) { u.position.z -= 30; u.previousPosition = { ...u.position }; u.slotTarget = { x: u.position.x, z: u.position.z }; }
-  attack(b, 'ally_line', 'enemy_line');
-  // The line's middle soldier by speed each tick, until the first blow (on its way it passes through the
-  // ally crossbowmen, who are shoved aside, and the enemy crossbowmen shoot at it: neither stops the march).
-  const line = () => members(b, 'ally_line').filter((u) => !u.isPlayer && isM2UnitActive(u));
-  const samples = [];
-  for (let i = 0; i < 900 && !b.events.some((e) => e.damageEventId.startsWith('auto_melee:')); i += 1) {
-    tick(b);
-    const bySpeed = line().sort((p, q) => speed(p) - speed(q));
-    const middle = bySpeed[Math.floor(bySpeed.length / 2)];
-    samples.push({ speed: speed(middle), toSlot: Math.hypot(middle.slotTarget.x - middle.position.x, middle.slotTarget.z - middle.position.z) });
+  const horse = members(b, 'ally_column')[0];
+  const men = b.state.getUnitIdsStable().map((id) => b.state.getUnit(id)).filter((u) => u.sideId === 'enemy');
+  for (const u of b.state.getUnitIdsStable().map((id) => b.state.getUnit(id))) {
+    if (u === horse) continue;
+    u.position = { x: 100 + Number(u.unitId.slice(-2)) * 2, y: 0, z: 100 };
+    u.slotTarget = { x: u.position.x, z: u.position.z };
   }
-  const run = M2_CONFIG.unitMaxSpeed;
-  const farOff = samples.filter((s) => s.toSlot > M2_UNIT_KINDS.infantry.chargeDistance + 1 && s.speed > 0);
-  const close = samples.filter((s) => s.toSlot < M2_UNIT_KINDS.infantry.chargeDistance - 1 && s.speed > 0);
-  assert.ok(farOff.length > 20 && farOff.every((s) => s.speed < run * 0.6), 'marching while far');
-  assert.ok(close.length > 5 && close.some((s) => s.speed > run * 0.95), 'running at the end');
+  let k = 0;
+  for (let r = 0; r < ranks; r += 1) for (let c = 0; c < 6; c += 1) {
+    const m = men[k++];
+    m.position = { x: (c - 2.5) * 0.75, y: 0, z: 5 + r * 0.75 };
+    m.previousPosition = { ...m.position };
+    m.slotTarget = { x: m.position.x, z: m.position.z };
+  }
+  horse.position = { x: 0, y: 0, z: -10 };
+  horse.previousPosition = { ...horse.position };
+  horse.slotTarget = { x: 0, z: 20 };
+  b.formation.updateSlots = () => {};
+  for (let i = 0; i < 200; i += 1) tick(b);
+  return horse.position.z;
+};
+
+test('[m2.bodies.horse-trapped] a horse breaks through a line one man deep but is stopped by a block two deep or more', () => {
+  assert.ok(ride(1) > 15, 'through a single line');
+  assert.ok(ride(2) < 7, 'held by two ranks');
+  assert.ok(ride(3) < 7, 'held by three ranks');
 });
 
 test('[m2.pace.blow-rhythm] a soldier in a fight strikes about every one and a half seconds', () => {
@@ -103,12 +113,32 @@ test('[m2.bodies.horse-shoves] a horse pushes a man aside; two men share the ste
   const horseMoved = Math.abs(horse.position.x);
   const manMoved = Math.abs(man.position.x - 0.5);
   assert.ok(manMoved > horseMoved * 4, JSON.stringify({ horseMoved, manMoved }));
+  // Two men both standing (the shove above left the first with a push's velocity).
   man.position = { x: 10, y: 0, z: 0 };
   man2.position = { x: 10.4, y: 0, z: 0 };
+  man.velocity = { x: 0, z: 0 };
+  man2.velocity = { x: 0, z: 0 };
   b.grid.rebuild(b.state);
   b.collision.step(b.state, b.grid, 0.05);
   assert.ok(Math.abs((man.position.x - 10) + (man2.position.x - 10.4)) < 1e-9, 'pushed apart by the same amount');
   assert.ok(man2.position.x - man.position.x > 0.69);
+});
+
+test('[m2.bodies.comrades-make-way] a soldier on the move goes round a comrade standing in his way', () => {
+  const b = battle();
+  const runner = members(b, 'ally_loose')[0];
+  const stander = members(b, 'ally_loose')[1];
+  runner.position = { x: 30, y: 0, z: 0 };
+  runner.velocity = { x: 0, z: 3.2 };
+  stander.position = { x: 30.05, y: 0, z: 0.5 };
+  stander.velocity = { x: 0, z: 0 };
+  const before = { ...runner.position };
+  b.grid.rebuild(b.state);
+  b.collision.step(b.state, b.grid, 0.05);
+  // The runner is not pushed back; the stander steps aside, and they part sideways.
+  assert.ok(runner.position.z >= before.z - 1e-9, JSON.stringify(runner.position));
+  assert.ok(Math.abs(runner.position.x - stander.position.x) > 0.05, JSON.stringify([runner.position, stander.position]));
+  assert.ok(Math.hypot(runner.position.x - stander.position.x, runner.position.z - stander.position.z) >= 0.69);
 });
 
 test('[m2.bodies.fallen-take-no-room] the fallen lie where they fell and do not push anyone', () => {

@@ -200,7 +200,7 @@
     },
     {
       "id": "m2.render.soldier-gait",
-      "title": "marching soldiers walk, charging soldiers run, each matching their speed",
+      "title": "soldiers crossing the field run, and walk only to settle into place",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
     },
@@ -3096,14 +3096,14 @@
       "source": "tests/unit/m2-enemy-ai.test.mjs"
     },
     {
-      "id": "m2.pace.march",
-      "title": "a formation ordered to move marches at a walk, not a run",
+      "id": "m2.pace.run-then-settle",
+      "title": "soldiers run to their places and walk only the last few metres",
       "kind": "unit",
       "source": "tests/unit/m2-pace-bodies.test.mjs"
     },
     {
-      "id": "m2.pace.charge",
-      "title": "attacking soldiers march up and break into a run for the last stretch",
+      "id": "m2.bodies.horse-trapped",
+      "title": "a horse breaks through a line one man deep but is stopped by a block two deep or more",
       "kind": "unit",
       "source": "tests/unit/m2-pace-bodies.test.mjs"
     },
@@ -3122,6 +3122,12 @@
     {
       "id": "m2.bodies.horse-shoves",
       "title": "a horse pushes a man aside; two men share the step",
+      "kind": "unit",
+      "source": "tests/unit/m2-pace-bodies.test.mjs"
+    },
+    {
+      "id": "m2.bodies.comrades-make-way",
+      "title": "a soldier on the move goes round a comrade standing in his way",
       "kind": "unit",
       "source": "tests/unit/m2-pace-bodies.test.mjs"
     },
