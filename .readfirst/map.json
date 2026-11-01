@@ -135,6 +135,12 @@
           "files": [
             "m2/M2_RendererThree.js"
           ]
+        },
+        {
+          "text": "A formation under its side's battle plan (underPlan) is given its order, formation order and sometimes shape again every tick by M2PlanSystem.step, which runs after the enemy commander's step in M2_BattleRuntime. Any new way to order a formation by hand has to clear underPlan, as M2_FormationSystem.applyCommand does for every formation_ command except formation_set_type. Otherwise the plan overwrites the order on the next tick."
+        },
+        {
+          "text": "The enemy commander now picks a battle plan on his first think (M2_EnemyAI.js, from PLAN_PREFERENCE), and that plan then directs all his formations. Tests of his per-formation target choices must first set frontal_push for the enemy (setPlan), as m2-enemy-ai.test.mjs does."
         }
       ]
     },
@@ -479,6 +485,9 @@
           "files": [
             "tests/unit/**"
           ]
+        },
+        {
+          "text": "tick() in tests/unit/m2-sim-helpers.mjs repeats the runtime's step order (formation commands, army_set_plan, enemy AI, plan system, then attack goals and slots). A new system added to M2_BattleRuntime must be added there in the same place, or unit tests run a different battle from the game."
         }
       ]
     },
@@ -673,6 +682,16 @@
         {
           "run": "node --test tests/unit/save.test.mjs"
         }
+      ]
+    },
+    {
+      "id": "plan-only-if-available",
+      "rule": "A side's plan is frontal_push, none, or one listed by plansFor for its unit kinds and best commander's tactic slots. army_set_plan with any other plan id is refused (m2_command_plan_not_available), and the enemy commander picks only from plansFor.",
+      "why": "Each plan's code assumes the unit kinds it needs are on the field. A plan set without them directs formations that are not there (for example, a screen of crossbowmen when there are none).",
+      "files": [
+        "m2/M2_Plans.js",
+        "m2/M2_CommandQueue.js",
+        "m2/M2_EnemyAI.js"
       ]
     }
   ],
