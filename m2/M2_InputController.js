@@ -1,5 +1,6 @@
 import { M2_PLANS } from "./M2_Plans.js";
 import { M2_ORDERS } from "./M2_Orders.js";
+import { M2_UNIT_TYPES } from "./M2_UnitKinds.js";
 function stopEvent(event) {
   event.preventDefault?.();
   event.stopPropagation?.();
@@ -145,7 +146,8 @@ export class M2InputController {
       for (const row of rows) {
         const option = document.createElement("option");
         option.value = row.formationId;
-        option.textContent = row.formationId;
+        // With its subtype (병종), if it has one.
+        option.textContent = M2_UNIT_TYPES[row.unitTypeId] ? `${row.formationId} (${M2_UNIT_TYPES[row.unitTypeId].label})` : row.formationId;
         option.selected = row.formationId === selected;
         select.appendChild(option);
       }

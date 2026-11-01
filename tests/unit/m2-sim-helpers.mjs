@@ -19,9 +19,14 @@ import { M2_TECHNICAL_COMBAT_PROFILES, M2_TECHNICAL_SNAPSHOT } from '../../m2/fi
 const DT = M2_CONFIG.fixedTickMs / 1000;
 
 // A battle with the enemy commander (M2_EnemyAI.js) when withAI is true, and the player's hero carrying
-// heroSheet (M2_HeroLoadout.js) and formations' commanders commanderSheets (M2_Commanders.js) when given.
-export function battle({ withAI = false, heroSheet = null, commanderSheets = null } = {}) {
+// heroSheet (M2_HeroLoadout.js) and formations' commanders commanderSheets (M2_Commanders.js) when given;
+// unitTypes ({ formationId: subtype }) makes formations subtypes (병종, M2_UnitKinds.js), and formations adds
+// fields to formations of the snapshot.
+export function battle({ withAI = false, heroSheet = null, commanderSheets = null, unitTypes = null, formations = null } = {}) {
   const snapshot = { ...M2_TECHNICAL_SNAPSHOT, ...(heroSheet ? { heroSheet } : {}), ...(commanderSheets ? { commanderSheets } : {}) };
+  if (unitTypes) snapshot.formations = snapshot.formations.map((f) => (unitTypes[f.formationId] ? { ...f, unitTypeId: unitTypes[f.formationId] } : f));
+  // formations ({ formationId: fields }): more fields for formations of the snapshot (armorId, helmId...).
+  if (formations) snapshot.formations = snapshot.formations.map((f) => ({ ...f, ...(formations[f.formationId] || {}) }));
   const state = new M2BattleState(snapshot, createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES));
   const queue = new M2CommandQueue();
   queue.beginBattleEpoch();

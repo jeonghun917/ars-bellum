@@ -560,7 +560,14 @@ def reset_pose(skeleton):
 # nothing hides everything bound to it.
 PROP_BONES = {"prop_spear": "hand_r", "prop_sword": "hand_r", "prop_sheath": "pelvis", "prop_shield": "lowerarm_l",
               "prop_great": "hand_r", "prop_xbow": "Root", "prop_bolt": "prop_xbow", "prop_quiver": "pelvis",
-              "prop_bolt_hand": "hand_r", "prop_lever": "hand_r"}
+              "prop_bolt_hand": "hand_r", "prop_lever": "hand_r",
+              # The subtypes' gear (m2/M2_UnitKinds.js): hidden in every clip; the renderer shows a soldier's own
+              # (and hides what it replaces: the sword for the axe, the spear for the glaive, the nasal helm for
+              # the great helm) after the clip has posed him (M2_RendererThree.js).
+              "prop_axe": "hand_r", "prop_glaive": "hand_r", "prop_javelins": "lowerarm_l", "prop_helm": "head",
+              "prop_greathelm": "head", "prop_leathercap": "head"}
+# Shown in every clip: the nasal helm (hidden by the renderer under a great helm).
+ALWAYS_SHOWN = {"prop_helm"}
 HIDDEN = 1e-4
 # The crossbow is not on a hand's bone: in the reload it stands in its stirrup on the ground while both hands
 # pull the string. Its bone hangs from Root and is set where the right hand holds it every frame
@@ -586,7 +593,9 @@ def add_prop_bones(skeleton):
 def show(skeleton, spear=True, sword=False, sheathed=True, shield=True, great=False, crossbow=False, loaded=True):
     for name, on in (("prop_spear", spear), ("prop_sword", sword), ("prop_sheath", sheathed), ("prop_shield", shield),
                      ("prop_great", great), ("prop_xbow", crossbow), ("prop_bolt", loaded), ("prop_quiver", crossbow),
-                     ("prop_bolt_hand", False), ("prop_lever", False)):
+                     ("prop_bolt_hand", False), ("prop_lever", False),
+                     *((name, name in ALWAYS_SHOWN) for name in ("prop_axe", "prop_glaive", "prop_javelins", "prop_helm",
+                                                                 "prop_greathelm", "prop_leathercap"))):
         k = 1.0 if on else HIDDEN
         skeleton.pose.bones[name].scale = (k, k, k)
     if NOCK in skeleton.pose.bones:
@@ -2528,6 +2537,93 @@ def spear(mat_wood, mat_steel, length=2.6):
     return [mesh_obj("spear_shaft", shaft, mat_wood), mesh_obj("spear_head", head, mat_steel, smooth=False)]
 
 
+def _flat(name, pts, thickness, mat):
+    """A flat plate from (x, z) outline points, thickness along Y, centred on y = 0."""
+    bm = bmesh.new()
+    verts = [bm.verts.new((x, 0, z)) for x, z in pts]
+    bm.faces.new(verts)
+    ext = bmesh.ops.extrude_face_region(bm, geom=bm.faces[:])
+    for v in ext["geom"]:
+        if isinstance(v, bmesh.types.BMVert):
+            v.co.y += thickness
+    for v in bm.verts:
+        v.co.y -= thickness / 2
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return mesh_obj(name, bm, mat, smooth=False)
+
+
+# Weapons of the subtypes (병종, m2/M2_UnitKinds.js), each held as the weapon whose clips it borrows: the axe
+# where the arming sword is (grip at the origin, along +Z, its bit along the sword's edge, X), the glaive where
+# the spear is (its middle at the origin), the javelins in the shield hand.
+def axe(mats):
+    """A bearded axe: an 80 cm haft, the head at its top."""
+    haft = mesh_obj("axe_haft", _rod((0, 0, -0.12), (0, 0, 0.66), 0.016, 8), mats["wood"])
+    head = _flat("axe_head", [(0.012, 0.66), (0.012, 0.56), (0.07, 0.5), (0.15, 0.47), (0.17, 0.58), (0.16, 0.69),
+                              (0.1, 0.66), (0.06, 0.68)], 0.012, mats["steel"])
+    poll = mesh_obj("axe_poll", _box((-0.01, 0, 0.63), (0.04, 0.03, 0.07)), mats["steel"], smooth=False)
+    return [haft, head, poll]
+
+
+def glaive(mats, length=2.1):
+    """A glaive: a long single-edged blade on a shaft, the edge along X."""
+    shaft = mesh_obj("glaive_shaft", _rod((0, 0, -length / 2), (0, 0, length / 2 - 0.05), 0.016, 8), mats["wood"])
+    top = length / 2 - 0.08
+    blade = _flat("glaive_blade", [(-0.018, top), (0.03, top), (0.06, top + 0.18), (0.045, top + 0.42), (0.0, top + 0.52),
+                                   (-0.015, top + 0.3), (-0.03, top + 0.12)], 0.008, mats["steel"])
+    socket = mesh_obj("glaive_socket", _rod((0, 0, top - 0.1), (0, 0, top + 0.02), 0.021, 8), mats["steel"])
+    return [shaft, blade, socket]
+
+
+def javelins(mats, count=3, length=1.15):
+    """A sheaf of javelins, upright, a little fanned, their middles at the origin."""
+    parts = []
+    for i in range(count):
+        dx = (i - (count - 1) / 2) * 0.03
+        lean = Vector((dx * 1.5, 0.0, 1.0)).normalized()
+        a, b = Vector((dx, 0, 0)) - lean * length / 2, Vector((dx, 0, 0)) + lean * length / 2
+        parts.append(mesh_obj("javelin_shaft", _rod(a, b, 0.011, 6), mats["wood"]))
+        head = bmesh.new()
+        bmesh.ops.create_cone(head, cap_ends=True, segments=4, radius1=0.016, radius2=0.0, depth=0.16)
+        m = Matrix.Translation(b + lean * 0.08) @ lean.to_track_quat("Z", "Y").to_matrix().to_4x4()
+        for v in head.verts:
+            v.co = m @ v.co
+        parts.append(mesh_obj("javelin_head", head, mats["steel"], smooth=False))
+    return parts
+
+
+def great_helm(head_top, radius, mat, dark):
+    """A great helm: a flat-topped barrel over the whole head, an eye slit and breaths, a cross on the face.
+    head_top is the brow's centre; it closes over the coif and the nasal helm (which is hidden under it)."""
+    r = radius * 1.03
+    profile = [(r * 0.9, -0.13), (r * 0.97, -0.08), (r * 1.0, 0.0), (r, 0.08), (r * 0.94, 0.12), (r * 0.6, 0.135), (0.01, 0.14)]
+    bm = lathe(profile, 20)
+    bmesh.ops.contextual_create(bm, geom=[v for v in bm.verts if v.co.z > 0.139])
+    helm = mesh_obj("great_helm", bm, mat)
+    # The bands across the face lie on the helm (not standing off it) and end within its curve: their ends,
+    # standing out at the sides, went through a rider's shield held beside his face.
+    front = -r - 0.002
+    slit = mesh_obj("great_helm_slit", _box((0, front, -0.005), (r * 0.9, 0.008, 0.016)), dark, smooth=False)
+    cross_v = mesh_obj("great_helm_cross", _box((0, front - 0.002, -0.05), (0.02, 0.006, 0.13)), mat, smooth=False)
+    cross_h = mesh_obj("great_helm_brow", _box((0, front - 0.002, 0.014), (r * 0.9, 0.006, 0.018)), mat, smooth=False)
+    parts = [helm, slit, cross_v, cross_h]
+    for o in parts:
+        o.data.transform(Matrix.Translation(head_top))
+    return parts
+
+
+def leather_cap(head_top, radius, mat):
+    """A boiled-leather cap: a low dome with a rolled brim."""
+    profile = [(radius * 1.02, -0.006), (radius * 1.02, 0.03), (radius * 0.96, 0.08), (radius * 0.8, 0.13),
+               (radius * 0.52, 0.165), (radius * 0.2, 0.18), (0.01, 0.182)]
+    bm = lathe(profile, 18)
+    bmesh.ops.contextual_create(bm, geom=[v for v in bm.verts if v.co.z > 0.181])
+    cap = mesh_obj("leather_cap", bm, mat)
+    brim = mesh_obj("leather_cap_brim", lathe([(radius * 1.05, -0.008), (radius * 1.05, 0.016)], 18), mat)
+    for o in (cap, brim):
+        o.data.transform(Matrix.Translation(head_top))
+    return [cap, brim]
+
+
 # ---------------------------------------------------------------------------------------------------------
 
 def paint_tabard(surcoat, f, chest_z, size=512):
@@ -2760,7 +2856,8 @@ def infantry(zf, f):
     # It takes in the neck as well, so it overlaps the coif there: a face is kept only when all its corners
     # are kept, so where two layers meet edge to edge the row of faces between them belongs to neither, and
     # the inside of the man shows through.
-    hauberk = surface_layer(body, "hauberk", lambda i: dom[i] in TORSO_BONES or dom[i] in ARM_BONES or dom[i] == "neck_01",
+    # (Its own mesh, "gear_armor_mail": the body armour can be changed for leather or plate, M2_RendererThree.js.)
+    hauberk = surface_layer(body, "gear_armor_mail", lambda i: dom[i] in TORSO_BONES or dom[i] in ARM_BONES or dom[i] == "neck_01",
                             lambda co: 0.022, mats["mail"], decimate=0.28, smoothing=2)
     def is_face_inner(i):
         c = body.data.vertices[i].co
@@ -2800,6 +2897,23 @@ def infantry(zf, f):
     shoes = surface_layer(body, "shoes", lambda i: dom[i] in FOOT_BONES, lambda co: 0.003 + 0.011 * min(1.0, co.z / 0.03),
                           mats["leather"], decimate=0.12)
     SKIRTS["skirt"]["inside"] = [hose, shoes]
+    # The other body armours, each its own mesh in the mail's place, the renderer drawing one of the three
+    # (M2_RendererThree.js): a leather coat, and plate, each the mail's own surface in leather or steel (so it
+    # sits under the surcoat exactly as the mail does: a layer of its own there went through the coat), and with
+    # the plate greaves on the shins below the skirts' hems.
+    def like_mail(name, mat):
+        o = hauberk.copy()
+        o.data = hauberk.data.copy()
+        o.name = o.data.name = name
+        bpy.context.collection.objects.link(o)
+        o.data.materials.clear()
+        o.data.materials.append(mat)
+        return o
+    leather_coat = like_mail("gear_armor_leather", mats["leather"])
+    plate = [like_mail("gear_armor_plate", mats["steel"]),
+             surface_layer(body, "gear_armor_plate_greaves", lambda i: dom[i] in LEG_BONES and 0.2 < body.data.vertices[i].co.z < knee_z - 0.16,
+                           lambda co: 0.012, mats["steel"], decimate=0.25, smoothing=1)]
+    box_uvs(plate[1], 0.25)
     # The horse's barrel under a mounted man (test and cloth only, removed before export): what his skirt
     # drapes over and his legs straddle.
     barrel = horse_barrel(mats["skin"])
@@ -2871,7 +2985,7 @@ def infantry(zf, f):
     belt = rigid(mesh_obj("belt", belt_bm, mats["leather"]), skeleton, "pelvis")
     # The belt holds the cloth under it to the hips: left to bend with the spine there, the coat (and the
     # mail under it) turned with the shoulders in a cut and went out through the belt on one side.
-    for part in (surcoat, hauberk):
+    for part in (surcoat, hauberk, leather_coat, plate[0]):
         pin_band(part, belt_z, 0.03, 0.07, "pelvis")
     front_r = max(polar(v.co)[1] for v in belt.data.vertices if abs(polar(v.co)[0]) < step)
     by0 = cy - front_r
@@ -2981,8 +3095,14 @@ def infantry(zf, f):
     coif_band = [v.co for v in coif.data.vertices if abs(v.co.z - brow_z) < 0.03]
     coif_r = max(max(abs(c.x) for c in coif_band), (max(c.y for c in coif_band) - min(c.y for c in coif_band)) / 2 / 1.08)
     coif_cy = (max(c.y for c in coif_band) + min(c.y for c in coif_band)) / 2
-    helm_parts = [rigid(p, skeleton, "head") for p in
+    nasal_helm = helm_parts = [rigid(p, skeleton, "prop_helm") for p in
                   italo_norman_helm(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["steel"])]
+    # The other helmets, in the nasal helm's place over the coif (the renderer shows one of the three): the great
+    # helm and a leather cap.
+    great_helm_parts = [rigid(p, skeleton, "prop_greathelm") for p in
+                        great_helm(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["steel"], mats["iris"])]
+    leather_cap_parts = [rigid(p, skeleton, "prop_leathercap") for p in
+                         leather_cap(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["leather"])]
 
     # Shield on the left forearm, facing forward in the stance; spear upright in the right fist.
     stance(skeleton)
@@ -3012,6 +3132,13 @@ def infantry(zf, f):
     great = sword(mats, "great", blade_length=0.95, grip_length=0.24, guard_width=0.25)
     for part in great:
         part.data.transform(Matrix.Translation(fists["r"] + Vector((0, 0, 0.05))) @ roll)
+    # The axe where the sword is held, the glaive where the spear is (its butt 30 cm below the fist).
+    axe_parts = axe(mats)
+    for part in axe_parts:
+        part.data.transform(Matrix.Translation(fists["r"] + Vector((0, 0, 0.0))) @ roll)
+    glaive_parts = glaive(mats)
+    for part in glaive_parts:
+        part.data.transform(Matrix.Translation(fists["r"] + Vector((0, 0, 0.75))) @ roll)
     # The crossbow, its stock upright in the fist as the spear's shaft is (see crossbow()), and a bolt held
     # in the fist the same way (taken from the case in the reload).
     xbow_parts, xbow_string, xbow_bolt, hand_bolt = crossbow(mats)
@@ -3070,6 +3197,18 @@ def infantry(zf, f):
         bind(part, skeleton, "prop_sword", stance)
     for part in great:
         bind(part, skeleton, "prop_great", stance)
+    for part in axe_parts:
+        bind(part, skeleton, "prop_axe", stance)
+    for part in glaive_parts:
+        bind(part, skeleton, "prop_glaive", stance)
+    # The shield-bearer's javelins: held upright in the shield hand, behind the shield.
+    javelin_parts = javelins(mats)
+    for part in javelin_parts:
+        # Their butts just below the fist, leaning out from the body (to his left) clear of his head and skirt.
+        out = Vector((1.0 if fists["l"].x >= 0 else -1.0, 0.0, 0.0))
+        tilt = Vector((0, 0, 1)).rotation_difference((Vector((0, 0, 1)) + out * 0.45).normalized()).to_matrix().to_4x4()
+        part.data.transform(Matrix.Translation(fists["l"] + out * 0.12 + Vector((0.0, 0.02, 0.38))) @ tilt)
+        bind(part, skeleton, "prop_javelins", stance)
     for part in xbow_parts:
         bind(part, skeleton, "prop_xbow", stance)
     bind(xbow_bolt, skeleton, "prop_bolt", stance)
@@ -3122,13 +3261,23 @@ def infantry(zf, f):
         **({"barrel": [barrel]} if barrel is not None else {}),
         "surcoat_or_skirt": [surcoat, coat_skirt], "shoes": [shoes], "legs": [hose], "mail_skirt": [mail_skirt],
         # (what the bones bend: none of it may be drawn out far past its own size)
-        "stretch": [hauberk, surcoat, coif, coat_skirt, mail_skirt, hose, shoes],
+        "stretch": [hauberk, surcoat, coif, coat_skirt, mail_skirt, hose, shoes, leather_coat] + plate,
+        # The subtypes' gear (hidden in every clip, shown by the renderer: check_soldier shows each in the
+        # clips it is carried in, GEAR_SHOWN) and the other body armours.
+        "axe": axe_parts, "glaive": glaive_parts, "javelins": javelin_parts,
+        "great_helm": great_helm_parts, "leather_cap": leather_cap_parts,
+        "leather_coat": [leather_coat], "plate_body": [plate[0]], "plate_legs": [plate[1]], "nasal_helm": nasal_helm,
     })
     return body, skeleton
 
 
 # Parts handed to check_soldier (name -> objects), filled by infantry().
 CHECK_PARTS = {}
+# The gear every clip hides, and the clips (by name prefix) in which check_soldier shows it as the renderer
+# does (M2_RendererThree.js gearFor): the axe with the sword alone ("f_"), the glaive with the two-handed spear
+# ("n_"), the javelins with sword and shield ("s_"), the helmets in every clip ("").
+GEAR_SHOWN = {"axe": ("prop_axe", ("f_",)), "glaive": ("prop_glaive", ("n_",)), "javelins": ("prop_javelins", ("s_",)),
+              "great_helm": ("prop_greathelm", ("",)), "leather_cap": ("prop_leathercap", ("",))}
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -3358,13 +3507,17 @@ def main():
         # Written into the model (glTF "extras" of the skeleton node).
         for name, g in GAITS.items():
             skeleton[f"{name}_speed"] = g["speed"]
+        # SAVE_BLEND=<path>: save the posed scene before the checks and stop (for measuring a problem by hand).
+        if os.environ.get("SAVE_BLEND"):
+            bpy.ops.wm.save_as_mainfile(filepath=os.environ["SAVE_BLEND"])
+            return
         report = os.path.join(mh.CACHE, f"check_{side}.json")
         gaits = {name: g["speed"] for base, g in GAITS.items() for name in (base, "s_" + base, "low_" + base,
                                                                               "s_low_" + base, "n_" + base, "f_" + base,
                                                                               "t_" + base, "x_" + base)}
         problems = check_soldier.check(skeleton, CHECK_PARTS, [t.strips[0].action for t in skeleton.animation_data.nla_tracks],
                                        report, SPEAR_AXIS["local"], side, gaits, attack_aims(),
-                                       (EDGE_AXIS["local"], edge_cuts()))
+                                       (EDGE_AXIS["local"], edge_cuts()), gear_shown=GEAR_SHOWN)
         for p in problems:
             print(f"CHECK {side}: {p}")
         print(f"CHECK {side}: {len(problems)} problem(s), report {report}")
@@ -3375,7 +3528,8 @@ def main():
                 continue
             bpy.data.objects.remove(bpy.data.objects[name])
         # One mesh per soldier: fewer objects to draw (one draw call per material).
-        meshes = [o for o in bpy.data.objects if o.type == "MESH"]
+        # (The body armours stay their own meshes: the renderer draws the one a soldier wears.)
+        meshes = [o for o in bpy.data.objects if o.type == "MESH" and not o.name.startswith("gear_")]
         bpy.ops.object.select_all(action="DESELECT")
         for o in meshes:
             o.select_set(True)
@@ -3383,6 +3537,14 @@ def main():
         bpy.ops.object.join()
         soldier = bpy.context.view_layer.objects.active
         soldier.name = soldier.data.name = "soldier"
+        plates = [o for o in bpy.data.objects if o.type == "MESH" and o.name.startswith("gear_armor_plate")]
+        bpy.ops.object.select_all(action="DESELECT")
+        for o in plates:
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = plates[0]
+        bpy.ops.object.join()
+        plate = bpy.context.view_layer.objects.active
+        plate.name = plate.data.name = "gear_armor_plate"
         # A simpler copy for soldiers far from the camera (about a fifth of the triangles), on the same
         # skeleton, so the renderer can switch between them by distance.
         far = soldier.copy()

@@ -2,8 +2,9 @@
 // Every test opens a fresh page, so no test depends on what an earlier one left behind.
 import { expect } from '@playwright/test';
 
-// Opens the prototype, fails on any page error, and waits until the battle API is up and ticking.
-export async function openBattle(page) {
+// Opens the prototype (at path: ?mixed, ?scale=N), fails on any page error, and waits until the battle API is
+// up and ticking.
+export async function openBattle(page, path = '/m2_prototype.html') {
   const errors = [];
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
@@ -11,7 +12,7 @@ export async function openBattle(page) {
     window.__testRejections = [];
     window.addEventListener('unhandledrejection', (event) => window.__testRejections.push(String(event.reason)));
   });
-  await page.goto('/m2_prototype.html');
+  await page.goto(path);
   await page.waitForFunction(() => window.ArsM2Battle && window.ArsM2Diagnostics, null, { timeout: 15_000 });
   // Ready means the battle has drawn and ticked: the soldier models are loaded and their shaders built.
   await page.waitForFunction(() => window.ArsM2Diagnostics.getSnapshot().fixedTickCount > 0, null, { timeout: 30_000 });
