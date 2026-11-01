@@ -973,6 +973,10 @@
     {
       "path": ".gitignore",
       "reason": "git 설정. 게임·검사 동작과 무관"
+    },
+    {
+      "path": ".readfirst/map.json",
+      "reason": "readfirst 도구가 읽는 별도 지도(PR #19). 이 지도와 따로 관리하며 게임·검사 동작과 무관"
     }
   ],
   "replacesN0Groups": [
