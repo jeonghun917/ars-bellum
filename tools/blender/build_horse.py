@@ -112,7 +112,7 @@ def fcurves(action):
     return out or list(getattr(action, "fcurves", []))
 
 
-def dress(arm, meshes, side):
+def dress(arm, meshes, side):  # (returns the materials, for the stirrups)
     """New materials: coat, mane and tail, hooves, eyes, and the tack in leather."""
     base = bm.make_materials(bm.FACTIONS[side])
     c = COATS[side]
@@ -140,6 +140,7 @@ def dress(arm, meshes, side):
         else:
             o.data.materials.append(base["leather"])
         bm.box_uvs(o, 0.3)
+    return base
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -410,6 +411,77 @@ def check(arm, meshes, clips):
     return problems
 
 
+# ---------------------------------------------------------------------------------------------------------
+# The seat. A rider (build_men.py, the "m_" clips) sits on the saddle and keeps his feet in the stirrups: the
+# saddle's place and turn in every frame of every clip, the stirrups and the width of the barrel he
+# straddles are written to SEAT_FILE for that build to read.
+
+SEAT_BONE = "spine.008"   # the stretch of back the saddle sits on
+SEAT_FILE = os.path.join(HERE, "horse_seat.json")
+STIRRUP_DROP = 0.72       # m: from the seat down to a stirrup's tread (a rider's leg, the knee a little bent)
+
+
+def seat_point(meshes):
+    """Where the rider sits, at rest: the top of the saddle at its middle, measured on the saddle."""
+    saddle = next(o for o in meshes if o.name == "Cube")
+    vs = [v.co for v in saddle.data.vertices]
+    y = (min(v.y for v in vs) + max(v.y for v in vs)) / 2 + 0.05   # (a little behind the middle: the seat dips)
+    top = max(v.z for v in vs if abs(v.x) < 0.06 and abs(v.y - y) < 0.08)
+    return Vector((0, y, top))
+
+
+def barrel_half_width(meshes, y):
+    body = max(meshes, key=lambda o: len(o.data.vertices))
+    return max(abs(v.co.x) for v in body.data.vertices if abs(v.co.y - y) < 0.06)
+
+
+def add_stirrups(arm, meshes, mats):
+    """A leather strap down each side of the saddle and an iron at its foot, on the seat's bone. Returns the
+    treads (where a foot stands, at rest)."""
+    seat = seat_point(meshes)
+    half = barrel_half_width(meshes, seat.y)
+    treads = {}
+    for side, sign in (("l", 1), ("r", -1)):
+        top = Vector((sign * (half + 0.03), seat.y + 0.02, seat.z - 0.1))
+        tread = Vector((sign * (half + 0.08), seat.y + 0.04, seat.z - STIRRUP_DROP))
+        strap = bm._box((top + tread) / 2 + Vector((0, 0, 0.03)), (0.006, 0.035, (top - tread).length - 0.04))
+        iron = bm.bmesh.new()
+        for (a, b) in (((-0.055, 0.04), (0.055, 0.04)), ((-0.055, 0.04), (-0.05, -0.02)), ((0.055, 0.04), (0.05, -0.02)),
+                       ((-0.05, -0.02), (0.0, -0.035)), ((0.05, -0.02), (0.0, -0.035))):
+            bm._rod(tread + Vector((0, a[0], a[1])), tread + Vector((0, b[0], b[1])), 0.007).to_mesh(
+                tmp := bpy.data.meshes.new("tmp"))
+            iron.from_mesh(tmp)
+            bpy.data.meshes.remove(tmp)
+        for obj in (bm.mesh_obj(f"stirrup_leather_{side}", strap, mats["leather"], smooth=False),
+                    bm.mesh_obj(f"stirrup_{side}", iron, mats["steel"])):
+            bm.rigid(obj, arm, SEAT_BONE)
+            bm.box_uvs(obj, 0.3)
+            meshes.append(obj)
+        treads[side] = tread
+    return seat, half, treads
+
+
+def write_seat(arm, seat, half, treads, clips):
+    """The seat's frame (place and turn) in every frame of every clip, in the horse's armature space."""
+    import json
+    bone = arm.data.bones[SEAT_BONE]
+    out = {"seat": list(seat), "barrel_half_width": half, "treads": {k: list(v) for k, v in treads.items()},
+           "fps": FPS, "clips": {}}
+    for action in clips:
+        arm.animation_data.action = action
+        f0, f1 = (int(x) for x in action.frame_range)
+        frames = []
+        for frame in range(f0, f1 + 1):
+            bpy.context.scene.frame_set(frame)
+            m = arm.pose.bones[SEAT_BONE].matrix @ bone.matrix_local.inverted()
+            q = m.to_quaternion()
+            frames.append([round(c, 5) for c in (*m.translation, q.w, q.x, q.y, q.z)])
+        out["clips"][action.name] = frames
+    arm.animation_data.action = None
+    with open(SEAT_FILE, "w") as fh:
+        json.dump(out, fh, separators=(",", ":"))
+
+
 def export(path):
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_yup=True,
@@ -427,7 +499,8 @@ def main():
         arm, meshes = open_source()
         bake_modifiers(meshes)
         scale = normalise(arm, meshes)
-        dress(arm, meshes, side)
+        mats = dress(arm, meshes, side)
+        seat, half, treads = add_stirrups(arm, meshes, mats)
         bpy.context.scene.render.fps, bpy.context.scene.render.fps_base = FPS, 1.0
         legs = rest_legs(arm)
         BODY["mesh"] = max(meshes, key=lambda o: len(o.data.vertices))
@@ -445,7 +518,10 @@ def main():
         bake(arm, "idle", 4.0, lambda t: idle_pose(arm, legs, t), loop=True)
         bake(arm, "death", 1.6, lambda t: death_pose(arm, legs, t))
         reset(arm)
-        problems = check(arm, meshes, [t.strips[0].action for t in arm.animation_data.nla_tracks])
+        clips = [t.strips[0].action for t in arm.animation_data.nla_tracks]
+        if side == "ally":   # (both sides' horses move alike)
+            write_seat(arm, seat, half, treads, clips)
+        problems = check(arm, meshes, clips)
         for p in problems:
             print(f"CHECK {side}: {p}")
         print(f"CHECK {side}: {len(problems)} problem(s)")
