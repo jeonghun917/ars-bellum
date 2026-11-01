@@ -135,6 +135,12 @@
           "files": [
             "m2/M2_RendererThree.js"
           ]
+        },
+        {
+          "text": "M2_Commanders.js and M2_BattleState.js import each other (the commander sheets and defaults one way, isM2UnitActive the other). Both are used only inside functions or the constructor, so it works; using either at module top level breaks loading."
+        },
+        {
+          "text": "The battle's balance (about two minutes, the beaten side running) is tuned for an ordinary commander with 40 in command, leadership and tactics (ORDINARY_COMMAND, the default commander sheets). Changing those numbers or the leadership and command formulas moves every battle's length and morale; run npm run verify:m2 after it."
         }
       ]
     },
