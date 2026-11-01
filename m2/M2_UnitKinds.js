@@ -88,17 +88,23 @@ export const M2_UNIT_KINDS = Object.freeze({
 // armor: as the hero's (M2_HeroLoadout.js: armor 20 halves a blow); armorPierce: the share of the target's
 // armor a bolt goes through. ammo: bolts or arrows carried; with none left the man fights with his short
 // sword (sidearm). frontShield: his shield stops bolts and arrows from in front as a block does.
+// armorId and helmId: what he is drawn wearing (mail, leather or plate; the nasal helm, a leather cap or the
+// great helm: M2_RendererThree.js), the kind's mail and nasal helm unless the subtype says otherwise. A
+// formation's launch snapshot can change either (formation.armorId, formation.helmId), so they can be swapped
+// at any time; what he wears is drawn only, his armor number above is what it stops.
+export const M2_ARMORS = Object.freeze(["mail", "leather", "plate"]);
+export const M2_HELMS = Object.freeze(["nasal", "leather", "great"]);
 const SIDEARM = Object.freeze({ meleeRange: 1.4, meleeDamage: 2 });
 const subtype = (kindId, label, values) => Object.freeze({ ...M2_UNIT_KINDS[kindId], id: values.id, kindId, label, armor: 0, ...values });
 export const M2_UNIT_TYPES = Object.freeze({
   shield: subtype("infantry", "방패병", { id: "shield", hpScale: 3.5, meleeDamage: 2, armor: 12, mass: 2.5, speedScale: 0.9, frontShield: true }),
   pike: subtype("infantry", "장창병", { id: "pike", hpScale: 3.0, meleeDamage: 3, meleeRange: 2.8, armor: 4 }),
-  shock: subtype("infantry", "충격보병", { id: "shock", hpScale: 2.6, meleeDamage: 5, speedScale: 1.1 }),
-  skirmisher: subtype("infantry", "척후병", { id: "skirmisher", hpScale: 2.0, meleeDamage: 2, speedScale: 1.15, visionRange: 45 }),
+  shock: subtype("infantry", "충격보병", { id: "shock", hpScale: 2.6, meleeDamage: 5, speedScale: 1.1, armorId: "leather", helmId: "leather" }),
+  skirmisher: subtype("infantry", "척후병", { id: "skirmisher", hpScale: 2.0, meleeDamage: 2, speedScale: 1.15, visionRange: 45, armorId: "leather", helmId: "leather" }),
   crossbow: subtype("crossbow", "석궁병", { id: "crossbow", armorPierce: 0.8, ammo: 15, sidearm: SIDEARM }),
-  longbow: subtype("crossbow", "장궁병", { id: "longbow", hpScale: 2.4, range: 26, standOff: 18, boltSpeed: 34, boltMaxRange: 30, boltDamage: 6, reloadTicks: 44, armorPierce: 0, ammo: 30, sidearm: SIDEARM }),
-  light_cav: subtype("cavalry", "경기병", { id: "light_cav", hpScale: 3.4, meleeDamage: 3.5, speedScale: 2.0, mass: 3, chargeRunTicks: 12 }),
-  heavy_cav: subtype("cavalry", "중기병", { id: "heavy_cav", hpScale: 5.0, meleeDamage: 4.5, speedScale: 1.55, mass: 6, armor: 15, chargeRunTicks: 24 })
+  longbow: subtype("crossbow", "장궁병", { id: "longbow", hpScale: 2.4, range: 26, standOff: 18, boltSpeed: 34, boltMaxRange: 30, boltDamage: 6, reloadTicks: 44, armorPierce: 0, ammo: 30, sidearm: SIDEARM, armorId: "leather", helmId: "leather" }),
+  light_cav: subtype("cavalry", "경기병", { id: "light_cav", hpScale: 3.4, meleeDamage: 3.5, speedScale: 2.0, mass: 3, chargeRunTicks: 12, armorId: "leather", helmId: "leather" }),
+  heavy_cav: subtype("cavalry", "중기병", { id: "heavy_cav", hpScale: 5.0, meleeDamage: 4.5, speedScale: 1.55, mass: 6, armor: 15, chargeRunTicks: 24, armorId: "plate", helmId: "great" })
 });
 
 const FORMATION_KINDS = Object.freeze({
@@ -118,6 +124,16 @@ export function m2UnitKindForFormation(formationId) {
 export function m2UnitTypeForFormation(source) {
   const type = M2_UNIT_TYPES[source?.unitTypeId];
   return type && type.kindId === m2UnitKindForFormation(source.formationId) ? type.id : null;
+}
+
+// What a formation's men are drawn wearing: the snapshot's choice for the formation, else its subtype's, else
+// mail and the nasal helm.
+export function m2AppearanceForFormation(source) {
+  const type = M2_UNIT_TYPES[m2UnitTypeForFormation(source)];
+  return {
+    armorId: M2_ARMORS.includes(source?.armorId) ? source.armorId : type?.armorId || "mail",
+    helmId: M2_HELMS.includes(source?.helmId) ? source.helmId : type?.helmId || "nasal"
+  };
 }
 
 // A soldier's (or formation's) numbers: its subtype's, else its kind's. Given a string, the kind of that id

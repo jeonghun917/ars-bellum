@@ -565,7 +565,7 @@ PROP_BONES = {"prop_spear": "hand_r", "prop_sword": "hand_r", "prop_sheath": "pe
               # (and hides what it replaces: the sword for the axe, the spear for the glaive, the nasal helm for
               # the great helm) after the clip has posed him (M2_RendererThree.js).
               "prop_axe": "hand_r", "prop_glaive": "hand_r", "prop_javelins": "lowerarm_l", "prop_helm": "head",
-              "prop_greathelm": "head"}
+              "prop_greathelm": "head", "prop_leathercap": "head"}
 # Shown in every clip: the nasal helm (hidden by the renderer under a great helm).
 ALWAYS_SHOWN = {"prop_helm"}
 HIDDEN = 1e-4
@@ -595,7 +595,7 @@ def show(skeleton, spear=True, sword=False, sheathed=True, shield=True, great=Fa
                      ("prop_great", great), ("prop_xbow", crossbow), ("prop_bolt", loaded), ("prop_quiver", crossbow),
                      ("prop_bolt_hand", False), ("prop_lever", False),
                      *((name, name in ALWAYS_SHOWN) for name in ("prop_axe", "prop_glaive", "prop_javelins", "prop_helm",
-                                                                 "prop_greathelm"))):
+                                                                 "prop_greathelm", "prop_leathercap"))):
         k = 1.0 if on else HIDDEN
         skeleton.pose.bones[name].scale = (k, k, k)
     if NOCK in skeleton.pose.bones:
@@ -2609,6 +2609,19 @@ def great_helm(head_top, radius, mat, dark):
     return parts
 
 
+def leather_cap(head_top, radius, mat):
+    """A boiled-leather cap: a low dome with a rolled brim."""
+    profile = [(radius * 1.05, -0.01), (radius * 1.04, 0.03), (radius * 0.97, 0.08), (radius * 0.8, 0.13),
+               (radius * 0.52, 0.165), (radius * 0.2, 0.18), (0.01, 0.182)]
+    bm = lathe(profile, 18)
+    bmesh.ops.contextual_create(bm, geom=[v for v in bm.verts if v.co.z > 0.181])
+    cap = mesh_obj("leather_cap", bm, mat)
+    brim = mesh_obj("leather_cap_brim", lathe([(radius * 1.09, -0.012), (radius * 1.09, 0.018)], 18), mat)
+    for o in (cap, brim):
+        o.data.transform(Matrix.Translation(head_top))
+    return [cap, brim]
+
+
 # ---------------------------------------------------------------------------------------------------------
 
 def paint_tabard(surcoat, f, chest_z, size=512):
@@ -2841,7 +2854,8 @@ def infantry(zf, f):
     # It takes in the neck as well, so it overlaps the coif there: a face is kept only when all its corners
     # are kept, so where two layers meet edge to edge the row of faces between them belongs to neither, and
     # the inside of the man shows through.
-    hauberk = surface_layer(body, "hauberk", lambda i: dom[i] in TORSO_BONES or dom[i] in ARM_BONES or dom[i] == "neck_01",
+    # (Its own mesh, "gear_armor_mail": the body armour can be changed for leather or plate, M2_RendererThree.js.)
+    hauberk = surface_layer(body, "gear_armor_mail", lambda i: dom[i] in TORSO_BONES or dom[i] in ARM_BONES or dom[i] == "neck_01",
                             lambda co: 0.022, mats["mail"], decimate=0.28, smoothing=2)
     def is_face_inner(i):
         c = body.data.vertices[i].co
@@ -2881,13 +2895,16 @@ def infantry(zf, f):
     shoes = surface_layer(body, "shoes", lambda i: dom[i] in FOOT_BONES, lambda co: 0.003 + 0.011 * min(1.0, co.z / 0.03),
                           mats["leather"], decimate=0.12)
     SKIRTS["skirt"]["inside"] = [hose, shoes]
-    # The heavy horseman's plate: arms and legs in steel over the mail and hose (under the surcoat and the skirts), its own mesh,
-    # which the renderer shows only on him (it bends with the body, so it cannot hang on a bone).
-    plate = [surface_layer(body, "gear_plate_arms", lambda i: dom[i] in ARM_BONES, lambda co: 0.03, mats["steel"],
-                           decimate=0.2, smoothing=2),
-             surface_layer(body, "gear_plate_legs", lambda i: dom[i] in LEG_BONES and body.data.vertices[i].co.z < hip_z - 0.12,
+    # The other body armours, each its own mesh in the mail's place, the renderer drawing one of the three
+    # (M2_RendererThree.js): a leather coat over the torso and arms; full plate, the same in steel and over the
+    # legs below the skirts (thigh and calf). Under the surcoat on the torso, as the mail is.
+    armor_keep = lambda i: dom[i] in TORSO_BONES or dom[i] in ARM_BONES or dom[i] == "neck_01"
+    leather_coat = surface_layer(body, "gear_armor_leather", armor_keep, lambda co: 0.024, mats["leather"], decimate=0.28,
+                                 smoothing=2)
+    plate = [surface_layer(body, "gear_armor_plate", armor_keep, lambda co: 0.026, mats["steel"], decimate=0.28, smoothing=2),
+             surface_layer(body, "gear_armor_plate_legs", lambda i: dom[i] in LEG_BONES and body.data.vertices[i].co.z < hip_z - 0.12,
                            lambda co: 0.016, mats["steel"], decimate=0.2, smoothing=2)]
-    for part in plate:
+    for part in [leather_coat] + plate:
         box_uvs(part, 0.25)
     # The horse's barrel under a mounted man (test and cloth only, removed before export): what his skirt
     # drapes over and his legs straddle.
@@ -2960,7 +2977,7 @@ def infantry(zf, f):
     belt = rigid(mesh_obj("belt", belt_bm, mats["leather"]), skeleton, "pelvis")
     # The belt holds the cloth under it to the hips: left to bend with the spine there, the coat (and the
     # mail under it) turned with the shoulders in a cut and went out through the belt on one side.
-    for part in (surcoat, hauberk):
+    for part in (surcoat, hauberk, leather_coat, plate[0]):
         pin_band(part, belt_z, 0.03, 0.07, "pelvis")
     front_r = max(polar(v.co)[1] for v in belt.data.vertices if abs(polar(v.co)[0]) < step)
     by0 = cy - front_r
@@ -3072,9 +3089,12 @@ def infantry(zf, f):
     coif_cy = (max(c.y for c in coif_band) + min(c.y for c in coif_band)) / 2
     helm_parts = [rigid(p, skeleton, "prop_helm") for p in
                   italo_norman_helm(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["steel"])]
-    # The heavy horseman's great helm, over the coif in the nasal helm's place.
+    # The other helmets, in the nasal helm's place over the coif (the renderer shows one of the three): the great
+    # helm and a leather cap.
     for p in great_helm(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["steel"], mats["iris"]):
         rigid(p, skeleton, "prop_greathelm")
+    for p in leather_cap(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["leather"]):
+        rigid(p, skeleton, "prop_leathercap")
 
     # Shield on the left forearm, facing forward in the stance; spear upright in the right fist.
     stance(skeleton)
@@ -3483,7 +3503,7 @@ def main():
                 continue
             bpy.data.objects.remove(bpy.data.objects[name])
         # One mesh per soldier: fewer objects to draw (one draw call per material).
-        # (The heavy horseman's plate stays its own mesh: the renderer shows it on him alone.)
+        # (The body armours stay their own meshes: the renderer draws the one a soldier wears.)
         meshes = [o for o in bpy.data.objects if o.type == "MESH" and not o.name.startswith("gear_")]
         bpy.ops.object.select_all(action="DESELECT")
         for o in meshes:
@@ -3492,14 +3512,14 @@ def main():
         bpy.ops.object.join()
         soldier = bpy.context.view_layer.objects.active
         soldier.name = soldier.data.name = "soldier"
-        plates = [o for o in bpy.data.objects if o.type == "MESH" and o.name.startswith("gear_plate")]
+        plates = [o for o in bpy.data.objects if o.type == "MESH" and o.name.startswith("gear_armor_plate")]
         bpy.ops.object.select_all(action="DESELECT")
         for o in plates:
             o.select_set(True)
         bpy.context.view_layer.objects.active = plates[0]
         bpy.ops.object.join()
         plate = bpy.context.view_layer.objects.active
-        plate.name = plate.data.name = "gear_plate"
+        plate.name = plate.data.name = "gear_armor_plate"
         # A simpler copy for soldiers far from the camera (about a fifth of the triangles), on the same
         # skeleton, so the renderer can switch between them by distance.
         far = soldier.copy()

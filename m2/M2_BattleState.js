@@ -1,4 +1,4 @@
-import { m2UnitKind, m2UnitKindForFormation, m2UnitTypeForFormation } from "./M2_UnitKinds.js";
+import { m2AppearanceForFormation, m2UnitKind, m2UnitKindForFormation, m2UnitTypeForFormation } from "./M2_UnitKinds.js";
 import { plansFor } from "./M2_Plans.js";
 import { ordersFor } from "./M2_Orders.js";
 import { DEFAULT_HERO_SHEET, damageThroughArmor, heroCombat } from "./M2_HeroLoadout.js";
@@ -47,6 +47,8 @@ export class M2BattleState {
 
     // Each formation's subtype (병종), if its snapshot names one (M2_UnitKinds.js).
     const unitTypes = new Map(snapshot.formations.map((source) => [source.formationId, m2UnitTypeForFormation(source)]));
+    // And what its men are drawn wearing.
+    const appearances = new Map(snapshot.formations.map((source) => [source.formationId, m2AppearanceForFormation(source)]));
     for (const character of snapshot.characters) {
       const profile = combatProfiles.get(character.combatProfileId);
       // Vitality is the man; hpScale is what he wears and rides (mail, a horse), until equipment comes in
@@ -71,6 +73,8 @@ export class M2BattleState {
         hero,
         commander: null,
         armor: hero ? hero.armor : type.armor || 0,
+        // Body armour and helmet as drawn (the hero and commanders wear their own equipment).
+        ...(hero ? { armorId: null, helmId: null } : appearances.get(character.formationId) || { armorId: "mail", helmId: "nasal" }),
         // Bolts or arrows left (a subtype that counts them: M2_UnitKinds.js), or null: never runs out.
         ammo: hero ? null : type.ammo ?? null,
         combatProfileId: character.combatProfileId,
@@ -265,6 +269,8 @@ export class M2BattleState {
         formationId: unit.formationId,
         kindId: unit.kindId,
         unitTypeId: unit.unitTypeId,
+        armorId: unit.armorId,
+        helmId: unit.helmId,
         isPlayer: unit.isPlayer,
         hero: unit.hero,
         commander: unit.commander,

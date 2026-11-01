@@ -195,3 +195,23 @@ test('[m2.subtypes.mixed-battle] the mixed battle (?mixed) is a valid launch sna
   const types = new Set(snapshot.formations.map((f) => f.unitTypeId));
   for (const id of Object.keys(M2_UNIT_TYPES).filter((id) => id !== 'skirmisher')) assert.ok(types.has(id), id);
 });
+
+test('[m2.subtypes.appearance] each man is drawn in his subtype\'s armour and helmet, unless his formation says otherwise; an unknown one is not taken', () => {
+  const b = battle({ unitTypes: { ally_column: 'heavy_cav', enemy_line: 'shock', enemy_column: 'light_cav' } });
+  const wears = (x, formationId) => [...new Set(soldiers(x, formationId).map((u) => `${u.armorId}/${u.helmId}`))];
+  assert.deepEqual(wears(b, 'ally_column'), ['plate/great']);
+  assert.deepEqual(wears(b, 'enemy_line'), ['leather/leather']);
+  assert.deepEqual(wears(b, 'ally_line'), ['mail/nasal'], 'the kind\'s men: mail and the nasal helm');
+  assert.equal(b.state.getUnit(b.state.playerCharacterId).armorId, null, 'the hero wears his own');
+  // The formation's choice wins over the subtype's; one not in the lists is ignored.
+  const swapped = battle({
+    unitTypes: { ally_column: 'heavy_cav' },
+    formations: { ally_column: { armorId: 'leather', helmId: 'nasal' }, ally_line: { armorId: 'plate', helmId: 'great' }, enemy_line: { armorId: 'gold', helmId: 'crown' } },
+  });
+  assert.deepEqual(wears(swapped, 'ally_column'), ['leather/nasal']);
+  assert.deepEqual(wears(swapped, 'ally_line'), ['plate/great']);
+  assert.deepEqual(wears(swapped, 'enemy_line'), ['mail/nasal']);
+  // Drawn only: what he wears does not change what his armor stops.
+  assert.deepEqual(soldiers(swapped, 'ally_line').map((u) => u.armor), soldiers(battle(), 'ally_line').map((u) => u.armor));
+  for (const u of soldiers(swapped, 'ally_line')) assert.equal(u.maxHp, soldiers(battle(), 'ally_line').find((x) => x.unitId === u.unitId).maxHp);
+});

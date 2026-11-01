@@ -30,22 +30,49 @@ test('[m2.subtypes.mixed-page] m2_prototype.html?mixed opens a battle of subtype
   await noPageErrors(page, errors);
 });
 
-test('[m2.subtypes.gear] each subtype shows its own weapons: javelins with the shield-bearers, axe or glaive with shock foot, great helm and plate on heavy horse', async ({ page }) => {
+test('[m2.subtypes.gear] each subtype shows its own weapons (javelins with the shield-bearers, axe or glaive with shock foot), and each man the armour and helmet he wears', async ({ page }) => {
   test.setTimeout(180_000);
   const errors = await openBattle(page, '/m2_prototype.html?mixed');
   expect((await diagnostics(page)).soldierModel).toBe('blender');
   const s = await snapshot(page);
   // Soldiers of a subtype, not their commander nor the player (who wear their own equipment).
-  const count = (formationId) => s.units.filter((u) => u.formationId === formationId && !u.commander && !u.isPlayer).length;
+  const men = s.units.filter((u) => !u.commander && !u.isPlayer);
+  const count = (test) => men.filter(test).length;
   const gear = (await diagnostics(page)).soldierGear;
-  expect(gear.prop_javelins).toBe(count('ally_line'));
+  expect(gear.prop_javelins).toBe(count((u) => u.formationId === 'ally_line'));
   expect(gear.prop_axe).toBeGreaterThan(0);
   expect(gear.prop_glaive).toBeGreaterThan(0);
-  expect(gear.prop_axe + gear.prop_glaive).toBe(count('enemy_line'));
-  expect(gear.prop_greathelm).toBe(count('ally_column'));
-  expect(gear.plate).toBe(count('ally_column'));
+  expect(gear.prop_axe + gear.prop_glaive).toBe(count((u) => u.formationId === 'enemy_line'));
+  // Armour and helmet: each man draws the one he wears, and only that one.
+  for (const [armorId, mesh] of [['mail', 'gear_armor_mail'], ['leather', 'gear_armor_leather'], ['plate', 'gear_armor_plate']]) {
+    expect(gear[mesh] || 0, mesh).toBe(count((u) => u.armorId === armorId));
+  }
+  expect(count((u) => u.armorId === 'plate')).toBe(count((u) => u.formationId === 'ally_column'));
+  expect(gear.prop_greathelm).toBe(count((u) => u.helmId === 'great'));
+  expect(gear.prop_leathercap).toBe(count((u) => u.helmId === 'leather'));
+  expect(count((u) => u.helmId === 'leather')).toBeGreaterThan(0);
   // What the gear replaces stays hidden (the sword and its scabbard for the axe, the spear for the glaive,
-  // the nasal helm under the great helm).
-  for (const replaced of ['prop_sword', 'prop_sheath', 'prop_spear', 'prop_helm']) expect(gear[replaced] || 0).toBe(0);
+  // the nasal helm under another helmet).
+  for (const replaced of ['prop_sword', 'prop_sheath', 'prop_spear', 'prop_helm']) expect(gear[replaced] || 0, replaced).toBe(0);
+  await noPageErrors(page, errors);
+});
+
+test('[m2.subtypes.swap-armor] a formation\'s armour and helmet can be changed in the launch snapshot', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors = await openBattle(page);
+  const loaded = await page.evaluate(async () => {
+    const { buildScaleSnapshot } = await import('/m2/fixtures/m2_scale_fixture.js');
+    const snapshot = buildScaleSnapshot({ perSide: 20, mixed: true });
+    for (const f of snapshot.formations) if (f.formationId === 'ally_line') Object.assign(f, { armorId: 'plate', helmId: 'great' });
+    for (const f of snapshot.formations) if (f.formationId === 'ally_column') Object.assign(f, { armorId: 'leather', helmId: 'leather' });
+    return window.ArsM2Battle.loadSnapshot(snapshot);
+  });
+  expect(loaded.ok, JSON.stringify(loaded)).toBe(true);
+  const s = await snapshot(page);
+  const line = s.units.filter((u) => u.formationId === 'ally_line' && !u.commander && !u.isPlayer);
+  const horse = s.units.filter((u) => u.formationId === 'ally_column' && !u.commander);
+  expect(line.every((u) => u.armorId === 'plate' && u.helmId === 'great')).toBe(true);
+  expect(horse.every((u) => u.armorId === 'leather' && u.helmId === 'leather')).toBe(true);
+  await expect.poll(async () => (await diagnostics(page)).soldierGear.gear_armor_plate || 0, { timeout: 30_000 }).toBe(line.length);
   await noPageErrors(page, errors);
 });

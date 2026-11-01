@@ -3493,9 +3493,21 @@
     },
     {
       "id": "m2.subtypes.gear",
-      "title": "each subtype shows its own weapons: javelins with the shield-bearers, axe or glaive with shock foot, great helm and plate on heavy horse",
+      "title": "each subtype shows its own weapons (javelins with the shield-bearers, axe or glaive with shock foot), and each man the armour and helmet he wears",
       "kind": "browser",
       "source": "tests/browser/m2-subtypes.spec.mjs"
+    },
+    {
+      "id": "m2.subtypes.swap-armor",
+      "title": "a formation's armour and helmet can be changed in the launch snapshot",
+      "kind": "browser",
+      "source": "tests/browser/m2-subtypes.spec.mjs"
+    },
+    {
+      "id": "m2.subtypes.appearance",
+      "title": "each man is drawn in his subtype's armour and helmet, unless his formation says otherwise; an unknown one is not taken",
+      "kind": "unit",
+      "source": "tests/unit/m2-subtypes.test.mjs"
     }
   ]
 }

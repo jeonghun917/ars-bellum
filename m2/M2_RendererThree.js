@@ -11,14 +11,21 @@ export function useSoldierModels(models) {
 
 // A Blender soldier: its own copy of the side's rigged model (the skeleton is copied, meshes and materials
 // are shared), the same ground shadow and player ring as the box soldier, and an animator.
-// A subtype's own gear (병종, M2_UnitKinds.js; the models carry it hidden, tools/blender/build_men.py): the
-// prop bones to show and to hide once a clip has posed the soldier, and whether he wears the plate.
-function gearFor(unitTypeId, loadout) {
-  if (unitTypeId === "shield") return { show: ["prop_javelins"], hide: [], plate: false };
-  if (unitTypeId === "shock" && loadout === "sword_free") return { show: ["prop_axe"], hide: ["prop_sword", "prop_sheath"], plate: false };
-  if (unitTypeId === "shock" && loadout === "spear_free") return { show: ["prop_glaive"], hide: ["prop_spear"], plate: false };
-  if (unitTypeId === "heavy_cav") return { show: ["prop_greathelm"], hide: ["prop_helm"], plate: true };
-  return null;
+// A soldier's own gear (the models carry it all, the extra pieces hidden: tools/blender/build_men.py): the
+// prop bones to show and to hide once a clip has posed him, and the body armour mesh to draw. Weapons by
+// subtype (병종, M2_UnitKinds.js); body armour and helmet as he wears them (unit.armorId, unit.helmId), which
+// can be changed at any time.
+const ARMOR_MESHES = Object.freeze({ mail: "gear_armor_mail", leather: "gear_armor_leather", plate: "gear_armor_plate" });
+const HELM_BONES = Object.freeze({ nasal: "prop_helm", leather: "prop_leathercap", great: "prop_greathelm" });
+function gearFor(unit, loadout) {
+  const show = [];
+  const hide = [];
+  if (unit.unitTypeId === "shield") show.push("prop_javelins");
+  if (unit.unitTypeId === "shock" && loadout === "sword_free") { show.push("prop_axe"); hide.push("prop_sword", "prop_sheath"); }
+  if (unit.unitTypeId === "shock" && loadout === "spear_free") { show.push("prop_glaive"); hide.push("prop_spear"); }
+  const helm = HELM_BONES[unit.helmId] || HELM_BONES.nasal;
+  if (helm !== HELM_BONES.nasal) { show.push(helm); hide.push(HELM_BONES.nasal); }
+  return { show, hide, armor: ARMOR_MESHES[unit.armorId] || ARMOR_MESHES.mail };
 }
 const GEAR_HIDDEN = 1e-4;
 
@@ -62,9 +69,15 @@ function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, l
   group.userData.animator = mounted
     ? new HorsemanAnimator(soldier, model.clips, horse, model.horse, MOUNTED_CLIPS[loadout])
     : new SoldierAnimator(soldier, model.clips, loadout, model.gait);
-  // The plate is worn by the heavy horseman alone; his other gear is shown (and what it replaces hidden)
+  // One body armour drawn (the mail if none is said); the other gear shown (and what it replaces hidden)
   // after each pose, which would otherwise keep it hidden.
-  soldier.traverse((object) => { if (object.name === "gear_plate") object.visible = Boolean(gear?.plate); });
+  const armor = gear?.armor || ARMOR_MESHES.mail;
+  const armorMeshes = [];
+  soldier.traverse((object) => {
+    if (!Object.values(ARMOR_MESHES).includes(object.name)) return;
+    object.visible = object.name === armor;
+    armorMeshes.push(object);
+  });
   if (gear) {
     const bones = (names) => names.map((name) => soldier.getObjectByName(name)).filter(Boolean);
     const show = bones(gear.show);
@@ -76,12 +89,10 @@ function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, l
       for (const bone of show) bone.scale.setScalar(1);
       for (const bone of hide) bone.scale.setScalar(GEAR_HIDDEN);
     };
-    // For the diagnostics: what this soldier shows now (each bone as posed, the plate as drawn).
-    const plate = [];
-    soldier.traverse((object) => { if (object.name === "gear_plate") plate.push(object); });
+    // For the diagnostics: what this soldier shows now (each bone as posed, the body armour as drawn).
     group.userData.gearShown = () => [
       ...[...show, ...hide].filter((bone) => bone.scale.x > 0.5).map((bone) => bone.name),
-      ...(plate.some((mesh) => mesh.visible) ? ["plate"] : [])
+      ...armorMeshes.filter((mesh) => mesh.visible).map((mesh) => mesh.name)
     ];
   }
   return group;
@@ -541,7 +552,7 @@ export class M2RendererThree {
         : loadouts[counter % loadouts.length];
       const group = model
         ? createModelSoldier(model, marker, this.#geometries, this.#materials.shadow, loadout,
-          unit.isPlayer || unit.isCommander ? null : gearFor(unit.unitTypeId, loadout))
+          unit.isPlayer || unit.isCommander ? null : gearFor(unit, loadout))
         : createHumanoid(unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy, marker, this.#geometries, this.#materials.shadow);
       const profile = combatProfiles.get(unit.combatProfileId);
       group.scale.setScalar(0.9 + ((profile?.stats?.vitality || 0) / 100) * 0.18);
