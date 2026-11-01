@@ -66,6 +66,7 @@ test.describe('3D battle', () => {
         's_death', 's_idle', 's_low_idle', 's_low_run', 's_low_walk', 's_overhead', 's_run', 's_swing_l',
         's_swing_r', 's_thrust', 's_walk', 't_block', 't_death', 't_idle', 't_overhead', 't_run', 't_swing_l',
         't_swing_r', 't_thrust', 't_walk', 'walk',
+        'x_block', 'x_death', 'x_idle', 'x_reload', 'x_run', 'x_shoot', 'x_walk',
       ]);
       // The walk and run clips say how fast their feet move, so the renderer can match the soldiers' speed.
       expect(models[side].gait.walk).toBeGreaterThan(0.5);
