@@ -138,14 +138,16 @@
     {
       "id": "bellum-game-flow",
       "title": "게임 진행(새 게임·하루 진행·캠페인)",
-      "owner": "src/game이 영역들을 묶는다. new-game.js가 처음 상태 모양을, daily.js가 끝난 날마다 영역별 하루 단계를 순서대로 돌리고, campaign.js가 열기·진행·저장을 맡는다. 화면은 campaign.js만 부른다",
+      "owner": "src/game이 영역들을 묶는다. new-game.js가 처음 상태 모양을, daily.js가 끝난 날마다 영역별 하루 단계를 순서대로 돌리고, campaign.js가 열기·진행·저장을 맡는다. 화면은 campaign.js만 부른다 src/game/battle-hero.js가 플레이어 인물의 전투용 정보(전투 기술과 장착 장비의 전투 수치, 3D 전투의 heroSheet)를 읽기 전용으로 만든다(장비 목록은 src/domains/inventory/checks.js의 EQUIPMENT_ITEMS).",
       "files": [
         "src/game/areas.js",
         "src/game/campaign.js",
         "src/game/daily.js",
         "src/game/new-game.js",
         "tests/unit/campaign.test.mjs",
-        "tests/unit/daily.test.mjs"
+        "tests/unit/daily.test.mjs",
+        "src/game/battle-hero.js",
+        "tests/unit/battle-hero.test.mjs"
       ],
       "validators": [
         {
@@ -154,6 +156,10 @@
         },
         {
           "path": "tests/unit/daily.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/battle-hero.test.mjs",
           "kind": "TEST"
         }
       ],
