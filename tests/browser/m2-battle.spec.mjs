@@ -253,6 +253,24 @@ test.describe('3D battle', () => {
     expect((await formation(page, selected)).tactic).toBe(null);
   });
 
+  test('[m2.orders.pursuit] the pursuit button shows whether the selected formation pursues, and turns it on and off', async ({ page }) => {
+    await switchToTactical(page);
+    // Foot do not pursue at first (M2_Pursuit.js).
+    expect(await page.inputValue('#m2FriendlyFormation')).toBe('ally_line');
+    await expect(page.locator('#m2Pursuit')).toHaveText('추격: 끔');
+    await tap(page, '#m2Pursuit');
+    await waitTicks(page, 1);
+    expect((await formation(page, 'ally_line')).pursuit).toBe(true);
+    await expect(page.locator('#m2Pursuit')).toHaveText('추격: 켬');
+    // Horse do, and the button says so when they are selected.
+    await page.selectOption('#m2FriendlyFormation', 'ally_column');
+    await expect(page.locator('#m2Pursuit')).toHaveText('추격: 켬');
+    await tap(page, '#m2Pursuit');
+    await waitTicks(page, 1);
+    expect((await formation(page, 'ally_column')).pursuit).toBe(false);
+    await expect(page.locator('#m2Pursuit')).toHaveText('추격: 끔');
+  });
+
   test('[m2.orders.plan] the plan list offers the battle plans the army can use, and choosing one puts it to work', async ({ page }) => {
     await switchToTactical(page);
     // Ordinary commanders (tactics 30): frontal push and two plans, for foot, horse and crossbows.
