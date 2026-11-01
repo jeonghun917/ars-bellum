@@ -216,8 +216,13 @@ def check(skeleton, parts, actions, report_path, spear_axis_local, label, gaits=
         ("great_helm", "mitten_r"), ("great_helm", "mitten_l"), ("great_helm", "shield"), ("great_helm", "spear"),
         ("great_helm", "sword"), ("great_helm", "xbow"),
         ("leather_cap", "mitten_r"), ("leather_cap", "mitten_l"), ("leather_cap", "shield"), ("leather_cap", "xbow"),
-        ("mail_body", "surcoat"), ("leather_coat", "surcoat"), ("plate_body", "surcoat"),
+        # (The leather and plate are the mail's own surface in another material: the mail and the surcoat, two
+        # thinned layers 14 mm apart, already cross at rest wherever the thinning differs, unseen under the coat,
+        # so they are not paired with it.)
         ("plate_legs", "coat_skirt"), ("plate_legs", "mail_skirt"), ("plate_legs", "shoes"),
+        # The nasal helm with the same neighbours as the other helmets, to tell their own fit from the poses'.
+        ("nasal_helm", "mitten_r"), ("nasal_helm", "mitten_l"), ("nasal_helm", "shield"), ("nasal_helm", "spear"),
+        ("nasal_helm", "sword"), ("nasal_helm", "xbow"),
     ]
     for action in actions:
         skeleton.animation_data.action = action

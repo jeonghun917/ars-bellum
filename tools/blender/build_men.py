@@ -2595,7 +2595,7 @@ def great_helm(head_top, radius, mat, dark):
     """A great helm: a flat-topped barrel over the whole head, an eye slit and breaths, a cross on the face.
     head_top is the brow's centre; it closes over the coif and the nasal helm (which is hidden under it)."""
     r = radius * 1.07
-    profile = [(r * 0.97, -0.16), (r, -0.1), (r * 1.01, 0.0), (r, 0.08), (r * 0.94, 0.12), (r * 0.6, 0.135), (0.01, 0.14)]
+    profile = [(r * 0.9, -0.13), (r * 0.97, -0.08), (r * 1.0, 0.0), (r, 0.08), (r * 0.94, 0.12), (r * 0.6, 0.135), (0.01, 0.14)]
     bm = lathe(profile, 20)
     bmesh.ops.contextual_create(bm, geom=[v for v in bm.verts if v.co.z > 0.139])
     helm = mesh_obj("great_helm", bm, mat)
@@ -2909,7 +2909,7 @@ def infantry(zf, f):
         return o
     leather_coat = like_mail("gear_armor_leather", mats["leather"])
     plate = [like_mail("gear_armor_plate", mats["steel"]),
-             surface_layer(body, "gear_armor_plate_greaves", lambda i: dom[i] in LEG_BONES and body.data.vertices[i].co.z < knee_z - 0.16,
+             surface_layer(body, "gear_armor_plate_greaves", lambda i: dom[i] in LEG_BONES and 0.14 < body.data.vertices[i].co.z < knee_z - 0.16,
                            lambda co: 0.012, mats["steel"], decimate=0.25, smoothing=1)]
     box_uvs(plate[1], 0.25)
     # The horse's barrel under a mounted man (test and cloth only, removed before export): what his skirt
@@ -3093,7 +3093,7 @@ def infantry(zf, f):
     coif_band = [v.co for v in coif.data.vertices if abs(v.co.z - brow_z) < 0.03]
     coif_r = max(max(abs(c.x) for c in coif_band), (max(c.y for c in coif_band) - min(c.y for c in coif_band)) / 2 / 1.08)
     coif_cy = (max(c.y for c in coif_band) + min(c.y for c in coif_band)) / 2
-    helm_parts = [rigid(p, skeleton, "prop_helm") for p in
+    nasal_helm = helm_parts = [rigid(p, skeleton, "prop_helm") for p in
                   italo_norman_helm(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["steel"])]
     # The other helmets, in the nasal helm's place over the coif (the renderer shows one of the three): the great
     # helm and a leather cap.
@@ -3264,7 +3264,7 @@ def infantry(zf, f):
         # clips it is carried in, GEAR_SHOWN) and the other body armours.
         "axe": axe_parts, "glaive": glaive_parts, "javelins": javelin_parts,
         "great_helm": great_helm_parts, "leather_cap": leather_cap_parts,
-        "leather_coat": [leather_coat], "plate_body": [plate[0]], "plate_legs": [plate[1]], "mail_body": [hauberk],
+        "leather_coat": [leather_coat], "plate_body": [plate[0]], "plate_legs": [plate[1]], "nasal_helm": nasal_helm,
     })
     return body, skeleton
 
