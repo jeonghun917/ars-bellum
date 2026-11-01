@@ -14,10 +14,9 @@ export function useSoldierModels(models) {
 function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, loadout) {
   const group = new THREE.Group();
   const soldier = cloneSkinned(model.scene);
-  soldier.traverse((object) => {
-    // The bounds of a skinned mesh are those of its rest pose; a fallen soldier lies outside them.
-    if (object.isSkinnedMesh) object.frustumCulled = false;
-  });
+  // The bounds of a skinned mesh are those of its rest pose; a fallen soldier lies outside them.
+  const noCulling = (object) => { if (object.isSkinnedMesh) object.frustumCulled = false; };
+  soldier.traverse(noCulling);
   // Near the camera the full model, further than FAR_MODEL_DISTANCE the simpler one. Both are bound to the
   // same skeleton, so one animator moves whichever is shown.
   const near = soldier.getObjectByName("soldier");
@@ -29,9 +28,19 @@ function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, l
     lod.addLevel(far, FAR_MODEL_DISTANCE);
   }
   group.add(soldier);
+  // A horseman: the side's horse at the same place (the rider's "m_" clips sit him in its saddle).
+  const mounted = MOUNTED_CLIPS[loadout] && model.horse;
+  let horse = null;
+  if (mounted) {
+    horse = cloneSkinned(model.horse.scene);
+    horse.traverse(noCulling);
+    group.add(horse);
+  }
   const shadow = new THREE.Mesh(geometries.shadow, shadowMaterial);
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.015;
+  // A horse's shadow is long: about 2.4 m nose to tail.
+  if (mounted) shadow.scale.set(1.3, 2.9, 1);
   group.add(shadow);
   if (markerMaterial) {
     const marker = new THREE.Mesh(geometries.marker, markerMaterial);
@@ -39,7 +48,9 @@ function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, l
     marker.position.y = 0.02;
     group.add(marker);
   }
-  group.userData.animator = new SoldierAnimator(soldier, model.clips, loadout, model.gait);
+  group.userData.animator = mounted
+    ? new HorsemanAnimator(soldier, model.clips, horse, model.horse, MOUNTED_CLIPS[loadout])
+    : new SoldierAnimator(soldier, model.clips, loadout, model.gait);
   return group;
 }
 
@@ -70,8 +81,39 @@ const LOADOUT_CLIPS = Object.freeze({
   great: Object.freeze({
     idle: "t_idle", walk: "t_walk", run: "t_run", block: "t_block", death: "t_death",
     attacks: Object.freeze(["t_swing_l", "t_overhead", "t_swing_r", "t_thrust"]), low: null
+  }),
+  // A crossbowman: each shot ("x_shoot") is followed by the reload with the lever ("x_reload").
+  xbow: Object.freeze({
+    idle: "x_idle", walk: "x_walk", run: "x_run", block: "x_block", death: "x_death",
+    attacks: Object.freeze(["x_shoot"]), then: Object.freeze({ x_shoot: "x_reload" }), low: null
   })
 });
+
+// A horseman with a lance ("cav") or a sword ("cavs"): his clip for each of the horse's.
+const MOUNTED_CLIPS = Object.freeze({
+  cav: Object.freeze({
+    idle: "m_idle", walk: "m_walk", trot: "m_trot", gallop: "m_gallop", death: "m_death", block: "m_block",
+    attacks: Object.freeze(["m_attack"])
+  }),
+  cavs: Object.freeze({
+    idle: "ms_idle", walk: "ms_walk", trot: "ms_trot", gallop: "ms_gallop", death: "ms_death", block: "ms_block",
+    attacks: Object.freeze(["ms_swing"])
+  })
+});
+
+// An attack (or reload) is played over the soldier's base clip once; when it ends it fades out again, or
+// the pose it ends in would stay mixed into everything he does after.
+const OVERLAY_FADE = 0.2;
+function playOverlay(mixer, overlays, action) {
+  action.reset().setEffectiveWeight(1).fadeIn(0.06).play();
+  overlays.add(action);
+}
+function fadeFinishedOverlay(overlays, action, then) {
+  if (!overlays.has(action)) return;
+  overlays.delete(action);
+  action.fadeOut(OVERLAY_FADE);
+  then?.();
+}
 
 // Below this speed (m/s) a soldier who is meant to be moving stands.
 const STANDING_SPEED = 0.15;
@@ -96,12 +138,17 @@ class SoldierAnimator {
   #draw = null;
   #low = true;
   #gait;
+  #overlays = new Set();
 
   constructor(root, clips, loadout = "spear", gait = { walk: 1.3, run: 3.2 }) {
     this.#gait = gait;
     this.#clips = clips;
     this.#roles = LOADOUT_CLIPS[loadout] || LOADOUT_CLIPS.spear;
     this.#mixer = new THREE.AnimationMixer(root);
+    this.#mixer.addEventListener("finished", ({ action }) => fadeFinishedOverlay(this.#overlays, action, () => {
+      const next = this.#roles.then?.[action.getClip().name];
+      if (next && !this.#down) playOverlay(this.#mixer, this.#overlays, this.#action(next));
+    }));
     if (loadout === "sword" && clips.draw) {
       this.#draw = this.#action("draw");
       this.#draw.setLoop(THREE.LoopOnce, 1);
@@ -150,8 +197,11 @@ class SoldierAnimator {
 
   // speed: how fast (m/s) the soldier is moving across the ground, as drawn; enemyDistance: how far (m) the
   // nearest living enemy is.
+  #down = false;
+
   update(unit, deltaSeconds, speed = 0, enemyDistance = Infinity) {
     const down = unit.state === "dead" || unit.state === "incapacitated";
+    this.#down = down;
     // The draw plays to the end before anything but a fall interrupts it.
     if (this.#base === "draw" && !down && this.#draw.time < this.#draw.getClip().duration) {
       this.#mixer.update(deltaSeconds);
@@ -159,8 +209,12 @@ class SoldierAnimator {
     }
     if (enemyDistance < GUARD_DISTANCE || unit.blocking || unit.state === "attacking") this.#low = false;
     else if (enemyDistance > LOWER_DISTANCE) this.#low = true;
-    if (down) this.#play(this.#roles.death);
-    else if (unit.blocking) this.#play(this.#roles.block);
+    if (down) {
+      // A falling man drops whatever he was doing.
+      for (const action of this.#overlays) action.fadeOut(0.1);
+      this.#overlays.clear();
+      this.#play(this.#roles.death);
+    } else if (unit.blocking) this.#play(this.#roles.block);
     else if ((unit.state === "moving" || unit.state === "routing") && speed > STANDING_SPEED) {
       const gait = speed > (this.#gait.walk + this.#gait.run) / 2 ? "run" : "walk";
       const clip = this.#clipFor(gait);
@@ -170,13 +224,105 @@ class SoldierAnimator {
     } else this.#play(this.#clipFor("idle"));
     const cooldown = unit.attackCooldownTicks || 0;
     if (!down && cooldown > this.#lastCooldown) {
-      const attack = this.#action(this.#roles.attacks[this.#attacks++ % this.#roles.attacks.length]);
-      attack.reset().setEffectiveWeight(1).fadeIn(0.06).play();
+      for (const action of this.#overlays) action.fadeOut(0.06);
+      this.#overlays.clear();
+      playOverlay(this.#mixer, this.#overlays, this.#action(this.#roles.attacks[this.#attacks++ % this.#roles.attacks.length]));
     }
     this.#lastCooldown = cooldown;
     this.#mixer.update(deltaSeconds);
   }
 }
+
+// A horseman and his horse: the horse's gait follows how fast he rides (walk, trot, gallop, played at his
+// speed / the gait's so the hooves keep to the ground), and the rider plays his clip of the same gait in step
+// with it. An attack is played over the rider's clip; both fall together.
+class HorsemanAnimator {
+  #rider;
+  #horse;
+  #riderClips;
+  #horseClips;
+  #roles;
+  #gait;
+  #base = null;
+  #actions = new Map();
+  #overlays = new Set();
+  #lastCooldown = 0;
+  #attacks = 0;
+
+  constructor(riderRoot, riderClips, horseRoot, horseModel, roles) {
+    this.#rider = new THREE.AnimationMixer(riderRoot);
+    this.#horse = new THREE.AnimationMixer(horseRoot);
+    this.#riderClips = riderClips;
+    this.#horseClips = horseModel.clips;
+    this.#gait = horseModel.gait;
+    this.#roles = roles;
+    this.#rider.addEventListener("finished", ({ action }) => fadeFinishedOverlay(this.#overlays, action));
+    this.#play("idle");
+  }
+
+  #pair(gait) {
+    if (!this.#actions.has(gait)) {
+      const pair = [this.#rider.clipAction(this.#riderClips[this.#roles[gait]]), this.#horse.clipAction(this.#horseClips[gait])];
+      if (gait === "death") for (const action of pair) {
+        action.setLoop(THREE.LoopOnce, 1);
+        action.clampWhenFinished = true;
+      }
+      this.#actions.set(gait, pair);
+    }
+    return this.#actions.get(gait);
+  }
+
+  #play(gait) {
+    if (this.#base === gait) return;
+    const next = this.#pair(gait);
+    const previous = this.#base ? this.#pair(this.#base) : null;
+    const moving = (name) => ["walk", "trot", "gallop"].includes(name);
+    next.forEach((action, i) => {
+      action.reset().play();
+      // From one gait to the next, carry on from the same point of the stride.
+      if (previous && moving(gait) && moving(this.#base)) {
+        action.time = (previous[i].time / previous[i].getClip().duration) * action.getClip().duration;
+      }
+      if (previous) action.crossFadeFrom(previous[i], gait === "death" ? 0.12 : 0.3, false);
+    });
+    this.#base = gait;
+  }
+
+  get playing() {
+    return this.#roles[this.#base];
+  }
+
+  get horsePlaying() {
+    return this.#base;
+  }
+
+  update(unit, deltaSeconds, speed = 0) {
+    const down = unit.state === "dead" || unit.state === "incapacitated";
+    if (down) {
+      for (const action of this.#overlays) action.fadeOut(0.1);
+      this.#overlays.clear();
+      this.#play("death");
+    } else if ((unit.state === "moving" || unit.state === "routing" || unit.state === "attacking") && speed > STANDING_SPEED) {
+      const { walk, trot } = this.#gait;
+      const gait = speed < (walk + trot) / 2 ? "walk" : speed < HORSE_GALLOP_FROM ? "trot" : "gallop";
+      this.#play(gait);
+      const range = { walk: [0.4, 1.6], trot: [0.6, 1.4], gallop: [0.7, 1.8] }[gait];
+      const scale = Math.min(range[1], Math.max(range[0], speed / this.#gait[gait]));
+      for (const action of this.#pair(gait)) action.timeScale = scale;
+    } else this.#play("idle");
+    const cooldown = unit.attackCooldownTicks || 0;
+    if (!down && cooldown > this.#lastCooldown) {
+      const name = this.#roles.attacks[this.#attacks++ % this.#roles.attacks.length];
+      playOverlay(this.#rider, this.#overlays, this.#rider.clipAction(this.#riderClips[name]).setLoop(THREE.LoopOnce, 1));
+    }
+    this.#lastCooldown = cooldown;
+    this.#rider.update(deltaSeconds);
+    this.#horse.update(deltaSeconds);
+  }
+}
+
+// Above this speed (m/s) a horse gallops rather than trots.
+const HORSE_GALLOP_FROM = 4.4;
 
 // A soft round shadow under each soldier: much cheaper than real shadows and enough to ground them.
 function createHumanoid(material, markerMaterial, geometries, shadowMaterial) {
@@ -254,6 +400,7 @@ export class M2RendererThree {
   #scene;
   #camera;
   #units = new Map();
+  #loadoutCounts = {};
   #projectiles = new Map();
   #formationMarkers = new Map();
   #geometries;
@@ -295,6 +442,8 @@ export class M2RendererThree {
       leg: new THREE.BoxGeometry(0.18, 0.78, 0.2),
       marker: new THREE.RingGeometry(0.48, 0.62, 24),
       projectile: new THREE.SphereGeometry(0.09, 8, 6),
+      // A crossbow bolt: a short dark shaft along its flight (drawn thicker than life, to be seen at all).
+      bolt: new THREE.CylinderGeometry(0.025, 0.025, 0.45, 5).rotateX(Math.PI / 2),
       formation: new THREE.RingGeometry(0.72, 0.82, 24),
       shadow: new THREE.CircleGeometry(0.42, 16),
       ground: createGroundGeometry()
@@ -323,12 +472,18 @@ export class M2RendererThree {
     if (this.#disposed) throw new Error("m2_runtime_disposed");
     for (const entry of this.#units.values()) this.#scene.remove(entry.group);
     this.#units.clear();
+    this.#loadoutCounts = {};
     for (const unit of renderSnapshot.units) {
       const marker = unit.isPlayer ? this.#materials.marker : null;
       const model = soldierModels?.[unit.sideId === "ally" ? "ally" : "enemy"];
-      // In turn, soldiers fight with spear and shield, sword and shield, a spear in both hands, the sword
-      // alone or a longsword (the player always with spear and shield).
-      const loadout = unit.isPlayer ? "spear" : ["spear", "sword", "spear_free", "sword_free", "great"][this.#units.size % 5];
+      // Crossbowmen carry the crossbow; horsemen ride with a lance or a sword in turn. In turn, foot soldiers
+      // fight with spear and shield, sword and shield, a spear in both hands, the sword alone or a longsword
+      // (the player always with spear and shield).
+      const counter = (this.#loadoutCounts[unit.kindId] = (this.#loadoutCounts[unit.kindId] || 0) + 1) - 1;
+      const loadout = unit.isPlayer ? "spear"
+        : unit.kindId === "crossbow" ? "xbow"
+          : unit.kindId === "cavalry" ? ["cav", "cavs"][counter % 2]
+            : ["spear", "sword", "spear_free", "sword_free", "great"][counter % 5];
       const group = model
         ? createModelSoldier(model, marker, this.#geometries, this.#materials.shadow, loadout)
         : createHumanoid(unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy, marker, this.#geometries, this.#materials.shadow);
@@ -373,9 +528,10 @@ export class M2RendererThree {
     for (const projectile of renderSnapshot.projectiles) {
       current.add(projectile.projectileId);
       let mesh = this.#projectiles.get(projectile.projectileId);
+      const bolt = projectile.projectileTypeId === "m2_test_bolt";
       if (!mesh) {
         const material = projectile.sideId === "ally" ? this.#materials.projectileAlly : this.#materials.projectileEnemy;
-        mesh = new THREE.Mesh(this.#geometries.projectile, material);
+        mesh = new THREE.Mesh(bolt ? this.#geometries.bolt : this.#geometries.projectile, material);
         this.#scene.add(mesh);
         this.#projectiles.set(projectile.projectileId, mesh);
       }
@@ -384,6 +540,11 @@ export class M2RendererThree {
         projectile.previousPosition.y + (projectile.position.y - projectile.previousPosition.y) * alpha,
         projectile.previousPosition.z + (projectile.position.z - projectile.previousPosition.z) * alpha
       );
+      if (bolt) {
+        const dx = projectile.position.x - projectile.previousPosition.x;
+        const dz = projectile.position.z - projectile.previousPosition.z;
+        if (dx || dz) mesh.rotation.y = Math.atan2(dx, dz);
+      }
     }
     for (const [id, mesh] of this.#projectiles) {
       if (!current.has(id)) {
@@ -477,12 +638,17 @@ export class M2RendererThree {
     const info = this.#renderer.info.render;
     // How many Blender soldiers are playing each animation (idle, walk, run, ...).
     const soldierAnimations = {};
+    // And how many horses each gait (idle, walk, trot, gallop, death).
+    const horseAnimations = {};
     for (const { group } of this.#units.values()) {
       const playing = group.userData.animator?.playing;
       if (playing) soldierAnimations[playing] = (soldierAnimations[playing] || 0) + 1;
+      const gait = group.userData.animator?.horsePlaying;
+      if (gait) horseAnimations[gait] = (horseAnimations[gait] || 0) + 1;
     }
     return {
       soldierAnimations,
+      horseAnimations,
       drawCalls: info.calls,
       triangles: info.triangles,
       renderedUnits: this.#units.size,

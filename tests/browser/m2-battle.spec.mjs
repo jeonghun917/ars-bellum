@@ -54,7 +54,10 @@ test.describe('3D battle', () => {
       return Object.fromEntries(Object.entries(loaded).map(([side, model]) => {
         let skinned = 0;
         model.scene.traverse((object) => { if (object.isSkinnedMesh) skinned += 1; });
-        return [side, { skinned, clips: Object.keys(model.clips).sort(), gait: model.gait }];
+        let horse = 0;
+        model.horse.scene.traverse((object) => { if (object.isSkinnedMesh) horse += 1; });
+        return [side, { skinned, clips: Object.keys(model.clips).sort(), gait: model.gait,
+          horse: { skinned: horse, clips: Object.keys(model.horse.clips).sort(), gait: model.horse.gait } }];
       }));
     });
     for (const side of ['ally', 'enemy']) {
@@ -72,14 +75,43 @@ test.describe('3D battle', () => {
       // The walk and run clips say how fast their feet move, so the renderer can match the soldiers' speed.
       expect(models[side].gait.walk).toBeGreaterThan(0.5);
       expect(models[side].gait.run).toBeGreaterThan(models[side].gait.walk);
+      // The horse the side's horsemen ride, with its gaits and their speeds.
+      expect(models[side].horse.skinned).toBeGreaterThan(0);
+      expect(models[side].horse.clips).toEqual(['death', 'gallop', 'idle', 'trot', 'walk']);
+      expect(models[side].horse.gait.trot).toBeGreaterThan(models[side].horse.gait.walk);
     }
   });
 
+  test('[m2.render.cavalry] the horsemen ride drawn horses that gallop with them when they charge', async ({ page }) => {
+    // 7 horsemen a side, each on a horse standing at the start.
+    await expect.poll(async () => (await diagnostics(page)).horseAnimations?.idle || 0).toBe(14);
+    const receipt = await page.evaluate(() => window.ArsM2Battle.issueCommand({
+      commandId: 'charge', type: 'formation_attack', formationId: 'ally_column', targetFormationId: 'enemy_line' }));
+    expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
+    // Horse and rider gallop together (the rider's "m_gallop"/"ms_gallop" rides the horse's "gallop").
+    await page.waitForFunction(() => {
+      const g = window.ArsM2Diagnostics.getSnapshot();
+      return (g.horseAnimations.gallop || 0) > 0 && ((g.soldierAnimations.m_gallop || 0) + (g.soldierAnimations.ms_gallop || 0)) > 0;
+    }, null, { polling: 'raf', timeout: 30_000 });
+    await expect.poll(async () => (await diagnostics(page)).chargeHitCount, { timeout: 30_000 }).toBeGreaterThan(0);
+  });
+
+  test('[m2.render.crossbow] crossbowmen ordered to attack shoot bolts by themselves', async ({ page }) => {
+    const s = await snapshot(page);
+    const enemyHp = s.units.filter((u) => u.sideId === 'enemy').reduce((sum, u) => sum + u.hp, 0);
+    const receipt = await page.evaluate(() => window.ArsM2Battle.issueCommand({
+      commandId: 'volley', type: 'formation_attack', formationId: 'ally_loose', targetFormationId: 'enemy_line' }));
+    expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
+    await expect.poll(async () => (await diagnostics(page)).crossbowLaunchCount, { timeout: 30_000 }).toBeGreaterThan(0);
+    await expect.poll(async () => (await snapshot(page)).units.filter((u) => u.sideId === 'enemy').reduce((sum, u) => sum + u.hp, 0),
+      { timeout: 30_000 }).toBeLessThan(enemyHp);
+  });
+
   test('[m2.render.soldier-gait] soldiers crossing the field at full speed run, not walk', async ({ page }) => {
-    // The battle starts with everyone standing: send an ally formation 15 m forward. Units move at about
+    // The battle starts with everyone standing: send the ally foot soldiers 15 m forward. Units move at about
     // 3.2 m/s; the walk clip's feet move at about 1.3 m/s, so walking would skate.
     const receipt = await page.evaluate(() => {
-      const f = window.ArsM2Battle.getSnapshot().formations.find((item) => item.sideId === 'ally');
+      const f = window.ArsM2Battle.getSnapshot().formations.find((item) => item.formationId === 'ally_line');
       return window.ArsM2Battle.issueCommand({ commandId: 'gait_move', type: 'formation_move', formationId: f.formationId,
         target: { x: f.anchor.x, z: f.anchor.z - 15 } });
     });

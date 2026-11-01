@@ -1,4 +1,5 @@
 import { isM2UnitActive, isM2UnitAlive } from "./M2_BattleState.js";
+import { m2UnitKind } from "./M2_UnitKinds.js";
 
 export class M2MovementSystem {
   #maxSpeed;
@@ -27,6 +28,8 @@ export class M2MovementSystem {
       unit.previousPosition.y = unit.position.y;
       unit.previousPosition.z = unit.position.z;
 
+      // A horseman moves faster than a man on foot (M2_UnitKinds.js).
+      const maxSpeed = this.#maxSpeed * m2UnitKind(unit).speedScale;
       if (!isM2UnitAlive(unit)) {
         unit.velocity.x = 0;
         unit.velocity.z = 0;
@@ -52,7 +55,7 @@ export class M2MovementSystem {
         }
         const nx = dx / distance;
         const nz = dz / distance;
-        const travel = Math.min(distance, this.#maxSpeed * deltaSeconds);
+        const travel = Math.min(distance, maxSpeed * deltaSeconds);
         const moveX = nx * travel;
         const moveZ = nz * travel;
         unit.position.x += moveX;
@@ -101,7 +104,7 @@ export class M2MovementSystem {
 
       const nx = dx / distance;
       const nz = dz / distance;
-      const travel = direct ? this.#maxSpeed * deltaSeconds : Math.min(distance, this.#maxSpeed * deltaSeconds);
+      const travel = direct ? maxSpeed * deltaSeconds : Math.min(distance, maxSpeed * deltaSeconds);
       const moveX = nx * travel;
       const moveZ = nz * travel;
       unit.position.x += moveX;

@@ -5,6 +5,7 @@ import {
   M2_PROJECTILE_DEFINITION
 } from "./M2_Definitions.js";
 import { isM2UnitActive } from "./M2_BattleState.js";
+import { m2UnitKind } from "./M2_UnitKinds.js";
 
 const TAU = Math.PI * 2;
 
@@ -90,15 +91,15 @@ function collectMeleeCandidateFacts(battleState, spatialGrid, actor, aimHeading)
   return candidates;
 }
 
-function collectContactCandidateFacts(battleState, spatialGrid, attacker) {
+function collectContactCandidateFacts(battleState, spatialGrid, attacker, range = M2_MELEE_DEFINITION.range) {
   const candidates = [];
-  for (const unitId of spatialGrid.queryNearby(attacker.position.x, attacker.position.z, M2_MELEE_DEFINITION.range)) {
+  for (const unitId of spatialGrid.queryNearby(attacker.position.x, attacker.position.z, range)) {
     const target = battleState.getUnit(unitId);
     if (!isM2UnitActive(target) || target.sideId === attacker.sideId || target.unitId === attacker.unitId) continue;
     const dx = target.position.x - attacker.position.x;
     const dz = target.position.z - attacker.position.z;
     const distance = Math.hypot(dx, dz);
-    if (distance <= M2_MELEE_DEFINITION.range) candidates.push({ unitId: target.unitId, distance });
+    if (distance <= range) candidates.push({ unitId: target.unitId, distance });
   }
   candidates.sort((a, b) => a.distance - b.distance || a.unitId.localeCompare(b.unitId));
   return candidates;
@@ -150,11 +151,49 @@ function potentialBowProjectile(battleState, command) {
   };
 }
 
+// A crossbowman whose formation is ordered to attack and whose crossbow is spanned: the nearest living enemy
+// within range, and the bolt he would shoot at him this tick.
+function potentialCrossbowShot(battleState, spatialGrid, shooter, processingTick) {
+  const kind = m2UnitKind(shooter);
+  let best = null;
+  for (const unitId of spatialGrid.queryNearby(shooter.position.x, shooter.position.z, kind.range)) {
+    const target = battleState.getUnit(unitId);
+    if (!isM2UnitActive(target) || target.sideId === shooter.sideId) continue;
+    const distance = Math.hypot(target.position.x - shooter.position.x, target.position.z - shooter.position.z);
+    if (distance > kind.range || distance <= 0) continue;
+    if (!best || distance < best.distance || (distance === best.distance && unitId < best.unitId)) best = { unitId, distance };
+  }
+  if (!best) return null;
+  const target = battleState.getUnit(best.unitId);
+  const aimHeading = Math.atan2(target.position.x - shooter.position.x, target.position.z - shooter.position.z);
+  return {
+    shooterUnitId: shooter.unitId,
+    targetUnitId: best.unitId,
+    aimHeading,
+    projectile: {
+      projectileId: `bolt:${String(processingTick).padStart(8, "0")}:${shooter.unitId}`,
+      ownerUnitId: shooter.unitId,
+      sideId: shooter.sideId,
+      position: { x: shooter.position.x, y: 1.25, z: shooter.position.z },
+      direction: { x: Math.sin(aimHeading), z: Math.cos(aimHeading) },
+      speed: kind.boltSpeed,
+      remainingRange: kind.boltMaxRange
+    }
+  };
+}
+
+function shootsCrossbow(battleState, unit) {
+  if (!isM2UnitActive(unit) || unit.isPlayer || unit.kindId !== "crossbow" || unit.attackCooldownTicks !== 0) return false;
+  return battleState.getFormation(unit.formationId)?.order.type === "attack_target";
+}
+
 export class M2CombatSystem {
   #projectileLaunchCount = 0;
   #projectileHitCount = 0;
   #projectileOverflowCount = 0;
   #attackEventCount = 0;
+  #crossbowLaunchCount = 0;
+  #chargeHitCount = 0;
 
   getObservation(battleState) {
     return Object.freeze({
@@ -162,17 +201,24 @@ export class M2CombatSystem {
       activeProjectileCount: battleState.projectileCount,
       projectileHitCount: this.#projectileHitCount,
       projectileOverflowCount: this.#projectileOverflowCount,
-      attackEventCount: this.#attackEventCount
+      attackEventCount: this.#attackEventCount,
+      crossbowLaunchCount: this.#crossbowLaunchCount,
+      chargeHitCount: this.#chargeHitCount
     });
   }
 
   // Fixed-tick phase 5 only:
   // 1) decrement active cooldowns exactly once, then
   // 2) collect all spatial/contact facts into a battle-tick-local plain plan.
-  prepareTick(battleState, spatialGrid, commands, deltaSeconds) {
+  prepareTick(battleState, spatialGrid, commands, deltaSeconds, processingTick = battleState.tick + 1) {
     battleState.forEachUnitStable((unit) => {
       if (!isM2UnitActive(unit)) return;
       unit.attackCooldownTicks = Math.max(0, unit.attackCooldownTicks - 1);
+      // A horseman's run-up: how long he has ridden at charging speed (the movement of this tick included).
+      const chargeSpeed = m2UnitKind(unit).chargeSpeed;
+      if (chargeSpeed > 0) {
+        unit.chargeRunTicks = Math.hypot(unit.velocity.x, unit.velocity.z) >= chargeSpeed ? (unit.chargeRunTicks || 0) + 1 : 0;
+      }
     });
 
     const playerMelee = [];
@@ -194,9 +240,12 @@ export class M2CombatSystem {
     for (const attackerId of battleState.getUnitIdsStable()) {
       const attacker = battleState.getUnit(attackerId);
       if (!isM2UnitActive(attacker) || attacker.isPlayer) continue;
+      // Crossbowmen shoot instead (below).
+      const reach = m2UnitKind(attacker).meleeRange;
+      if (!(reach > 0)) continue;
       const formation = battleState.getFormation(attacker.formationId);
       if (!formation || formation.order.type !== "attack_target") continue;
-      const candidates = collectContactCandidateFacts(battleState, spatialGrid, attacker);
+      const candidates = collectContactCandidateFacts(battleState, spatialGrid, attacker, reach);
       nonPlayerMelee.push({
         attackerUnitId: attacker.unitId,
         candidates,
@@ -222,11 +271,23 @@ export class M2CombatSystem {
       projectileSteps.push(collectProjectileStepFacts(battleState, spatialGrid, projectile, deltaSeconds));
       plannedProjectileIds.add(projectile.projectileId);
     }
+    const crossbowShots = [];
+    for (const shooterId of battleState.getUnitIdsStable()) {
+      const shooter = battleState.getUnit(shooterId);
+      if (!shootsCrossbow(battleState, shooter)) continue;
+      const shot = potentialCrossbowShot(battleState, spatialGrid, shooter, processingTick);
+      if (!shot) continue;
+      crossbowShots.push(shot);
+      if (plannedProjectileIds.has(shot.projectile.projectileId)) continue;
+      projectileSteps.push(collectProjectileStepFacts(battleState, spatialGrid, shot.projectile, deltaSeconds));
+      plannedProjectileIds.add(shot.projectile.projectileId);
+    }
     projectileSteps.sort((a, b) => a.projectileId.localeCompare(b.projectileId));
 
     return freezeDeep({
       playerMelee,
       nonPlayerMelee,
+      crossbowShots,
       projectileSteps
     });
   }
@@ -305,6 +366,44 @@ export class M2CombatSystem {
     }
   }
 
+  // Crossbowmen of formations ordered to attack shoot the enemy the plan found for them, then reload.
+  resolveCrossbowVolleys(battleState, candidatePlan, processingTick) {
+    for (const shot of candidatePlan.crossbowShots || []) {
+      const shooter = battleState.getUnit(shot.shooterUnitId);
+      if (!shootsCrossbow(battleState, shooter)) continue;
+      if (battleState.projectileCount >= M2_PROJECTILE_DEFINITION.maxActive) {
+        this.#projectileOverflowCount += 1;
+        continue;
+      }
+      if (battleState.getProjectile(shot.projectile.projectileId)) continue;
+      const kind = m2UnitKind(shooter);
+      const start = shot.projectile.position;
+      const projectile = {
+        projectileId: shot.projectile.projectileId,
+        projectileTypeId: "m2_test_bolt",
+        ownerUnitId: shooter.unitId,
+        sideId: shooter.sideId,
+        launchSeed: hashLaunchSeed(battleState.seed, shot.projectile.projectileId, shooter.unitId, processingTick),
+        position: { ...start },
+        previousPosition: { ...start },
+        direction: { ...shot.projectile.direction },
+        speed: kind.boltSpeed,
+        remainingRange: kind.boltMaxRange,
+        damage: kind.boltDamage,
+        revision: 0
+      };
+      if (battleState.addProjectile(projectile)) {
+        shooter.attackCooldownTicks = kind.reloadTicks;
+        shooter.heading = shot.aimHeading;
+        shooter.targetUnitId = shot.targetUnitId;
+        shooter.state = "attacking";
+        shooter.revision += 1;
+        this.#projectileLaunchCount += 1;
+        this.#crossbowLaunchCount += 1;
+      }
+    }
+  }
+
   resolveNonPlayerContactMelee(battleState, candidatePlan, damageEvents, processingTick) {
     const byAttackerId = new Map(candidatePlan.nonPlayerMelee.map((record) => [record.attackerUnitId, record]));
     for (const attackerId of battleState.getUnitIdsStable()) {
@@ -317,12 +416,18 @@ export class M2CombatSystem {
       if (!isM2UnitActive(target) || target.sideId === attacker.sideId) continue;
 
       attacker.heading = Math.atan2(target.position.x - attacker.position.x, target.position.z - attacker.position.z);
+      // A horseman who strikes at the end of a run-up charges: his horse's weight is behind the blow.
+      const kind = m2UnitKind(attacker);
+      const charging = kind.chargeSpeed > 0 && attacker.chargeRunTicks >= kind.chargeRunTicks;
+      const baseDamage = kind.id === "infantry" ? M2_MELEE_DEFINITION.baseDamage : kind.meleeDamage;
       damageEvents.push({
         damageEventId: `auto_melee:${processingTick}:${attacker.unitId}:${target.unitId}`,
         sourceUnitId: attacker.unitId,
         targetUnitId: target.unitId,
-        damage: damageAfterBlock(target, attacker.position, M2_MELEE_DEFINITION.baseDamage)
+        damage: damageAfterBlock(target, attacker.position, baseDamage * (charging ? kind.chargeScale : 1))
       });
+      if (charging) this.#chargeHitCount += 1;
+      if (kind.chargeSpeed > 0) attacker.chargeRunTicks = 0;
       attacker.attackCooldownTicks = M2_MELEE_DEFINITION.cooldownTicks;
       attacker.state = "attacking";
       attacker.revision += 1;
@@ -378,5 +483,6 @@ export const M2_COMBAT_INTERNALS_FOR_TEST = Object.freeze({
   inFacingArc,
   collectMeleeCandidateFacts,
   collectContactCandidateFacts,
-  collectProjectileStepFacts
+  collectProjectileStepFacts,
+  potentialCrossbowShot
 });

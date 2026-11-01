@@ -62,6 +62,11 @@ export class M2BattleRuntime {
     const wasFinalized = this.#status === "finalized" || this.#battleState?.getResult() !== null;
     const candidateState = new M2BattleState(validation.snapshot, this.#combatProfiles);
     this.#formationSystem.updateSlots(candidateState);
+    // Start everyone on his place in the formation: the snapshot spaces horsemen like men on foot.
+    candidateState.forEachUnitStable((unit) => {
+      unit.position.x = unit.previousPosition.x = unit.slotTarget.x;
+      unit.position.z = unit.previousPosition.z = unit.slotTarget.z;
+    });
     this.#spatialGrid.rebuild(candidateState);
     const candidateRenderSnapshot = createRenderSnapshot(candidateState);
 
@@ -156,11 +161,12 @@ export class M2BattleRuntime {
 
     this.#spatialGrid.rebuild(this.#battleState);
 
-    const candidatePlan = this.#combatSystem.prepareTick(this.#battleState, this.#spatialGrid, commands, M2_CONFIG.fixedTickMs / 1000);
+    const candidatePlan = this.#combatSystem.prepareTick(this.#battleState, this.#spatialGrid, commands, M2_CONFIG.fixedTickMs / 1000, processingTick);
     const damageEvents = [];
     this.#combatSystem.applyBlockCommands(this.#battleState, commands);
     this.#combatSystem.resolvePlayerMelee(this.#battleState, commands, candidatePlan, damageEvents);
     this.#combatSystem.resolveBowLaunch(this.#battleState, commands, processingTick);
+    this.#combatSystem.resolveCrossbowVolleys(this.#battleState, candidatePlan, processingTick);
     this.#combatSystem.resolveNonPlayerContactMelee(this.#battleState, candidatePlan, damageEvents, processingTick);
     this.#combatSystem.progressProjectiles(this.#battleState, candidatePlan, damageEvents);
 
