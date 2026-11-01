@@ -115,21 +115,16 @@ test.describe('3D battle', () => {
         target: { x: f.anchor.x, z: f.anchor.z - 15 } });
     });
     expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
-    const playing = (pattern) => () => Object.entries(window.ArsM2Diagnostics.getSnapshot().soldierAnimations || {})
+    // (The check runs in the page, so the clip pattern is passed in, not captured.)
+    const playing = (pattern) => Object.entries(window.ArsM2Diagnostics.getSnapshot().soldierAnimations || {})
       .some(([clip, count]) => new RegExp(pattern).test(clip) && count > 0);
     // (Walk clips are "walk", "low_walk", "s_low_walk", ...; run clips likewise.)
-    await page.waitForFunction(playing('walk$'), null, { timeout: 20_000 });
+    await page.waitForFunction(playing, 'walk$', { timeout: 20_000 });
     // Ordered to attack, they close at a run for the last stretch (3.2 m/s, the run clip's pace).
     const attack = await page.evaluate(() => window.ArsM2Battle.issueCommand({
       commandId: 'gait_attack', type: 'formation_attack', formationId: 'ally_line', targetFormationId: 'enemy_line' }));
     expect(attack.ok, JSON.stringify(attack)).toBe(true);
-    await page.waitForFunction(playing('run$'), null, { polling: 'raf', timeout: 30_000 });
-  });
-    expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
-    // (Only that some run: while a soldier speeds up or arrives he passes through walking speeds. The run
-    // clips are "run", "low_run", "s_low_run", ...)
-    await page.waitForFunction(() => Object.entries(window.ArsM2Diagnostics.getSnapshot().soldierAnimations || {})
-      .some(([clip, count]) => /run$/.test(clip) && count > 0), null, { timeout: 20_000 });
+    await page.waitForFunction(playing, 'run$', { polling: 'raf', timeout: 30_000 });
   });
 
   test('[m2.render.shield-low] with no enemy near, soldiers carry their shields low at their side', async ({ page }) => {
