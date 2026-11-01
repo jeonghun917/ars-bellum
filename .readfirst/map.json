@@ -135,6 +135,15 @@
           "files": [
             "m2/M2_RendererThree.js"
           ]
+        },
+        {
+          "text": "Which shapes and orders a formation may take is set in two lists: FORMATION_TYPES_BY_KIND in M2_FormationSystem.js (checked by M2_CommandQueue.js for formation_set_type) and ALWAYS/LEARNED in M2_Orders.js (ordersFor, also checked for formation_set_tactic and cut down by the commander's tacticSlots). A new shape also needs a case in calculateFormationSlots and a button/key in M2_InputController.js and m2_prototype.html. A new order needs its behaviour in the systems that read formation.tactic (M2_MovementSystem, M2_CombatSystem, M2_CollisionSystem, M2_FormationSystem, M2_EnemyAI), because M2_Orders.js holds only names and numbers; without that it is offered in the list and does nothing."
+        },
+        {
+          "text": "shootsCrossbow in M2_CombatSystem.js runs twice: in the plan (phase 5) a volley waits for every man to have spanned, and when shots are made (resolveCrossbowVolleys, planning: false) it must not. If the second call also waited, the first man's shot would put the rest on cooldown and the volley would shrink to one bolt."
+        },
+        {
+          "text": "A soldier's unit.withdrawTo (a horseman wheeling away after a charge, a skirmisher stepping back) is taken before the charge target and his slot in M2_MovementSystem.js, and is cleared only within 1 m of the point. Setting it elsewhere sends the man off before he does anything else."
         }
       ]
     },
@@ -673,6 +682,16 @@
         {
           "run": "node --test tests/unit/save.test.mjs"
         }
+      ]
+    },
+    {
+      "id": "orders-no-added-effects",
+      "rule": "No formation order and no shape makes a blow, a charge or a bolt stronger; they change only what the men do (where they stand, run, face, shoot).",
+      "why": "The owner ruled there are to be no added effects; a stronger blow or bolt from an order breaks that ruling and fails m2.order.no-added-effects.",
+      "files": [
+        "m2/M2_Orders.js",
+        "m2/M2_FormationSystem.js",
+        "m2/M2_CombatSystem.js"
       ]
     }
   ],
