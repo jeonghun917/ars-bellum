@@ -3148,6 +3148,18 @@
       "title": "a whole side ordered to retreat leaves the field, and the battle ends",
       "kind": "unit",
       "source": "tests/unit/m2-pace-bodies.test.mjs"
+    },
+    {
+      "id": "m2.morale.losses-weigh",
+      "title": "a formation that has lost men stays shaken, not just for the moment they fall",
+      "kind": "unit",
+      "source": "tests/unit/m2-morale.test.mjs"
+    },
+    {
+      "id": "m2.morale.side-breaks",
+      "title": "a beaten side breaks and runs before it is wiped out, and the battle ends in a retreat",
+      "kind": "unit",
+      "source": "tests/unit/m2-morale.test.mjs"
     }
   ]
 }

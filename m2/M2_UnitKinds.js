@@ -13,7 +13,7 @@
 export const M2_UNIT_KINDS = Object.freeze({
   infantry: Object.freeze({
     id: "infantry",
-    hpScale: 2.5,
+    hpScale: 3.5,
     speedScale: 1,
     walkScale: 0.45,
     walkDistance: 3,
@@ -30,7 +30,7 @@ export const M2_UNIT_KINDS = Object.freeze({
   // "x_shoot" and "x_reload" clips, 1.2 s + 3.2 s at 20 ticks a second).
   crossbow: Object.freeze({
     id: "crossbow",
-    hpScale: 2,
+    hpScale: 2.8,
     speedScale: 1,
     walkScale: 0.45,
     walkDistance: 3,
@@ -54,7 +54,7 @@ export const M2_UNIT_KINDS = Object.freeze({
   // does not renew it, only a new run-up does.
   cavalry: Object.freeze({
     id: "cavalry",
-    hpScale: 3,
+    hpScale: 4.2,
     speedScale: 1.75,
     // Walking (1.7 m/s, the horse's walking clip) only to settle into place; a gallop otherwise.
     walkScale: 0.3,
