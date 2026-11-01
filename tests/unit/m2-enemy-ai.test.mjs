@@ -3,6 +3,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { battle, tick, attack, members, hpOf } from './m2-sim-helpers.mjs';
+import { setPlan } from '../../m2/M2_Plans.js';
+
+// The enemy commander's choices of target, formation by formation: under a frontal push (his battle plans
+// are tested in m2-plans.test.mjs).
+const frontal = (b) => setPlan(b.state, 'enemy', 'frontal_push', 0);
 
 const enemyFormations = (b) => b.state.getFormationIdsStable().map((id) => b.state.getFormation(id)).filter((f) => f.sideId === 'enemy');
 // To the centimetre: where the starting places overlap a little (a horse of the enemy column inside the
@@ -25,6 +30,7 @@ test('[m2.ai.waits] left alone, the enemy holds its ground and nobody is hurt', 
 
 test('[m2.ai.wakes-on-attack-order] an ally attack order brings the whole enemy army into the fight', () => {
   const b = battle({ withAI: true });
+  frontal(b);
   attack(b, 'ally_line', 'enemy_line');
   for (let i = 0; i < 2; i += 1) tick(b);
   assert.equal(b.ai.awake, true);
@@ -53,6 +59,7 @@ test('[m2.ai.wakes-on-harm] hurting an enemy soldier wakes the enemy too', () =>
 
 test('[m2.ai.cavalry-hunts-crossbows] the enemy horsemen ride for the ally crossbowmen even when others are nearer', () => {
   const b = battle({ withAI: true });
+  frontal(b);
   // The ally crossbowmen stand far back; the ally foot and horse are much nearer the enemy horsemen.
   const loose = b.state.getFormation('ally_loose');
   loose.anchor = { x: -30, z: 25 };
@@ -67,6 +74,7 @@ test('[m2.ai.cavalry-hunts-crossbows] the enemy horsemen ride for the ally cross
 
 test('[m2.ai.retargets] when its target is gone, an enemy formation turns on the next', () => {
   const b = battle({ withAI: true });
+  frontal(b);
   attack(b, 'ally_line', 'enemy_line');
   tick(b);
   assert.equal(b.state.getFormation('enemy_column').order.targetFormationId, 'ally_loose');
@@ -95,6 +103,7 @@ test('[m2.ai.leaves-withdrawal] a withdrawing or rallying enemy formation keeps 
 
 test('[m2.ai.defend-in-place] soldiers ordered to hold strike back at enemies who reach them, crossbowmen shoot back', () => {
   const b = battle({ withAI: true });
+  frontal(b);
   // Only the player's line is sent in; the ally horsemen and crossbowmen stay on hold.
   attack(b, 'ally_line', 'enemy_line');
   for (let i = 0; i < 600; i += 1) tick(b);

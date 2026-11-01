@@ -1,4 +1,5 @@
 import { m2Receipt } from "./M2_Config.js";
+import { plansFor } from "./M2_Plans.js";
 import { ordersFor } from "./M2_Orders.js";
 import { formationTypesFor } from "./M2_FormationSystem.js";
 
@@ -51,7 +52,8 @@ const ALLOWED_TYPES = new Set([
   "player_melee_attack",
   "player_block",
   "player_bow_fire",
-  "battle_abort"
+  "battle_abort",
+  "army_set_plan"
 ]);
 
 export class M2CommandQueue {
@@ -87,6 +89,12 @@ export class M2CommandQueue {
         return m2Receipt(false, { error: "m2_command_invalid_input_revision", commandId: command.commandId });
       }
       normalized = { commandId: command.commandId, type: command.type, inputContextRevision: null };
+    } else if (command.type === "army_set_plan") {
+      // The player's side's battle plan (M2_Plans.js): one it can use now, or none.
+      if (command.planId !== null && !plansFor(battleState, "ally").includes(command.planId)) {
+        return m2Receipt(false, { error: "m2_command_plan_not_available", commandId: command.commandId });
+      }
+      normalized = { commandId: command.commandId, type: command.type, inputContextRevision, sideId: "ally", planId: command.planId };
     } else if (command.type.startsWith("formation_")) {
       if (!validId(command.formationId) || !battleState.hasFormation(command.formationId)) {
         return m2Receipt(false, { error: "m2_command_unknown_formation", commandId: command.commandId });

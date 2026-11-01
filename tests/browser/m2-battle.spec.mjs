@@ -251,6 +251,17 @@ test.describe('3D battle', () => {
     expect((await formation(page, selected)).tactic).toBe(null);
   });
 
+  test('[m2.orders.plan] the plan list offers the battle plans the army can use, and choosing one puts it to work', async ({ page }) => {
+    await switchToTactical(page);
+    // Ordinary commanders (tactics 30): frontal push and two plans, for foot, horse and crossbows.
+    expect(await page.locator('#m2Plan option').allTextContents()).toEqual(['없음', '정면 압박', '모루와 망치', '견제 후 돌격']);
+    await page.selectOption('#m2Plan', 'anvil_hammer');
+    await waitTicks(page, 2);
+    const s = await snapshot(page);
+    expect(s.plans.ally.planId).toBe('anvil_hammer');
+    expect(s.formations.filter((f) => f.sideId === 'ally').every((f) => f.underPlan && f.order.type === 'attack_target')).toBe(true);
+  });
+
   test('[m2.orders.formation-shape] line, column and loose buttons change the formation shape', async ({ page }) => {
     await switchToTactical(page);
     const selected = await page.inputValue('#m2FriendlyFormation');

@@ -7,10 +7,13 @@
 // the enemy's own and are not part of the player's command log. Everything here depends only on the battle
 // state, so the same battle plays out the same way.
 import { isM2UnitAlive } from "./M2_BattleState.js";
+import { plansFor, setPlan } from "./M2_Plans.js";
 import { ordersFor } from "./M2_Orders.js";
 
 const AI_SIDE = "enemy";
 const THINK_EVERY_TICKS = 20;
+// The plans the enemy commander would rather use, best first.
+const PLAN_PREFERENCE = Object.freeze(["anvil_hammer", "shoot_then_charge", "defend_counter", "screen_archers", "double_envelopment", "feigned_retreat"]);
 
 function centre(battleState, formation) {
   const ids = battleState.getActiveFormationMemberIds(formation);
@@ -47,6 +50,12 @@ export class M2EnemyAI {
     }
     if (!this.#awake || processingTick - this.#lastThinkTick < THINK_EVERY_TICKS) return;
     this.#lastThinkTick = processingTick;
+    // A battle plan for the whole army (M2_Plans.js): the best his commanders know, for what he has.
+    if (!battleState.getPlan(AI_SIDE)) {
+      const can = plansFor(battleState, AI_SIDE);
+      const planId = PLAN_PREFERENCE.find((id) => can.includes(id)) || "frontal_push";
+      setPlan(battleState, AI_SIDE, planId, processingTick);
+    }
 
     const allies = [];
     battleState.forEachFormationStable((formation) => {

@@ -257,7 +257,9 @@ test('[m2.tactics.enemy-uses] the enemy commander shapes and orders his formatio
   tick(b);
   // Under the ally crossbows, on the way in: a shield wall; horse coming: braced spears.
   assert.equal(b.state.getFormation('enemy_line').formationTypeId, 'shield_wall');
-  assert.equal(b.state.getFormation('enemy_column').tactic, 'charge', 'horse ride into crossbowmen');
+  // His plan (anvil and hammer, the best his commanders know) sends the horse round.
+  assert.equal(b.state.getPlan('enemy').planId, 'anvil_hammer');
+  assert.equal(b.state.getFormation('enemy_column').tactic, 'flank');
   // As the horsemen come near, before they strike: braced spears.
   let braced = false;
   for (let i = 0; i < 200 && !braced; i += 1) {

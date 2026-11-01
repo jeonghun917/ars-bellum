@@ -29,6 +29,7 @@ const elements = {
   wedge: document.getElementById("m2Wedge"),
   circle: document.getElementById("m2Circle"),
   tactic: document.getElementById("m2Tactic"),
+  plan: document.getElementById("m2Plan"),
   time0: document.getElementById("m2Time0"),
   time025: document.getElementById("m2Time025"),
   time05: document.getElementById("m2Time05"),

@@ -114,6 +114,8 @@ export class M2FormationSystem {
   applyCommand(battleState, command) {
     const formation = battleState.getFormation(command.formationId);
     if (!formation) throw new Error("m2_command_unknown_formation");
+    // A formation ordered by hand leaves its side's battle plan (a change of shape alone does not take it out).
+    if (command.type !== "formation_set_type") formation.underPlan = false;
 
     if (command.type === "formation_move") {
       // Marching off, braced spearmen take up their spears.
@@ -182,7 +184,8 @@ export class M2FormationSystem {
       : { ...formation.anchor };
     const forward = { x: Math.sin(target.facing), z: Math.cos(target.facing) };
     const right = { x: Math.cos(target.facing), z: -Math.sin(target.facing) };
-    const side = (centre.x - target.anchor.x) * right.x + (centre.z - target.anchor.z) * right.z >= 0 ? 1 : -1;
+    // A battle plan may say which side to go round (M2_Plans.js); else the nearer.
+    const side = formation.flankSide ?? ((centre.x - target.anchor.x) * right.x + (centre.z - target.anchor.z) * right.z >= 0 ? 1 : -1);
     const abeam = {
       x: target.anchor.x + right.x * side * M2_ORDERS.flank.sideDistance,
       z: target.anchor.z + right.z * side * M2_ORDERS.flank.sideDistance

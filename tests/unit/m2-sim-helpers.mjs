@@ -13,6 +13,7 @@ import { createCombatProfileCatalog } from '../../m2/M2_CombatProfiles.js';
 import { M2EnemyAI } from '../../m2/M2_EnemyAI.js';
 import { M2ResultSystem } from '../../m2/M2_ResultSystem.js';
 import { M2CollisionSystem } from '../../m2/M2_CollisionSystem.js';
+import { M2PlanSystem, setPlan } from '../../m2/M2_Plans.js';
 import { M2_TECHNICAL_COMBAT_PROFILES, M2_TECHNICAL_SNAPSHOT } from '../../m2/fixtures/m2_technical_fixture_v1.js';
 
 const DT = M2_CONFIG.fixedTickMs / 1000;
@@ -34,6 +35,7 @@ export function battle({ withAI = false, heroSheet = null, commanderSheets = nul
     ai: withAI ? new M2EnemyAI() : null,
     result: new M2ResultSystem(),
     collision: new M2CollisionSystem(),
+    plans: new M2PlanSystem(),
     outcome: null,
     bolts: [],
     events: [],
@@ -49,7 +51,9 @@ export function tick(b) {
   const n = b.state.tick + 1;
   const commands = b.queue.drain().commands;
   for (const c of commands) if (c.type.startsWith('formation_')) b.formation.applyCommand(b.state, c);
+  for (const c of commands) if (c.type === 'army_set_plan') setPlan(b.state, c.sideId, c.planId, n);
   b.ai?.step(b.state, n);
+  b.plans.step(b.state, n);
   b.formation.updateAttackGoals(b.state);
   b.formation.updateSlots(b.state);
   for (const c of commands) if (c.type === 'player_move') b.movement.applyCommand(b.state, c);
