@@ -196,7 +196,8 @@
       "id": "src",
       "title": "Composition root: main.js picks browser storage and the battle starter and passes them to mountApp",
       "files": [
-        "src/main.js"
+        "src/main.js",
+        "src/battle3d/**"
       ],
       "checks": [
         {
@@ -210,10 +211,13 @@
       ],
       "risks": [
         {
-          "text": "main.js is the only place that knows the browser; the arguments it passes to mountApp (storage, startBattle, world) are what src/ui expects, and changing either side blanks the screen.",
+          "text": "main.js is the only place that knows the browser; the arguments it passes to mountApp (storage, battleView, startBattle, newSeed, world) are what src/ui expects, and changing either side blanks the screen. It also decides 2D or 3D (?battle=, else the menu choice kept in storage) when the battle starts.",
           "files": [
             "src/main.js"
           ]
+        },
+        {
+          "text": "src/battle3d/launch.js campaignResult must keep returning the shape battle-result.js reads (outcome, enemyRoutedUnits, enemyKilledUnits, allyLostUnits, allySurvivingUnits, lordCaptured). An outcome it does not map falls back to 'retreat', which records nothing; a new 3D outcome must be added to OUTCOMES or it is silently dropped."
         }
       ]
     },
@@ -441,6 +445,9 @@
           "files": [
             "src/ui/fake-battle.js"
           ]
+        },
+        {
+          "text": "startBattle now also receives options from app.js through battle-flow.js (campaign battles pass { heroSheet }; the 2D battle ignores it, the 3D battle reads it). Keep runBattle passing options through, or the 3D battle fights without the player's hero skills and items."
         }
       ]
     },
