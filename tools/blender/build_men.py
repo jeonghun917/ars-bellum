@@ -3505,6 +3505,10 @@ def main():
         # Written into the model (glTF "extras" of the skeleton node).
         for name, g in GAITS.items():
             skeleton[f"{name}_speed"] = g["speed"]
+        # SAVE_BLEND=<path>: save the posed scene before the checks and stop (for measuring a problem by hand).
+        if os.environ.get("SAVE_BLEND"):
+            bpy.ops.wm.save_as_mainfile(filepath=os.environ["SAVE_BLEND"])
+            return
         report = os.path.join(mh.CACHE, f"check_{side}.json")
         gaits = {name: g["speed"] for base, g in GAITS.items() for name in (base, "s_" + base, "low_" + base,
                                                                               "s_low_" + base, "n_" + base, "f_" + base,
