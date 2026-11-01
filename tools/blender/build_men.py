@@ -2599,10 +2599,12 @@ def great_helm(head_top, radius, mat, dark):
     bm = lathe(profile, 20)
     bmesh.ops.contextual_create(bm, geom=[v for v in bm.verts if v.co.z > 0.139])
     helm = mesh_obj("great_helm", bm, mat)
-    front = -r * 1.08 - 0.004
-    slit = mesh_obj("great_helm_slit", _box((0, front, -0.005), (r * 1.3, 0.008, 0.016)), dark, smooth=False)
+    # The bands across the face lie on the helm (not standing off it) and end within its curve: their ends,
+    # standing out at the sides, went through a rider's shield held beside his face.
+    front = -r - 0.002
+    slit = mesh_obj("great_helm_slit", _box((0, front, -0.005), (r * 0.9, 0.008, 0.016)), dark, smooth=False)
     cross_v = mesh_obj("great_helm_cross", _box((0, front - 0.002, -0.05), (0.02, 0.006, 0.13)), mat, smooth=False)
-    cross_h = mesh_obj("great_helm_brow", _box((0, front - 0.002, 0.014), (r * 1.2, 0.006, 0.018)), mat, smooth=False)
+    cross_h = mesh_obj("great_helm_brow", _box((0, front - 0.002, 0.014), (r * 0.9, 0.006, 0.018)), mat, smooth=False)
     parts = [helm, slit, cross_v, cross_h]
     for o in parts:
         o.data.transform(Matrix.Translation(head_top))
