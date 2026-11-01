@@ -7,6 +7,15 @@ import {
 import { isM2UnitActive } from "./M2_BattleState.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
 import { M2_ORDERS, orderOf } from "./M2_Orders.js";
+import { mayStrike, pursuedFormation } from "./M2_Pursuit.js";
+
+// A bolt or arrow hits a man still fighting; a running one only if it was shot in pursuit of his formation
+// (or by the hero: M2_Pursuit.js).
+function shotMayHit(projectile, target) {
+  if (isM2UnitActive(target)) return true;
+  if (!target || target.hp <= 0 || target.state !== "routing") return false;
+  return projectile.pursuing === "any" || (Boolean(projectile.pursuing) && projectile.pursuing === target.formationId);
+}
 
 const TAU = Math.PI * 2;
 
@@ -88,7 +97,7 @@ function collectMeleeCandidateFacts(battleState, spatialGrid, actor, aimHeading)
   const reach = reachOf(actor);
   for (const unitId of spatialGrid.queryNearby(actor.position.x, actor.position.z, reach)) {
     const target = battleState.getUnit(unitId);
-    if (!isM2UnitActive(target) || target.sideId === actor.sideId || target.unitId === actor.unitId) continue;
+    if (!mayStrike(battleState, actor, target) || target.unitId === actor.unitId) continue;
     const dx = target.position.x - actor.position.x;
     const dz = target.position.z - actor.position.z;
     const distance = Math.hypot(dx, dz);
@@ -104,7 +113,7 @@ function collectContactCandidateFacts(battleState, spatialGrid, attacker, range 
   const candidates = [];
   for (const unitId of spatialGrid.queryNearby(attacker.position.x, attacker.position.z, range)) {
     const target = battleState.getUnit(unitId);
-    if (!isM2UnitActive(target) || target.sideId === attacker.sideId || target.unitId === attacker.unitId) continue;
+    if (!mayStrike(battleState, attacker, target) || target.unitId === attacker.unitId) continue;
     const dx = target.position.x - attacker.position.x;
     const dz = target.position.z - attacker.position.z;
     const distance = Math.hypot(dx, dz);
@@ -130,7 +139,7 @@ function collectProjectileStepFacts(battleState, spatialGrid, projectile, deltaS
 
   for (const unitId of spatialGrid.queryNearby(midX, midZ, radius)) {
     const target = battleState.getUnit(unitId);
-    if (!isM2UnitActive(target) || target.sideId === projectile.sideId || target.unitId === projectile.ownerUnitId) continue;
+    if (!shotMayHit(projectile, target) || target.sideId === projectile.sideId || target.unitId === projectile.ownerUnitId) continue;
     const hit = segmentCircleHit(previousPosition, nextPosition, target.position, M2_PROJECTILE_DEFINITION.hitRadius);
     if (hit) candidates.push({ unitId: target.unitId, t: hit.t, distanceSq: hit.distanceSq });
   }
@@ -164,7 +173,8 @@ function potentialBowProjectile(battleState, command) {
     position: { x: actor.position.x, y: 1.25, z: actor.position.z },
     direction: { x: Math.sin(command.aimHeading), z: Math.cos(command.aimHeading) },
     speed: ranged.speed,
-    remainingRange: ranged.range
+    remainingRange: ranged.range,
+    pursuing: "any"
   };
 }
 
@@ -175,11 +185,13 @@ function potentialCrossbowShot(battleState, spatialGrid, shooter, processingTick
   const kind = m2UnitKind(shooter);
   const own = battleState.getFormation(shooter.formationId);
   const anyEnemy = own?.order.type === "attack_target";
-  const focus = orderOf(own)?.id === "focus_fire" && anyEnemy ? own.order.targetFormationId : null;
+  // Pursuing a broken formation (M2_Pursuit.js), he shoots at its runners, as under focused fire.
+  const pursued = pursuedFormation(battleState, own)?.formationId || null;
+  const focus = pursued || (orderOf(own)?.id === "focus_fire" && anyEnemy ? own.order.targetFormationId : null);
   let best = null;
   for (const unitId of spatialGrid.queryNearby(shooter.position.x, shooter.position.z, kind.range)) {
     const target = battleState.getUnit(unitId);
-    if (!isM2UnitActive(target) || target.sideId === shooter.sideId) continue;
+    if (!mayStrike(battleState, shooter, target)) continue;
     if (!anyEnemy && battleState.getFormation(target.formationId)?.order.type !== "attack_target") continue;
     // Focused fire: only the formation they are sent against (M2_Orders.js).
     if (focus && target.formationId !== focus) continue;
@@ -201,7 +213,8 @@ function potentialCrossbowShot(battleState, spatialGrid, shooter, processingTick
       position: { x: shooter.position.x, y: 1.25, z: shooter.position.z },
       direction: { x: Math.sin(aimHeading), z: Math.cos(aimHeading) },
       speed: kind.boltSpeed,
-      remainingRange: kind.boltMaxRange
+      remainingRange: kind.boltMaxRange,
+      pursuing: pursued
     }
   };
 }
@@ -405,7 +418,7 @@ export class M2CombatSystem {
       const horse = m2UnitKind("cavalry");
       const charging = Boolean(actor.hero?.mounted) && actor.chargeRunTicks >= horse.chargeRunTicks;
       if (actor.hero?.mounted) actor.chargeRunTicks = 0;
-      if (!isM2UnitActive(target) || target.sideId === actor.sideId) continue;
+      if (!mayStrike(battleState, actor, target)) continue;
       const base = (actor.hero?.melee.damage ?? M2_MELEE_DEFINITION.baseDamage) * (charging ? horse.chargeScale : 1);
       if (charging) this.#chargeHitCount += 1;
       const damage = damageAfterBlock(target, actor.position, base);
@@ -447,6 +460,8 @@ export class M2CombatSystem {
         speed: ranged.speed,
         remainingRange: ranged.range,
         damage: ranged.damage,
+        // The hero shoots whom he chooses, running or not (M2_Pursuit.js).
+        pursuing: "any",
         revision: 0
       };
       if (battleState.addProjectile(projectile)) {
@@ -484,6 +499,7 @@ export class M2CombatSystem {
         remainingRange: kind.boltMaxRange,
         damage: kind.boltDamage,
         armorPierce: kind.armorPierce || 0,
+        pursuing: shot.projectile.pursuing,
         revision: 0
       };
       if (battleState.addProjectile(projectile)) {
@@ -510,7 +526,7 @@ export class M2CombatSystem {
       if (!fights(formation)) continue;
       const targetId = byAttackerId.get(attacker.unitId)?.selectedTargetUnitId || null;
       const target = targetId ? battleState.getUnit(targetId) : null;
-      if (!isM2UnitActive(target) || target.sideId === attacker.sideId) continue;
+      if (!mayStrike(battleState, attacker, target)) continue;
 
       attacker.heading = Math.atan2(target.position.x - attacker.position.x, target.position.z - attacker.position.z);
       // A horseman who strikes at the end of a run-up charges: his horse's weight is behind the blow.
@@ -551,7 +567,7 @@ export class M2CombatSystem {
       projectile.revision += 1;
 
       const target = step.selectedTargetUnitId ? battleState.getUnit(step.selectedTargetUnitId) : null;
-      if (target && isM2UnitActive(target) && target.sideId !== projectile.sideId && target.unitId !== projectile.ownerUnitId) {
+      if (target && shotMayHit(projectile, target) && target.sideId !== projectile.sideId && target.unitId !== projectile.ownerUnitId) {
         damageEvents.push({
           damageEventId: `projectile:${projectile.projectileId}:${target.unitId}`,
           sourceUnitId: projectile.ownerUnitId,

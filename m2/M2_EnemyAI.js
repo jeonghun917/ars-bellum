@@ -9,6 +9,7 @@
 import { isM2UnitAlive } from "./M2_BattleState.js";
 import { plansFor, setPlan } from "./M2_Plans.js";
 import { ordersFor } from "./M2_Orders.js";
+import { pursuedFormation } from "./M2_Pursuit.js";
 
 const AI_SIDE = "enemy";
 const THINK_EVERY_TICKS = 20;
@@ -68,6 +69,8 @@ export class M2EnemyAI {
     battleState.forEachFormationStable((formation) => {
       if (formation.sideId !== AI_SIDE) return;
       if (formation.order.type === "withdraw" || formation.order.type === "rally") return;
+      // Pursuing a broken formation, it keeps after the runners (M2_Pursuit.js) until none is left.
+      if (pursuedFormation(battleState, formation)) return;
       const at = centre(battleState, formation);
       if (!at) return;
       const byDistance = [...allies].sort((a, b) =>

@@ -25,6 +25,7 @@
 // Frontal push any side can use; the rest, two for each of its best commander's tacticSlots (M2_Commanders.js:
 // two for an ordinary commander, all six at tactics 67), of those its kinds allow, in the order listed.
 import { isM2UnitActive } from "./M2_BattleState.js";
+import { pursuedFormation } from "./M2_Pursuit.js";
 import { ordersFor } from "./M2_Orders.js";
 
 export const M2_PLANS = Object.freeze({
@@ -94,7 +95,8 @@ export class M2PlanSystem {
   }
 
   #carryOut(battleState, sideId, plan, tick) {
-    const own = fieldOf(battleState, sideId).filter((entry) => entry.formation.underPlan);
+    // (A formation pursuing a broken one keeps after it until it is done: M2_Pursuit.js.)
+    const own = fieldOf(battleState, sideId).filter((entry) => entry.formation.underPlan && !pursuedFormation(battleState, entry.formation));
     const enemies = fieldOf(battleState, sideId === "ally" ? "enemy" : "ally");
     if (!own.length || !enemies.length) return;
     const def = M2_PLANS[plan.planId];

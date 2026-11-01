@@ -114,8 +114,9 @@ export class M2FormationSystem {
   applyCommand(battleState, command) {
     const formation = battleState.getFormation(command.formationId);
     if (!formation) throw new Error("m2_command_unknown_formation");
-    // A formation ordered by hand leaves its side's battle plan (a change of shape alone does not take it out).
-    if (command.type !== "formation_set_type") formation.underPlan = false;
+    // A formation ordered by hand leaves its side's battle plan (a change of shape, or of whether it pursues,
+    // alone does not take it out).
+    if (command.type !== "formation_set_type" && command.type !== "formation_set_pursuit") formation.underPlan = false;
 
     if (command.type === "formation_move") {
       // Marching off, braced spearmen take up their spears.
@@ -133,6 +134,8 @@ export class M2FormationSystem {
     } else if (command.type === "formation_set_tactic") {
       formation.tactic = command.tacticId;
       formation.flankStage = 0;
+    } else if (command.type === "formation_set_pursuit") {
+      formation.pursuit = command.pursue;
     } else if (command.type === "formation_rally") {
       formation.order = { type: "rally", target: null, targetFormationId: null, commandId: command.commandId };
     } else if (command.type === "formation_retreat") {

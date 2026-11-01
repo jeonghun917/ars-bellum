@@ -3507,7 +3507,47 @@
       "id": "m2.subtypes.appearance",
       "title": "each man is drawn in his subtype's armour and helmet, unless his formation says otherwise; an unknown one is not taken",
       "kind": "unit",
-      "source": "tests/unit/m2-subtypes.test.mjs"
+      "source": "tests/unit/m2-subtypes.test.mjs",
+      "id": "m2.orders.pursuit",
+      "title": "the pursuit button shows whether the selected formation pursues, and turns it on and off",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.pursuit.default",
+      "title": "horse pursue, foot and crossbowmen do not, unless the snapshot or an order says otherwise",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.pursuit.cuts-down",
+      "title": "horse set to pursue ride after the broken line and cut its runners down; not set, they let them go",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.pursuit.edge",
+      "title": "pursuers ride no further than the runners' edge of the field",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.pursuit.archers",
+      "title": "crossbowmen set to pursue shoot at the runners; not set, they do not",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.pursuit.enemy",
+      "title": "the enemy's horse, pursuing, keep after a broken ally formation until its runners have got away",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.pursuit.hero",
+      "title": "the hero can cut down a running enemy",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
     }
   ]
 }
