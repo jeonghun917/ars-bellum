@@ -3,17 +3,17 @@
 import { test, expect } from '@playwright/test';
 import { watch } from './ui-helpers.mjs';
 
-const frameBattle = (page) => page.frameLocator('#battle3d-frame');
-
 test('[m2.campaign.practice-3d] a practice battle in 3D opens the 3D battle with the game\'s seed and brings its end back to the game', async ({ page }) => {
   const problems = watch(page);
   await page.goto('/index.html?battle=3d&seed=7');
   await page.click('#btn-practice');
   await expect(page.locator('#battle3d-frame')).toBeVisible({ timeout: 30_000 });
-  const frame = page.frame({ url: /m2_prototype\.html/ });
-  await expect.poll(async () => frame.evaluate(() => window.ArsM2Battle?.getSnapshot()?.battleId ?? null), { timeout: 60_000 }).toBe('practice_7');
+  // The frame is shown before it has loaded the battle page: look it up each time until the battle is there.
+  const battleFrame = () => page.frame({ url: /m2_prototype\.html/ });
+  const ask = (fn) => battleFrame()?.evaluate(fn).catch(() => null) ?? null;
+  await expect.poll(() => ask(() => window.ArsM2Battle?.getSnapshot()?.battleId ?? null), { timeout: 60_000 }).toBe('practice_7');
   // Stopping the battle ends it with nothing to record (a retreat to the game).
-  const receipt = await frame.evaluate(() => window.ArsM2Battle.issueCommand({ commandId: 'stop', type: 'battle_abort' }));
+  const receipt = await battleFrame().evaluate(() => window.ArsM2Battle.issueCommand({ commandId: 'stop', type: 'battle_abort' }));
   expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
   await expect(page.locator('#battle-result-title')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#battle-result-message')).toHaveAttribute('data-outcome', 'retreat');
