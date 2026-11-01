@@ -444,12 +444,17 @@ test.describe('3D battle', () => {
   });
 
   test('[m2.lifecycle.restart-after-result] restart after a result clears it on the same canvas', async ({ page }) => {
+    // A battle fought to its end, then a restart that loads it again (the soldier models drawn afresh): in CI,
+    // drawing in software, that alone can take most of a minute.
+    test.setTimeout(150_000);
     await finishByRetreat(page);
     const listeners = (await diagnostics(page)).inputListenerCount;
     await page.evaluate(() => { window.__canvas = document.getElementById('m2Canvas'); });
     await page.click('#m2Restart');
     await page.waitForFunction(() => window.ArsM2Battle.getResult() === null && window.ArsM2Battle.getSnapshot()?.totalUnits === 40);
-    await waitTicks(page, 1);
+    // It ticks again (the first tick after the reload waits for its first frame).
+    const before = (await diagnostics(page)).fixedTickCount;
+    await expect.poll(async () => (await diagnostics(page)).fixedTickCount, { timeout: 60_000 }).toBeGreaterThan(before);
     expect(await page.evaluate(() => document.getElementById('m2Canvas') === window.__canvas)).toBe(true);
     expect((await diagnostics(page)).inputListenerCount).toBe(listeners);
   });
