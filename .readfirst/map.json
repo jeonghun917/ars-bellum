@@ -9,8 +9,8 @@
       ],
       "checks": [
         {
-          "run": "npm run verify:m2",
-          "why": "m2 static checks"
+          "run": "npm test",
+          "why": "[m2.render.soldier-models] loads both glb files and checks the exact clip list, the skinning and walk_speed/run_speed"
         }
       ],
       "risks": [
@@ -111,10 +111,10 @@
       ],
       "risks": [
         {
-          "text": "The renderer's SoldierAnimator picks clips by name from SOLDIER_ANIMATIONS and walk/run speed from the model; changing names here must match tools/blender/build_men.py and the glb.",
+          "text": "The renderer's SoldierAnimator picks each loadout's clips from LOADOUT_CLIPS in M2_RendererThree.js; SOLDIER_ANIMATIONS in M2_SoldierModels.js is only the list the loader requires. Using a new clip needs LOADOUT_CLIPS; renaming or removing a listed clip makes loading throw and the battle falls back to box soldiers.",
           "files": [
-            "m2/M2_SoldierModels.js",
-            "m2/M2_RendererThree.js"
+            "m2/M2_RendererThree.js",
+            "m2/M2_SoldierModels.js"
           ]
         },
         {
@@ -128,6 +128,12 @@
           "files": [
             "m2/M2_SoldierModels.js",
             "m2/M2_Bootstrap.js"
+          ]
+        },
+        {
+          "text": "Each soldier is about 16,200 triangles near the camera and about 2,100 beyond FAR_MODEL_DISTANCE (the soldier_far level of detail); many near soldiers cost triangles and draw calls on phones. Compare the diagnostics' triangles and drawCalls before adding soldiers or detail; lowering FAR_MODEL_DISTANCE shows near soldiers simplified.",
+          "files": [
+            "m2/M2_RendererThree.js"
           ]
         }
       ]
@@ -482,7 +488,16 @@
       "files": [
         "tools/**"
       ],
-      "checks": [],
+      "checks": [
+        {
+          "run": "python tools/blender/build_men.py",
+          "why": "with Blender's bpy module: check_soldier.py checks every frame of every clip and slim_glb.py checks the slimmed animations; any problem stops the glb being written"
+        },
+        {
+          "run": "npm test",
+          "why": "[m2.render.soldier-models] checks the glb files the build wrote"
+        }
+      ],
       "risks": [
         {
           "text": "build_men.py refuses to write a glb when check_soldier.py finds clipping, floating, gaps or joint-limit problems, and slim_glb.py overwrites only if all animations match within 1e-6; do not bypass these.",
@@ -491,7 +506,7 @@
           ]
         },
         {
-          "text": "MakeHuman data is downloaded from extensions.blender.org and checked by SHA-256; the link dies on 2026-10-31, so the fallback is the repository branch ccr-3692cb93-6pjzuu-mpfb, which must not be deleted.",
+          "text": "MakeHuman data is downloaded from extensions.blender.org and checked by SHA-256; that link has returned 404 since 2026-10-31, so the build falls back to the repository branch ccr-3692cb93-6pjzuu-mpfb, which must not be deleted.",
           "files": [
             "tools/blender/makehuman_data.py"
           ]
