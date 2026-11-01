@@ -80,6 +80,15 @@ function flankContribution(battleState, unit) {
   return -M2_MORALE_DEFINITION.flankThreatPenalty * Math.min(count, M2_MORALE_DEFINITION.flankThreatCountCap);
 }
 
+// Losses that stay with a man: the share of his formation that has fallen or run (a comrade's death shakes
+// him for a moment, above; seeing his ranks thinned keeps weighing on him).
+function formationLossContribution(battleState, unit) {
+  const formation = battleState.getFormation(unit.formationId);
+  if (!formation || !formation.memberUnitIds.length) return 0;
+  const gone = formation.memberUnitIds.filter((unitId) => !isM2UnitActive(battleState.getUnit(unitId))).length;
+  return -M2_MORALE_DEFINITION.formationLossScale * (gone / formation.memberUnitIds.length);
+}
+
 function battleBalanceContribution(unit, activeCounts) {
   const friendly = activeCounts[unit.sideId] || 0;
   const enemySide = unit.sideId === "ally" ? "enemy" : "ally";
@@ -112,7 +121,7 @@ export class M2MoraleSystem {
       if (!formation) continue;
       if (formation.order.type === "rally" && unit.state === "routing") continue;
       const hpRatio = unit.maxHp > 0 ? unit.hp / unit.maxHp : 0;
-      const targetMorale = clamp(unit.initialMorale + adjacentDeathContribution(unit, stableLosses) + (formation.cohesion - 50) * M2_MORALE_DEFINITION.cohesionContributionWeight + commanderContribution(battleState, formation) + flankContribution(battleState, unit) + (hpRatio - 0.5) * M2_MORALE_DEFINITION.hpContributionScale + battleBalanceContribution(unit, activeCounts), M2_MORALE_DEFINITION.minMorale, M2_MORALE_DEFINITION.maxMorale);
+      const targetMorale = clamp(unit.initialMorale + adjacentDeathContribution(unit, stableLosses) + (formation.cohesion - 50) * M2_MORALE_DEFINITION.cohesionContributionWeight + commanderContribution(battleState, formation) + flankContribution(battleState, unit) + (hpRatio - 0.5) * M2_MORALE_DEFINITION.hpContributionScale + battleBalanceContribution(unit, activeCounts) + formationLossContribution(battleState, unit), M2_MORALE_DEFINITION.minMorale, M2_MORALE_DEFINITION.maxMorale);
       const rawDelta = targetMorale - unit.morale;
       const delta = clamp(rawDelta, -M2_MORALE_DEFINITION.moraleFallCapPerTick, M2_MORALE_DEFINITION.moraleRiseCapPerTick);
       const next = round2(clamp(unit.morale + delta, M2_MORALE_DEFINITION.minMorale, M2_MORALE_DEFINITION.maxMorale));
