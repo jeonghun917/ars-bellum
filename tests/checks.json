@@ -193,6 +193,12 @@
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.ai.enemy-fights-back",
+      "title": "once attacked, the enemy army is ordered into the fight and moves",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
       "id": "m2.render.soldier-gait",
       "title": "soldiers crossing the field at full speed run, not walk",
       "kind": "browser",
@@ -3034,6 +3040,60 @@
       "title": "the same orders give the same battle, bolt for bolt",
       "kind": "unit",
       "source": "tests/unit/m2-unit-kinds.test.mjs"
+    },
+    {
+      "id": "m2.ai.waits",
+      "title": "left alone, the enemy holds its ground and nobody is hurt",
+      "kind": "unit",
+      "source": "tests/unit/m2-enemy-ai.test.mjs"
+    },
+    {
+      "id": "m2.ai.wakes-on-attack-order",
+      "title": "an ally attack order brings the whole enemy army into the fight",
+      "kind": "unit",
+      "source": "tests/unit/m2-enemy-ai.test.mjs"
+    },
+    {
+      "id": "m2.ai.wakes-on-harm",
+      "title": "hurting an enemy soldier wakes the enemy too",
+      "kind": "unit",
+      "source": "tests/unit/m2-enemy-ai.test.mjs"
+    },
+    {
+      "id": "m2.ai.cavalry-hunts-crossbows",
+      "title": "the enemy horsemen ride for the ally crossbowmen even when others are nearer",
+      "kind": "unit",
+      "source": "tests/unit/m2-enemy-ai.test.mjs"
+    },
+    {
+      "id": "m2.ai.retargets",
+      "title": "when its target is gone, an enemy formation turns on the next",
+      "kind": "unit",
+      "source": "tests/unit/m2-enemy-ai.test.mjs"
+    },
+    {
+      "id": "m2.ai.leaves-withdrawal",
+      "title": "a withdrawing or rallying enemy formation keeps that order",
+      "kind": "unit",
+      "source": "tests/unit/m2-enemy-ai.test.mjs"
+    },
+    {
+      "id": "m2.ai.defend-in-place",
+      "title": "soldiers ordered to hold strike back at enemies who reach them, crossbowmen shoot back",
+      "kind": "unit",
+      "source": "tests/unit/m2-enemy-ai.test.mjs"
+    },
+    {
+      "id": "m2.ai.battle-ends",
+      "title": "once started, the battle is fought to an end",
+      "kind": "unit",
+      "source": "tests/unit/m2-enemy-ai.test.mjs"
+    },
+    {
+      "id": "m2.ai.deterministic",
+      "title": "the same battle with the enemy commander plays out the same way",
+      "kind": "unit",
+      "source": "tests/unit/m2-enemy-ai.test.mjs"
     }
   ]
 }

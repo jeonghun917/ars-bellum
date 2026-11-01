@@ -151,14 +151,17 @@ function potentialBowProjectile(battleState, command) {
   };
 }
 
-// A crossbowman whose formation is ordered to attack and whose crossbow is spanned: the nearest living enemy
-// within range, and the bolt he would shoot at him this tick.
+// A crossbowman whose crossbow is spanned: the nearest living enemy within range he may shoot, and the bolt he
+// would shoot at him this tick. Ordered to attack, he shoots any enemy; otherwise only enemies who are
+// themselves attacking (their formation ordered to attack), so he returns fire but does not start a fight.
 function potentialCrossbowShot(battleState, spatialGrid, shooter, processingTick) {
   const kind = m2UnitKind(shooter);
+  const anyEnemy = battleState.getFormation(shooter.formationId)?.order.type === "attack_target";
   let best = null;
   for (const unitId of spatialGrid.queryNearby(shooter.position.x, shooter.position.z, kind.range)) {
     const target = battleState.getUnit(unitId);
     if (!isM2UnitActive(target) || target.sideId === shooter.sideId) continue;
+    if (!anyEnemy && battleState.getFormation(target.formationId)?.order.type !== "attack_target") continue;
     const distance = Math.hypot(target.position.x - shooter.position.x, target.position.z - shooter.position.z);
     if (distance > kind.range || distance <= 0) continue;
     if (!best || distance < best.distance || (distance === best.distance && unitId < best.unitId)) best = { unitId, distance };
@@ -182,9 +185,14 @@ function potentialCrossbowShot(battleState, spatialGrid, shooter, processingTick
   };
 }
 
+// Formations that fight where they meet the enemy: all but one withdrawing (its men are running).
+function fights(formation) {
+  return Boolean(formation) && formation.order.type !== "withdraw";
+}
+
 function shootsCrossbow(battleState, unit) {
   if (!isM2UnitActive(unit) || unit.isPlayer || unit.kindId !== "crossbow" || unit.attackCooldownTicks !== 0) return false;
-  return battleState.getFormation(unit.formationId)?.order.type === "attack_target";
+  return fights(battleState.getFormation(unit.formationId));
 }
 
 export class M2CombatSystem {
@@ -244,7 +252,9 @@ export class M2CombatSystem {
       const reach = m2UnitKind(attacker).meleeRange;
       if (!(reach > 0)) continue;
       const formation = battleState.getFormation(attacker.formationId);
-      if (!formation || formation.order.type !== "attack_target") continue;
+      // A soldier strikes an enemy within reach whatever his formation's order, unless it is withdrawing:
+      // ordered to hold, he still defends himself.
+      if (!fights(formation)) continue;
       const candidates = collectContactCandidateFacts(battleState, spatialGrid, attacker, reach);
       nonPlayerMelee.push({
         attackerUnitId: attacker.unitId,
@@ -410,7 +420,9 @@ export class M2CombatSystem {
       const attacker = battleState.getUnit(attackerId);
       if (!isM2UnitActive(attacker) || attacker.isPlayer || attacker.attackCooldownTicks !== 0) continue;
       const formation = battleState.getFormation(attacker.formationId);
-      if (!formation || formation.order.type !== "attack_target") continue;
+      // A soldier strikes an enemy within reach whatever his formation's order, unless it is withdrawing:
+      // ordered to hold, he still defends himself.
+      if (!fights(formation)) continue;
       const targetId = byAttackerId.get(attacker.unitId)?.selectedTargetUnitId || null;
       const target = targetId ? battleState.getUnit(targetId) : null;
       if (!isM2UnitActive(target) || target.sideId === attacker.sideId) continue;
