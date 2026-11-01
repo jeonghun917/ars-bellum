@@ -135,6 +135,12 @@
           "files": [
             "m2/M2_RendererThree.js"
           ]
+        },
+        {
+          "text": "M2_CollisionSystem.step must run right after movement and a spatial-grid rebuild each tick, and its pushes add to unit.velocity. The runtime loop in M2_BattleRuntime.js and the tick() in tests/unit/m2-sim-helpers.mjs each list the systems separately. A loop that skips the collision step lets soldiers overlap, and one that runs it elsewhere changes speeds and the settle behaviour."
+        },
+        {
+          "text": "Melee damage, the strike interval and hit points now come only from the unit kind in M2_UnitKinds.js (meleeDamage, meleeCooldownTicks, hpScale); M2_MELEE_DEFINITION no longer sets infantry blows or cooldowns. A new kind without meleeCooldownTicks gets an undefined cooldown. Changing these numbers changes fight length, which m2.pace.longer-battle (at least 90 s) and m2.pace.blow-rhythm check."
         }
       ]
     },
