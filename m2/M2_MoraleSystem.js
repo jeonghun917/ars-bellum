@@ -1,5 +1,6 @@
 import { M2_MORALE_DEFINITION } from "./M2_Definitions.js";
 import { isM2UnitActive, isM2UnitAlive } from "./M2_BattleState.js";
+import { commandSteadiness, leadershipBonus } from "./M2_Commanders.js";
 
 const TAU = Math.PI * 2;
 
@@ -50,7 +51,8 @@ function calculateFormationMorale(battleState, formation) {
 
 function commanderContribution(battleState, formation) {
   const commander = battleState.getUnit(formation.commanderUnitId);
-  if (isM2UnitActive(commander)) return M2_MORALE_DEFINITION.commanderActiveBonus;
+  // While he stands, his leadership adds to the bonus (M2_Commanders.js).
+  if (isM2UnitActive(commander)) return M2_MORALE_DEFINITION.commanderActiveBonus + leadershipBonus(commander.commander);
   if (isM2UnitAlive(commander) && commander.state === "routing") return -M2_MORALE_DEFINITION.commanderRoutingPenalty;
   return -M2_MORALE_DEFINITION.commanderLostPenalty;
 }
@@ -86,7 +88,10 @@ function formationLossContribution(battleState, unit) {
   const formation = battleState.getFormation(unit.formationId);
   if (!formation || !formation.memberUnitIds.length) return 0;
   const gone = formation.memberUnitIds.filter((unitId) => !isM2UnitActive(battleState.getUnit(unitId))).length;
-  return -M2_MORALE_DEFINITION.formationLossScale * (gone / formation.memberUnitIds.length);
+  // A commander who keeps his men in hand makes the losses weigh less (M2_Commanders.js).
+  const commander = battleState.getUnit(formation.commanderUnitId);
+  const steadiness = isM2UnitActive(commander) ? commandSteadiness(commander.commander) : 1;
+  return -M2_MORALE_DEFINITION.formationLossScale * (gone / formation.memberUnitIds.length) * steadiness;
 }
 
 function battleBalanceContribution(unit, activeCounts) {
@@ -166,7 +171,9 @@ export class M2MoraleSystem {
     for (const formationId of battleState.getFormationIdsStable()) {
       const formation = battleState.getFormation(formationId);
       if (formation.order.type !== "rally") continue;
-      const commander = battleState.getUnit(formation.commanderUnitId);
+      // Someone must lead the rally: the commander, or if he has fallen the man who leads in his place.
+      // (He may be running with them: a living man is enough to rally on.)
+      const commander = [formation.commanderUnitId, ...[...formation.memberUnitIds].sort()].map((id) => battleState.getUnit(id)).find((unit) => isM2UnitAlive(unit));
       if (!isM2UnitAlive(commander)) continue;
       for (const unitId of [...formation.memberUnitIds].sort()) {
         const unit = battleState.getUnit(unitId);

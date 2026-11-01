@@ -262,7 +262,8 @@ export class M2CombatSystem {
       const attacker = battleState.getUnit(attackerId);
       if (!isM2UnitActive(attacker) || attacker.isPlayer) continue;
       // Crossbowmen shoot instead (below).
-      const reach = m2UnitKind(attacker).meleeRange;
+      // A commander strikes with his own weapon (M2_Commanders.js); a crossbowman's commander shoots too.
+      const reach = attacker.commander && m2UnitKind(attacker).meleeRange > 0 ? Math.max(m2UnitKind(attacker).meleeRange, attacker.commander.combat.melee.reach) : m2UnitKind(attacker).meleeRange;
       if (!(reach > 0)) continue;
       const formation = battleState.getFormation(attacker.formationId);
       // A soldier strikes an enemy within reach whatever his formation's order, unless it is withdrawing:
@@ -453,7 +454,7 @@ export class M2CombatSystem {
       // A horseman who strikes at the end of a run-up charges: his horse's weight is behind the blow.
       const kind = m2UnitKind(attacker);
       const charging = kind.chargeSpeed > 0 && attacker.chargeRunTicks >= kind.chargeRunTicks;
-      const baseDamage = kind.meleeDamage;
+      const baseDamage = attacker.commander ? attacker.commander.combat.melee.damage : kind.meleeDamage;
       damageEvents.push({
         damageEventId: `auto_melee:${processingTick}:${attacker.unitId}:${target.unitId}`,
         sourceUnitId: attacker.unitId,

@@ -454,6 +454,8 @@ export class M2RendererThree {
       ally: new THREE.MeshLambertMaterial({ color: M2_CONFIG.allyColor }),
       enemy: new THREE.MeshLambertMaterial({ color: M2_CONFIG.enemyColor }),
       marker: new THREE.MeshBasicMaterial({ color: M2_CONFIG.playerMarkerColor, side: THREE.DoubleSide }),
+      commanderAlly: new THREE.MeshBasicMaterial({ color: M2_CONFIG.allyColor, side: THREE.DoubleSide }),
+      commanderEnemy: new THREE.MeshBasicMaterial({ color: M2_CONFIG.enemyColor, side: THREE.DoubleSide }),
       projectileAlly: new THREE.MeshBasicMaterial({ color: M2_CONFIG.projectileAllyColor }),
       projectileEnemy: new THREE.MeshBasicMaterial({ color: M2_CONFIG.projectileEnemyColor }),
       formation: new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.55 })
@@ -474,13 +476,15 @@ export class M2RendererThree {
     this.#units.clear();
     this.#loadoutCounts = {};
     for (const unit of renderSnapshot.units) {
-      const marker = unit.isPlayer ? this.#materials.marker : null;
+      // The player's ring is gold; a commander (부대장) wears a thinner ring in his side's colour.
+      const marker = unit.isPlayer ? this.#materials.marker : unit.isCommander ? (unit.sideId === "ally" ? this.#materials.commanderAlly : this.#materials.commanderEnemy) : null;
       const model = soldierModels?.[unit.sideId === "ally" ? "ally" : "enemy"];
       // Crossbowmen carry the crossbow; horsemen ride with a lance or a sword in turn. In turn, foot soldiers
       // fight with spear and shield, sword and shield, a spear in both hands, the sword alone or a longsword
       // (the player as his equipment says: M2_HeroLoadout.js).
       const counter = (this.#loadoutCounts[unit.kindId] = (this.#loadoutCounts[unit.kindId] || 0) + 1) - 1;
       const loadout = unit.isPlayer ? (unit.heroAppearance || "spear")
+        : unit.commanderAppearance ? unit.commanderAppearance
         : unit.kindId === "crossbow" ? "xbow"
           : unit.kindId === "cavalry" ? ["cav", "cavs"][counter % 2]
             : ["spear", "sword", "spear_free", "sword_free", "great"][counter % 5];
