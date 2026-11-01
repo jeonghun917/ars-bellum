@@ -60,13 +60,14 @@ test.describe('3D battle', () => {
     for (const side of ['ally', 'enemy']) {
       expect(models[side].skinned).toBeGreaterThan(0);
       expect(models[side].clips).toEqual([
-        'attack', 'attack_over', 'block', 'death', 'draw', 'f_block', 'f_death', 'f_idle', 'f_overhead',
-        'f_run', 'f_swing_l', 'f_swing_r', 'f_thrust', 'f_walk', 'idle', 'low_idle', 'low_run', 'low_walk',
-        'n_attack', 'n_attack_over', 'n_block', 'n_death', 'n_idle', 'n_run', 'n_walk', 'run', 's_block',
-        's_death', 's_idle', 's_low_idle', 's_low_run', 's_low_walk', 's_overhead', 's_run', 's_swing_l',
-        's_swing_r', 's_thrust', 's_walk', 't_block', 't_death', 't_idle', 't_overhead', 't_run', 't_swing_l',
-        't_swing_r', 't_thrust', 't_walk', 'walk',
-        'x_block', 'x_death', 'x_idle', 'x_reload', 'x_run', 'x_shoot', 'x_walk',
+        'attack', 'attack_over', 'block', 'death', 'draw', 'f_block', 'f_death', 'f_idle', 'f_overhead', 'f_run',
+        'f_swing_l', 'f_swing_r', 'f_thrust', 'f_walk', 'idle', 'low_idle', 'low_run', 'low_walk', 'm_attack',
+        'm_block', 'm_death', 'm_gallop', 'm_idle', 'm_trot', 'm_walk', 'ms_block', 'ms_death', 'ms_gallop',
+        'ms_idle', 'ms_swing', 'ms_trot', 'ms_walk', 'n_attack', 'n_attack_over', 'n_block', 'n_death', 'n_idle',
+        'n_run', 'n_walk', 'run', 's_block', 's_death', 's_idle', 's_low_idle', 's_low_run', 's_low_walk',
+        's_overhead', 's_run', 's_swing_l', 's_swing_r', 's_thrust', 's_walk', 't_block', 't_death', 't_idle',
+        't_overhead', 't_run', 't_swing_l', 't_swing_r', 't_thrust', 't_walk', 'walk', 'x_block', 'x_death',
+        'x_idle', 'x_reload', 'x_run', 'x_shoot', 'x_walk',
       ]);
       // The walk and run clips say how fast their feet move, so the renderer can match the soldiers' speed.
       expect(models[side].gait.walk).toBeGreaterThan(0.5);

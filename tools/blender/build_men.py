@@ -10,6 +10,7 @@ block, death. Colours come from small generated textures (mail rings, cloth weav
 
 Coordinates: metres, Z up, the soldier faces -Y (glTF +Z, the way the battle's units face).
 """
+import json
 import math
 import os
 import sys
@@ -1340,6 +1341,190 @@ def xbow_reload(skeleton, t):
         CARRY["free"] = False
 
 
+# Mounted. A rider sits on the cavalry horse (build_horse.py), which is drawn as its own model at the same
+# place: the horse's build writes where its saddle is in every frame of every clip, its stirrups and how wide
+# its barrel is (SEAT_FILE). His hips ride the saddle, his feet stand in the stirrups, and his skirt drapes
+# over the barrel (a stand-in shape the cloth and the checks see, not exported). Each "m_" clip lasts as long
+# as the horse's clip it rides (m_walk on walk, ...), so the two play in step.
+SEAT_FILE = os.path.join(HERE, "horse_seat.json")
+SEAT = {}
+SEAT_RISE = 0.09     # m: the hip joints above the saddle's seat
+BARREL = {"obj": None}
+MOUNTS = {"m_idle": ("idle", 0.0), "m_walk": ("walk", 4.0), "m_trot": ("trot", 8.0), "m_gallop": ("gallop", 14.0),
+          "m_death": ("death", 0.0)}
+
+
+def load_seat():
+    if not SEAT and os.path.exists(SEAT_FILE):
+        SEAT.update(json.load(open(SEAT_FILE)))
+    return SEAT
+
+
+BARREL_LENGTH = 0.12   # m, half: only the stretch between his legs (a longer one threw the coat's front and
+                       # back halves out flat over the horse like a tray; they hang down its sides instead)
+
+
+def horse_barrel(mat):
+    """The horse's barrel between the rider's legs, in the horse's own space (an ellipsoid as wide as the
+    barrel, up to the seat), which holds the coat out at his sides."""
+    if not load_seat():
+        return None
+    seat, half = Vector(SEAT["seat"]), SEAT["barrel_half_width"]
+    bmm = bmesh.new()
+    bmesh.ops.create_uvsphere(bmm, u_segments=24, v_segments=12, radius=1.0)
+    for v in bmm.verts:
+        v.co = Vector((v.co.x * (half + 0.02), v.co.y * BARREL_LENGTH, v.co.z * 0.3)) + Vector((0, seat.y, seat.z - 0.3))
+    obj = mesh_obj("horse_barrel", bmm, mat)
+    obj.matrix_world = Matrix.Translation((0, 0, -50))
+    BARREL["obj"] = obj
+    return obj
+
+
+def seat_matrix(clip, t):
+    """How the saddle has moved from its rest at t (0..1) of the horse's clip."""
+    frames = SEAT["clips"][clip]
+    f = t * (len(frames) - 1)
+    i = min(int(f), len(frames) - 2)
+    k = f - i
+    a, b = frames[i], frames[i + 1]
+    m = Quaternion(a[3:]).slerp(Quaternion(b[3:]), k).to_matrix().to_4x4()
+    m.translation = Vector(a[:3]).lerp(Vector(b[:3]), k)
+    return m
+
+
+def mounted_pose(skeleton, t, clip, sword=False, horse_t=None):
+    """Sitting the horse through its clip `clip` (an "m_" name): hips on the saddle, leaning forward the
+    faster it goes, feet in the stirrups; the arms as in the guard (the shield hand holds the reins)."""
+    horse_clip, lean = MOUNTS[clip]
+    stance(skeleton, sword=sword, shield="guard")
+    pb, bones = skeleton.pose.bones, skeleton.data.bones
+    s = seat_matrix(horse_clip, t if horse_t is None else horse_t)
+    turn3 = s.to_3x3()
+    target = s @ (Vector(SEAT["seat"]) + UP * SEAT_RISE)
+    move = Matrix.Translation(target) @ turn3.to_4x4() @ Matrix.Translation(-bones["pelvis"].head_local)
+    pb["Root"].matrix = move @ pb["Root"].matrix
+    bpy.context.view_layer.update()
+    # Leaning into the pace from the hips, the head kept up.
+    turn(skeleton, "spine_01", turn3 @ RIGHT, -lean)
+    turn(skeleton, "head", turn3 @ RIGHT, 0.6 * lean)
+    for bone in ("thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"):
+        pb[bone].rotation_quaternion = (1, 0, 0, 0)
+    bpy.context.view_layer.update()
+    for side, sign in (("l", 1), ("r", -1)):
+        tread = s @ Vector(SEAT["treads"][side])
+        # The ball of the foot on the tread: the ankle above it and a little behind.
+        ankle = tread + turn3 @ Vector((0, 0.08, 0.07))
+        two_bone(skeleton, f"thigh_{side}", f"calf_{side}", ankle, pole=turn3 @ Vector((sign * 0.8, -1, 0.1)))
+        bpy.context.view_layer.update()
+        aim(skeleton, f"foot_{side}", turn3 @ Vector((sign * 0.15, -1, -0.12)))
+        aim(skeleton, f"ball_{side}", turn3 @ Vector((sign * 0.15, -1, 0)))
+    # Up off the saddle: the shield arm higher and out over the horse's neck (the hand on the reins), the spear
+    # (or sword) held higher, its butt clear of the coat spread over the saddle.
+    arm(skeleton, "l", turn3 @ Vector((0.5, -0.75, -0.75)), turn3 @ Vector((-1, -0.45, 0.3)))
+    shoulder = pb["upperarm_r"].head.copy()
+    reach(skeleton, "r", shoulder + turn3 @ Vector((-0.1, -0.28, -0.06)), pole=turn3 @ Vector((-1, 0.3, -0.6)))
+    # (the spear's butt out to his right, clear of the coat over his thigh)
+    point_spear(skeleton, turn3 @ (SWORD_GUARD if sword else Vector((0.22, -0.18, 1)).normalized()))
+    if BARREL["obj"] is not None:
+        BARREL["obj"].matrix_world = s
+    bpy.context.view_layer.update()
+
+
+def mounted_attack(skeleton, t, sword=False):
+    """At the gallop. With the spear (lance): it comes down from upright and is couched under the right arm,
+    pointing ahead and a little across to the left over the horse's neck (0..0.32), is driven forward with
+    the arm and the body (0.36..0.5), held, and comes back up (0.7..1). With the sword: raised up and back
+    on the right (0..0.32), cut down and forward past the horse's right shoulder at a man on foot
+    (0.36..0.56), the edge leading, and back to the guard."""
+    mounted_pose(skeleton, t, "m_gallop", sword=sword)
+    pb = skeleton.pose.bones
+    s = seat_matrix("gallop", t).to_3x3()
+    shoulder = pb["upperarm_r"].head.copy()
+    down = smooth(span(t, 0.0, 0.32)) * (1 - smooth(span(t, 0.7, 1.0)))
+    hit = ease_in(span(t, 0.36, 0.5)) * (1 - smooth(span(t, 0.6, 1.0)))
+    turn(skeleton, "spine_02", s @ UP, (-12 * down + 18 * hit) if not sword else (-20 * down + 30 * hit))
+    shoulder = pb["upperarm_r"].head.copy()
+    if not sword:
+        carry = Vector((-0.1, -0.28, -0.06))
+        couched = Vector((-0.08, -0.18, -0.22))   # (high and out: the butt behind clears his coat)
+        # (out to his right on the way down, so the butt sweeps round outside his coat, not through it)
+        at = carry.lerp(couched, down) + Vector((-0.14, 0, 0.06)) * math.sin(math.pi * down) * (t < 0.5) + \
+            Vector((0.02, -0.2, 0.03)) * hit
+        reach(skeleton, "r", shoulder + s @ at, pole=s @ Vector((-0.6, 0.6, -0.5)))
+        point_spear(skeleton, s @ Vector((0.22, -0.18, 1)).normalized().lerp(Vector((0.2, -1, 0.04)).normalized(), down))
+        return
+    wind = smooth(span(t, 0.0, 0.32))
+    strike = span(t, 0.36, 0.56) ** 2
+    back = smooth(span(t, 0.7, 1.0))
+    guard_at, guard_dir = Vector((-0.1, -0.28, -0.06)), SWORD_GUARD
+    w_at, w_dir = Vector((-0.28, 0.05, 0.3)), Vector((-0.3, 0.6, 0.75)).normalized()
+    e_at, e_dir = Vector((-0.42, -0.38, -0.2)), Vector((-0.45, -0.75, -0.5)).normalized()
+
+    def path(u):
+        if u < 0.34:
+            k = smooth(span(u, 0.0, 0.32))
+            return guard_at.lerp(w_at, k), guard_dir.lerp(w_dir, k)
+        if u < 0.7:
+            k = span(u, 0.36, 0.56) ** 2
+            return w_at.lerp(e_at, k), w_dir.lerp(e_dir, k)
+        k = smooth(span(u, 0.7, 1.0))
+        return e_at.lerp(guard_at, k), e_dir.lerp(guard_dir, k)
+
+    at, blade = path(t)
+    e_t = min(max(t, 0.38), 0.55)
+    (a0, b0), (a1, b1) = path(e_t - 0.01), path(e_t + 0.01)
+    edge = (a1 + b1.normalized() * 0.5) - (a0 + b0.normalized() * 0.5)
+    reach(skeleton, "r", shoulder + s @ at, pole=s @ Vector((-1, 0.3, -0.4)))
+    point_spear(skeleton, s @ blade.normalized(), s @ edge, EDGE_WEIGHT * smooth(span(t, 0.05, 0.3)) * (1 - back))
+
+
+def mounted_block(skeleton, t, sword=False):
+    """The shield up to the face, the body turned into it, at the trot."""
+    k = span(t, 0.0, 0.3)
+    up = ease_out(k) + 0.08 * math.sin(math.pi * k) * (1 - k)
+    mounted_pose(skeleton, t, "m_trot", sword=sword)
+    s = seat_matrix("trot", t).to_3x3()
+    arm(skeleton, "l", s @ Vector((0.5, -0.75, -0.75)).lerp(Vector((0.3, -0.9, -0.2)), up),
+        s @ Vector((-1, -0.45, 0.3)).lerp(Vector((-1, -0.35, 0.6)), up))
+    turn(skeleton, "head", s @ RIGHT, 8 * up)
+
+
+def mounted_death(skeleton, t, sword=False):
+    """Struck as the horse goes down: thrown off over its right shoulder onto the ground beside it, landing
+    on his back (his own fall, death_pose, ends where he lies)."""
+    from_saddle = snapshot(skeleton, lambda: mounted_pose(skeleton, t, "m_death", sword=sword))
+    fallen = snapshot(skeleton, lambda: death_on_ground(skeleton, t, sword))
+    off = smooth(span(t, MOUNTED_FALL_FROM, MOUNTED_FALL_TO))
+    blend(skeleton, from_saddle, fallen, off)
+    if BARREL["obj"] is not None and off > 0.02:   # (out of the saddle: the horse no longer holds his coat out)
+        BARREL["obj"].matrix_world = Matrix.Translation((0, 0, -50))
+
+
+def death_on_ground(skeleton, t, sword):
+    death_pose(skeleton, min(1.0, 0.35 + 0.65 * t), sword=sword)
+    bpy.context.view_layer.update()   # (the root's matrix as death_pose left it, not as it was before)
+    pb = skeleton.pose.bones
+    pb["Root"].matrix = Matrix.Translation(MOUNTED_FALL) @ pb["Root"].matrix
+
+
+MOUNTED_FALL = Vector((-0.95, 0.15, 0.0))   # where he lands, from where he would fall on foot (his right)
+MOUNTED_FALL_FROM, MOUNTED_FALL_TO = 0.1, 0.4   # (from the saddle to his own fall: the poses between, mixed, were
+                                                # a crumpled body that his coat and shield went through)
+
+
+def snapshot(skeleton, pose_fn):
+    pose_fn()
+    bpy.context.view_layer.update()
+    return {pb.name: (pb.location.copy(), pb.rotation_quaternion.copy(), pb.scale.copy()) for pb in skeleton.pose.bones}
+
+
+def blend(skeleton, a, b, k):
+    for pb in skeleton.pose.bones:
+        (la, qa, sa), (lb, qb, sb) = a[pb.name], b[pb.name]
+        pb.location, pb.rotation_quaternion, pb.scale = la.lerp(lb, k), qa.slerp(qb, k), sa.lerp(sb, k)
+    bpy.context.view_layer.update()
+
+
 # The carried shield: arm directions, and where its face turns. SHIELD_FACE["local"] is the face's outward
 # normal in the left forearm's frame, measured when the shield is bound (see infantry()).
 SHIELD_LOW = {"upperarm": Vector((0.55, 0.06, -1)), "lowerarm": Vector((0.14, -0.85, -0.2)),
@@ -2606,11 +2791,20 @@ def infantry(zf, f):
     # swells forward through the groin as a knee comes up, came out through the front of the coat's skirt.
     hose = surface_layer(body, "hose", lambda i: dom[i] in LEG_BONES and body.data.vertices[i].co.z < hip_z - 0.2,
                          lambda co: 0.006, mats["hose"], decimate=0.2)
+    # Braies: a lining just inside the skin over the hips and the tops of the thighs, which nothing else covers
+    # but the skirts. Fallen on his back with his skirt parted, the inside of the man showed there.
+    braies = surface_layer(body, "braies", lambda i: (dom[i] in LEG_BONES or dom[i] == "pelvis")
+                           and body.data.vertices[i].co.z > hip_z - 0.3, lambda co: -0.004, mats["hose"], decimate=0.2)
     # Leather 14 mm out round the foot, but a thin sole: the skin's sole is on the ground (z = 0), and a thick
     # one sank the shoes into it.
     shoes = surface_layer(body, "shoes", lambda i: dom[i] in FOOT_BONES, lambda co: 0.003 + 0.011 * min(1.0, co.z / 0.03),
                           mats["leather"], decimate=0.12)
     SKIRTS["skirt"]["inside"] = [hose, shoes]
+    # The horse's barrel under a mounted man (test and cloth only, removed before export): what his skirt
+    # drapes over and his legs straddle.
+    barrel = horse_barrel(mats["skin"])
+    if barrel is not None:
+        SKIRTS["skirt"]["inside"].append(barrel)
     SKIRTS["skirt"]["layers"] = [(coat_skirt, coat_rings, 48), (mail_skirt, mail_rings, 48)]
     # Test-only shapes for check_soldier: the body's torso, head and forearms, shrunk a little inside the
     # skin, so anything that enters them is inside the man. Removed before export.
@@ -2626,7 +2820,7 @@ def infantry(zf, f):
     body.data.materials.append(mats["skin"])
     for part in (hauberk, mail_skirt, coif):
         box_uvs(part, 0.18)
-    for part in (coat_skirt, hose, shoes):
+    for part in (coat_skirt, hose, shoes, braies):
         box_uvs(part, 0.3)
 
     # Belt where the surcoat's skirt starts (it also hides that seam). The cloth under it is measured as it is
@@ -2925,6 +3119,7 @@ def infantry(zf, f):
         "shield": shield_parts, "shield_face": [shield_parts[1]], "boss": [shield_parts[2]],
         "scabbard": [scabbard, strap], "belt": [belt], "surcoat": [surcoat], "coat_skirt": [coat_skirt],
         "xbow": xbow_parts + [xbow_bolt], "quiver": [bolt_case],
+        **({"barrel": [barrel]} if barrel is not None else {}),
         "surcoat_or_skirt": [surcoat, coat_skirt], "shoes": [shoes], "legs": [hose], "mail_skirt": [mail_skirt],
         # (what the bones bend: none of it may be drawn out far past its own size)
         "stretch": [hauberk, surcoat, coif, coat_skirt, mail_skirt, hose, shoes],
@@ -2973,6 +3168,8 @@ def single_material(obj):
 def posed(skeleton, pose_fn, t):
     """pose_fn at t, the crossbow carried in the right fist unless the pose let go of it."""
     CARRY["free"] = False
+    if BARREL["obj"] is not None:   # (only a mounted pose puts the horse under him)
+        BARREL["obj"].matrix_world = Matrix.Translation((0, 0, -50))
     pose_fn(skeleton, t)
     carry_crossbow(skeleton)
 
@@ -3020,6 +3217,8 @@ def attack_aims():
         aims[name] = (0.57, Vector(cut["end"][1]).normalized(), 0.8)
     # The crossbow straight at its mark as it looses.
     aims["x_shoot"] = (0.5, XBOW_AIM[1].normalized(), 0.95, XBOW_AXES["stock"])
+    if load_seat():
+        aims["m_attack"] = (0.5, Vector((0.2, -1, 0.04)).normalized(), 0.9)   # (the lance couched, at the hit)
     return aims
 
 
@@ -3030,7 +3229,24 @@ def edge_cuts():
         if cut.get("edge", True):
             names += [name, "f_" + name[2:]]
     names += [name for name, cut in GREAT_CUTS.items() if cut.get("edge", True)]
+    if load_seat():
+        names.append("ms_swing")   # (the cut from the saddle)
     return names
+
+
+def mounted_clips(clip):
+    out = []
+    for prefix, sword in (("m_", False), ("ms_", True)):
+        def length(horse):
+            return (len(SEAT["clips"][horse]) - 1) / SEAT["fps"]
+        for gait in ("idle", "walk", "trot", "gallop"):
+            out.append(clip(prefix + gait, length(gait), lambda s, t, g=gait, w=sword: mounted_pose(s, t, "m_" + g, sword=w),
+                            loop=True))
+        out.append(clip(prefix + ("swing" if sword else "attack"), length("gallop"),
+                        lambda s, t, w=sword: mounted_attack(s, t, sword=w)))
+        out.append(clip(prefix + "block", length("trot"), lambda s, t, w=sword: mounted_block(s, t, sword=w)))
+        out.append(clip(prefix + "death", length("death"), lambda s, t, w=sword: mounted_death(s, t, sword=w)))
+    return out
 
 
 def animate(skeleton):
@@ -3100,6 +3316,9 @@ def animate(skeleton):
         clip("x_reload", 3.2, xbow_reload),
         clip("x_block", 0.35, xbow_block),
         clip("x_death", 1.4, lambda s, t: death_pose(s, t, shield="none", crossbow=True)),
+        # Mounted, with spear (lance) and shield ("m_") or sword and shield ("ms_"), each as long as the
+        # horse's clip it rides so the two play in step.
+        *(mounted_clips(clip) if load_seat() else []),
     ]
     # The glTF exporter writes every action that is placed on the skeleton's NLA tracks.
     for action in actions:
@@ -3151,7 +3370,9 @@ def main():
         print(f"CHECK {side}: {len(problems)} problem(s), report {report}")
         failed = failed or bool(problems)
         # The test-only shapes are not part of the soldier.
-        for name in ("core_torso", "core_head", "core_forearm_l", "core_forearm_r"):
+        for name in ("core_torso", "core_head", "core_forearm_l", "core_forearm_r", "horse_barrel"):
+            if name not in bpy.data.objects:
+                continue
             bpy.data.objects.remove(bpy.data.objects[name])
         # One mesh per soldier: fewer objects to draw (one draw call per material).
         meshes = [o for o in bpy.data.objects if o.type == "MESH"]

@@ -753,6 +753,7 @@
         "tools/blender/slim_glb.py",
         "tools/blender/build_horse.py",
         "tools/blender/horse_data.py",
+        "tools/blender/horse_seat.json",
         "m2/M2_SoldierModels.js",
         "assets/models/infantry_ally.glb",
         "assets/models/infantry_enemy.glb",
