@@ -17,9 +17,11 @@ import { M2_TECHNICAL_COMBAT_PROFILES, M2_TECHNICAL_SNAPSHOT } from '../../m2/fi
 
 const DT = M2_CONFIG.fixedTickMs / 1000;
 
-// A battle with the enemy commander (M2_EnemyAI.js) when withAI is true.
-export function battle({ withAI = false } = {}) {
-  const state = new M2BattleState(M2_TECHNICAL_SNAPSHOT, createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES));
+// A battle with the enemy commander (M2_EnemyAI.js) when withAI is true, and the player's hero carrying
+// heroSheet (M2_HeroLoadout.js) when one is given.
+export function battle({ withAI = false, heroSheet = null } = {}) {
+  const snapshot = heroSheet ? { ...M2_TECHNICAL_SNAPSHOT, heroSheet } : M2_TECHNICAL_SNAPSHOT;
+  const state = new M2BattleState(snapshot, createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES));
   const queue = new M2CommandQueue();
   queue.beginBattleEpoch();
   const b = {
@@ -37,11 +39,12 @@ export function battle({ withAI = false } = {}) {
     events: [],
   };
   b.formation.updateSlots(state);
-  state.forEachUnitStable((u) => { u.position.x = u.previousPosition.x = u.slotTarget.x; u.position.z = u.previousPosition.z = u.slotTarget.z; });
+  state.forEachUnitStable((u) => { if (!u.slotTarget) return; u.position.x = u.previousPosition.x = u.slotTarget.x; u.position.z = u.previousPosition.z = u.slotTarget.z; });
   b.grid.rebuild(state);
   return b;
 }
 
+// One fixed tick, the systems in the same order as M2BattleRuntime's #fixedTick.
 export function tick(b) {
   const n = b.state.tick + 1;
   const commands = b.queue.drain().commands;
@@ -49,11 +52,14 @@ export function tick(b) {
   b.ai?.step(b.state, n);
   b.formation.updateAttackGoals(b.state);
   b.formation.updateSlots(b.state);
+  for (const c of commands) if (c.type === 'player_move') b.movement.applyCommand(b.state, c);
   b.movement.step(b.state, DT);
   b.grid.rebuild(b.state);
   b.collision.step(b.state, b.grid, DT);
   const plan = b.combat.prepareTick(b.state, b.grid, commands, DT, n);
   const events = [];
+  b.combat.applyBlockCommands(b.state, commands);
+  b.combat.resolvePlayerMelee(b.state, commands, plan, events);
   b.combat.resolveBowLaunch(b.state, commands, n);
   b.combat.resolveCrossbowVolleys(b.state, plan, n);
   // Every bolt shot this tick, with whose it is.

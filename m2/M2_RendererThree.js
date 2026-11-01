@@ -478,9 +478,9 @@ export class M2RendererThree {
       const model = soldierModels?.[unit.sideId === "ally" ? "ally" : "enemy"];
       // Crossbowmen carry the crossbow; horsemen ride with a lance or a sword in turn. In turn, foot soldiers
       // fight with spear and shield, sword and shield, a spear in both hands, the sword alone or a longsword
-      // (the player always with spear and shield).
+      // (the player as his equipment says: M2_HeroLoadout.js).
       const counter = (this.#loadoutCounts[unit.kindId] = (this.#loadoutCounts[unit.kindId] || 0) + 1) - 1;
-      const loadout = unit.isPlayer ? "spear"
+      const loadout = unit.isPlayer ? (unit.heroAppearance || "spear")
         : unit.kindId === "crossbow" ? "xbow"
           : unit.kindId === "cavalry" ? ["cav", "cavs"][counter % 2]
             : ["spear", "sword", "spear_free", "sword_free", "great"][counter % 5];

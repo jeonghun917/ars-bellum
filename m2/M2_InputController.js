@@ -131,7 +131,7 @@ export class M2InputController {
     const friendly = snapshot.formations.filter((formation) => formation.sideId === player?.sideId).sort((a,b)=>a.formationId.localeCompare(b.formationId));
     const enemy = snapshot.formations.filter((formation) => formation.sideId !== player?.sideId).sort((a,b)=>a.formationId.localeCompare(b.formationId));
     if (!this.#selectedFormationId || !friendly.some((entry)=>entry.formationId===this.#selectedFormationId)) {
-      this.#selectedFormationId = friendly.find((entry)=>entry.memberUnitIds.includes(snapshot.playerCharacterId))?.formationId || friendly[0]?.formationId || null;
+      this.#selectedFormationId = (friendly.find((entry)=>entry.formationTypeId==="line") || friendly[0])?.formationId || friendly[0]?.formationId || null;
     }
     if (!this.#selectedEnemyFormationId || !enemy.some((entry)=>entry.formationId===this.#selectedEnemyFormationId)) {
       this.#selectedEnemyFormationId = enemy[0]?.formationId || null;
