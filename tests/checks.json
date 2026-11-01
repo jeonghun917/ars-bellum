@@ -3544,6 +3544,48 @@
       "title": "the hero can cut down a running enemy",
       "kind": "unit",
       "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.defense.facing",
+      "title": "a man stops blows at his front, half as often at his side, never from behind or running",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.what-he-carries",
+      "title": "a shield stops most, a weapon in both hands less, one in one hand least; a better guard more; a charge goes through more often",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.shots",
+      "title": "only a shield stops a bolt, a shield-bearer's big shield most of them, a shield wall more",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.stopped",
+      "title": "whether a blow is stopped follows the chance, and the same blow in the same battle always the same way",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.faces-foe",
+      "title": "a man with an enemy at arm's length keeps his face to him, even stepping back into his place",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.in-battle",
+      "title": "in the fight, a man facing his attacker stops most of his blows; one struck from behind none",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.blows-to-fall",
+      "title": "a soldier falls to about ten blows without armour, about seventeen in mail, more in plate",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
     }
   ]
 }
