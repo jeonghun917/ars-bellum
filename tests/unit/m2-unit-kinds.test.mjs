@@ -35,7 +35,15 @@ test('[m2.kinds.crossbow-volley] crossbowmen ordered to attack keep their distan
   }
   const seen = b.combat.getObservation(b.state);
   const allyBolts = b.bolts.filter((bolt) => bolt.sideId === 'ally').length;
-  assert.ok(allyBolts >= 6 * 4, `launches ${allyBolts}`);
+  // Every crossbowman shoots; those still standing at the end (the enemy crossbowmen shoot back) shot again
+  // after every reload.
+  const shotsBy = (unitId) => b.bolts.filter((bolt) => bolt.ownerUnitId === unitId).length;
+  const shooters = members(b, 'ally_loose');
+  assert.ok(shooters.every((u) => shotsBy(u.unitId) >= 1), JSON.stringify(shooters.map((u) => shotsBy(u.unitId))));
+  const standing = shooters.filter((u) => isM2UnitActive(u));
+  assert.ok(standing.length > 0);
+  assert.ok(standing.every((u) => shotsBy(u.unitId) >= Math.floor(400 / M2_UNIT_KINDS.crossbow.reloadTicks)),
+    JSON.stringify(standing.map((u) => shotsBy(u.unitId))));
   assert.ok(seen.projectileHitCount > 0, 'some bolts hit');
   assert.ok(hpOf(b, 'enemy') < before, 'the enemy is hurt');
   // Each crossbowman shoots at most once per reload.
@@ -91,10 +99,14 @@ test('[m2.kinds.cavalry-charge] horsemen ride faster than men on foot and a blow
   const charges = [];
   for (let i = 0; i < 200; i += 1) {
     const events = tick(b);
-    for (const u of b.state.getUnitIdsStable().map((id) => b.state.getUnit(id))) {
-      if (u.sideId !== 'ally' || !isM2UnitActive(u)) continue;
-      const speed = Math.hypot(u.velocity.x, u.velocity.z);
-      if (u.kindId in fastest) fastest[u.kindId] = Math.max(fastest[u.kindId], speed);
+    // Speeds on the way in, before anyone meets: the middle speed of each kind (one soldier shoved aside by a
+    // passing horse moves fast for a moment, without riding).
+    for (const kindId of Object.keys(fastest)) {
+      if (b.events.length) break;
+      const speeds = b.state.getUnitIdsStable().map((id) => b.state.getUnit(id))
+        .filter((u) => u.sideId === 'ally' && u.kindId === kindId && !u.isPlayer && isM2UnitActive(u))
+        .map((u) => Math.hypot(u.velocity.x, u.velocity.z)).sort((p, q) => p - q);
+      fastest[kindId] = Math.max(fastest[kindId], speeds[Math.floor(speeds.length / 2)]);
     }
     for (const e of events) if (b.state.getUnit(e.sourceUnitId).kindId === 'cavalry') charges.push(e.damage);
   }

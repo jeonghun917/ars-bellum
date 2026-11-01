@@ -107,14 +107,24 @@ test.describe('3D battle', () => {
       { timeout: 30_000 }).toBeLessThan(enemyHp);
   });
 
-  test('[m2.render.soldier-gait] soldiers crossing the field at full speed run, not walk', async ({ page }) => {
-    // The battle starts with everyone standing: send the ally foot soldiers 15 m forward. Units move at about
-    // 3.2 m/s; the walk clip's feet move at about 1.3 m/s, so walking would skate.
+  test('[m2.render.soldier-gait] marching soldiers walk, charging soldiers run, each matching their speed', async ({ page }) => {
+    // Sent 15 m forward, the ally foot soldiers march (about 1.4 m/s, the walk clip's pace).
     const receipt = await page.evaluate(() => {
       const f = window.ArsM2Battle.getSnapshot().formations.find((item) => item.formationId === 'ally_line');
       return window.ArsM2Battle.issueCommand({ commandId: 'gait_move', type: 'formation_move', formationId: f.formationId,
         target: { x: f.anchor.x, z: f.anchor.z - 15 } });
     });
+    expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
+    const playing = (pattern) => () => Object.entries(window.ArsM2Diagnostics.getSnapshot().soldierAnimations || {})
+      .some(([clip, count]) => new RegExp(pattern).test(clip) && count > 0);
+    // (Walk clips are "walk", "low_walk", "s_low_walk", ...; run clips likewise.)
+    await page.waitForFunction(playing('walk$'), null, { timeout: 20_000 });
+    // Ordered to attack, they close at a run for the last stretch (3.2 m/s, the run clip's pace).
+    const attack = await page.evaluate(() => window.ArsM2Battle.issueCommand({
+      commandId: 'gait_attack', type: 'formation_attack', formationId: 'ally_line', targetFormationId: 'enemy_line' }));
+    expect(attack.ok, JSON.stringify(attack)).toBe(true);
+    await page.waitForFunction(playing('run$'), null, { polling: 'raf', timeout: 30_000 });
+  });
     expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
     // (Only that some run: while a soldier speeds up or arrives he passes through walking speeds. The run
     // clips are "run", "low_run", "s_low_run", ...)

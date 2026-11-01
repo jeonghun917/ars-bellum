@@ -431,7 +431,7 @@ export class M2CombatSystem {
       // A horseman who strikes at the end of a run-up charges: his horse's weight is behind the blow.
       const kind = m2UnitKind(attacker);
       const charging = kind.chargeSpeed > 0 && attacker.chargeRunTicks >= kind.chargeRunTicks;
-      const baseDamage = kind.id === "infantry" ? M2_MELEE_DEFINITION.baseDamage : kind.meleeDamage;
+      const baseDamage = kind.meleeDamage;
       damageEvents.push({
         damageEventId: `auto_melee:${processingTick}:${attacker.unitId}:${target.unitId}`,
         sourceUnitId: attacker.unitId,
@@ -440,7 +440,7 @@ export class M2CombatSystem {
       });
       if (charging) this.#chargeHitCount += 1;
       if (kind.chargeSpeed > 0) attacker.chargeRunTicks = 0;
-      attacker.attackCooldownTicks = M2_MELEE_DEFINITION.cooldownTicks;
+      attacker.attackCooldownTicks = kind.meleeCooldownTicks;
       attacker.state = "attacking";
       attacker.revision += 1;
       this.#attackEventCount += 1;

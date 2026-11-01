@@ -12,6 +12,7 @@ import { M2MoraleSystem } from '../../m2/M2_MoraleSystem.js';
 import { createCombatProfileCatalog } from '../../m2/M2_CombatProfiles.js';
 import { M2EnemyAI } from '../../m2/M2_EnemyAI.js';
 import { M2ResultSystem } from '../../m2/M2_ResultSystem.js';
+import { M2CollisionSystem } from '../../m2/M2_CollisionSystem.js';
 import { M2_TECHNICAL_COMBAT_PROFILES, M2_TECHNICAL_SNAPSHOT } from '../../m2/fixtures/m2_technical_fixture_v1.js';
 
 const DT = M2_CONFIG.fixedTickMs / 1000;
@@ -30,6 +31,7 @@ export function battle({ withAI = false } = {}) {
     morale: new M2MoraleSystem(),
     ai: withAI ? new M2EnemyAI() : null,
     result: new M2ResultSystem(),
+    collision: new M2CollisionSystem(),
     outcome: null,
     bolts: [],
     events: [],
@@ -49,6 +51,7 @@ export function tick(b) {
   b.formation.updateSlots(b.state);
   b.movement.step(b.state, DT);
   b.grid.rebuild(b.state);
+  b.collision.step(b.state, b.grid, DT);
   const plan = b.combat.prepareTick(b.state, b.grid, commands, DT, n);
   const events = [];
   b.combat.resolveBowLaunch(b.state, commands, n);

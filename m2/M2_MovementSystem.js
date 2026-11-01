@@ -104,7 +104,13 @@ export class M2MovementSystem {
 
       const nx = dx / distance;
       const nz = dz / distance;
-      const travel = direct ? maxSpeed * deltaSeconds : Math.min(distance, maxSpeed * deltaSeconds);
+      // The player runs where he is steered. Soldiers march to their places, and run only for the last
+      // stretch of an attack (M2_UnitKinds.js).
+      const kind = m2UnitKind(unit);
+      const order = battleState.getFormation(unit.formationId)?.order.type;
+      const charging = order === "attack_target" && distance <= kind.chargeDistance;
+      const speed = direct || charging ? maxSpeed : maxSpeed * kind.marchScale;
+      const travel = direct ? speed * deltaSeconds : Math.min(distance, speed * deltaSeconds);
       const moveX = nx * travel;
       const moveZ = nz * travel;
       unit.position.x += moveX;
