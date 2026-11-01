@@ -4,8 +4,9 @@ import { el } from './dom.js';
 import { canStartNewOver, describeUnreadableSave } from './messages.js';
 
 // opened: what openCampaign returned ({ ok, campaign, source } or a failure).
-// handlers: { onPractice, onMainGame, onStartNew }; notice: text left by the screen we came from.
-export function renderMenu(root, { opened, notice, handlers }) {
+// handlers: { onPractice, onMainGame, onStartNew, onToggleBattleView? }; notice: text left by the screen we came
+// from; battleView: '2d' | '3d' when the player may choose how battles are drawn.
+export function renderMenu(root, { opened, notice, handlers, battleView = null }) {
   const continueText = opened.ok && opened.source !== 'none'
     ? `이어하기: ${opened.campaign.getState().calendar.day}일차`
     : '';
@@ -21,6 +22,11 @@ export function renderMenu(root, { opened, notice, handlers }) {
     el('p', { class: 'subtitle', text: '전술 리얼타임 시뮬레이터' }),
     el('div', { class: 'menu-buttons' }, practice, main),
   ];
+  if (battleView && handlers.onToggleBattleView) {
+    const view = el('button', { id: 'btn-battle-view', type: 'button', class: 'menu-btn', text: `전투 화면: ${battleView === '3d' ? '3D' : '2D'}` });
+    view.addEventListener('click', () => handlers.onToggleBattleView());
+    children.push(el('div', { class: 'menu-buttons' }, view));
+  }
   if (continueText) children.push(el('p', { id: 'menu-continue', class: 'muted', text: continueText }));
   if (notice) children.push(el('p', { id: 'menu-notice', class: 'notice', role: 'status', text: notice }));
 
