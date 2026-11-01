@@ -1,4 +1,4 @@
-import { m2AppearanceForFormation, m2UnitKind, m2UnitKindForFormation, m2UnitTypeForFormation } from "./M2_UnitKinds.js";
+import { M2_ARMOR_VALUES, m2AppearanceForFormation, m2LoadoutsFor, m2UnitKind, m2UnitKindForFormation, m2UnitTypeForFormation } from "./M2_UnitKinds.js";
 import { plansFor } from "./M2_Plans.js";
 import { ordersFor } from "./M2_Orders.js";
 import { DEFAULT_HERO_SHEET, damageThroughArmor, heroCombat } from "./M2_HeroLoadout.js";
@@ -72,9 +72,12 @@ export class M2BattleState {
         unitTypeId,
         hero,
         commander: null,
-        armor: hero ? hero.armor : type.armor || 0,
+        // What his armour stops (M2_UnitKinds.js: what he wears); a commander's is set from his sheet below.
+        armor: hero ? hero.armor : M2_ARMOR_VALUES[(appearances.get(character.formationId) || {}).armorId] ?? M2_ARMOR_VALUES.mail,
         // Body armour and helmet as drawn (the hero and commanders wear their own equipment).
         ...(hero ? { armorId: null, helmId: null } : appearances.get(character.formationId) || { armorId: "mail", helmId: "nasal" }),
+        // His guard (the combat profile's, 0-100): how well he stops blows (M2_Defense.js).
+        guard: Number(profile?.stats?.guard ?? 50),
         // Bolts or arrows left (a subtype that counts them: M2_UnitKinds.js), or null: never runs out.
         ammo: hero ? null : type.ammo ?? null,
         combatProfileId: character.combatProfileId,
@@ -165,6 +168,19 @@ export class M2BattleState {
       unit.hp = commander.combat.maxHp;
       unit.armor = commander.combat.armor;
       formation.command = Object.freeze({ commanderUnitId: unit.unitId, command: commander.command, leadership: commander.leadership, tactics: commander.tactics, tacticSlots: commander.tacticSlots });
+    }
+
+    // The weapons each soldier carries, given in turn to the men of each subtype or kind (M2_UnitKinds.js):
+    // what he is drawn with (M2_RendererThree.js) and what he defends with (M2_Defense.js). The hero and the
+    // commanders carry their own (their sheets).
+    const turns = new Map();
+    for (const unitId of this.getUnitIdsStable()) {
+      const unit = this.#units.get(unitId);
+      const key = unit.unitTypeId || unit.kindId;
+      const turn = turns.get(key) || 0;
+      turns.set(key, turn + 1);
+      const loadouts = m2LoadoutsFor(unit);
+      unit.loadout = unit.hero || unit.commander ? null : loadouts[turn % loadouts.length];
     }
   }
 
@@ -273,6 +289,7 @@ export class M2BattleState {
         formationId: unit.formationId,
         kindId: unit.kindId,
         unitTypeId: unit.unitTypeId,
+        loadout: unit.loadout,
         armorId: unit.armorId,
         helmId: unit.helmId,
         isPlayer: unit.isPlayer,

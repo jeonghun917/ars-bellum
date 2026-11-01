@@ -35,13 +35,17 @@ export function heroCombat(sheet = DEFAULT_HERO_SHEET) {
   const athletics = skill(sheet, "athletics");
   const riding = skill(sheet, "riding");
   return Object.freeze({
-    // A trained man stands longer; a horse carries him further before he falls.
-    maxHp: Math.round(200 + athletics + (mount ? number(mount.hpBonus, 100) : 0)),
+    // A man falls to a few good blows (about 30 hit points, as a soldier: M2_UnitKinds.js); a trained one stands
+    // a little longer, and a horse carries him further before he falls. What keeps him up is his armour and
+    // his guard (M2_Defense.js).
+    maxHp: Math.round(25 + athletics / 5 + (mount ? number(mount.hpBonus, 100) / 10 : 0)),
     // Armor takes a share of every blow: armor 20 halves it.
     armor: number(equipment.body?.armor, 0),
     melee: Object.freeze({
       itemId: main.itemId,
       weaponClass: main.weaponClass,
+      // (his skill with it also helps him stop blows: M2_Defense.js)
+      skill: mainSkill,
       // Skill makes the blow up to twice as hard and up to 40% quicker.
       damage: Math.round(number(main.damage, 2) * (1 + mainSkill / 100)),
       reach: number(main.reach, 1.0),

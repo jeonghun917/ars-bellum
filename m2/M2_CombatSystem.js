@@ -8,6 +8,7 @@ import { isM2UnitActive } from "./M2_BattleState.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
 import { M2_ORDERS, orderOf } from "./M2_Orders.js";
 import { mayStrike, pursuedFormation } from "./M2_Pursuit.js";
+import { stopped } from "./M2_Defense.js";
 
 // A bolt or arrow hits a man still fighting; a running one only if it was shot in pursuit of his formation
 // (or by the hero: M2_Pursuit.js).
@@ -68,10 +69,10 @@ function segmentCircleHit(previous, current, center, radius) {
   return { t, distanceSq };
 }
 
-// shot: a bolt or arrow, which a shield-bearer (방패병, M2_UnitKinds.js) stops from in front as a block does,
-// his shield up or not.
-function damageAfterBlock(target, attackerPosition, baseDamage, { shot = false } = {}) {
-  const shielded = target.blocking || (shot && m2UnitKind(target).frontShield && target.state !== "routing");
+// The player, holding his block (or shield) up, takes a share of a blow from in front. Everyone else stops a
+// blow or none of it (M2_Defense.js).
+function damageAfterBlock(target, attackerPosition, baseDamage) {
+  const shielded = target.isPlayer && target.blocking;
   if (!shielded) return Math.max(0, Math.round(baseDamage));
   const incomingX = attackerPosition.x - target.position.x;
   const incomingZ = attackerPosition.z - target.position.z;
@@ -269,6 +270,7 @@ export class M2CombatSystem {
   #attackEventCount = 0;
   #crossbowLaunchCount = 0;
   #chargeHitCount = 0;
+  #stoppedCount = 0;
 
   getObservation(battleState) {
     return Object.freeze({
@@ -278,7 +280,9 @@ export class M2CombatSystem {
       projectileOverflowCount: this.#projectileOverflowCount,
       attackEventCount: this.#attackEventCount,
       crossbowLaunchCount: this.#crossbowLaunchCount,
-      chargeHitCount: this.#chargeHitCount
+      chargeHitCount: this.#chargeHitCount,
+      // Blows and shots stopped by a shield or a parry (M2_Defense.js).
+      stoppedCount: this.#stoppedCount
     });
   }
 
@@ -421,6 +425,11 @@ export class M2CombatSystem {
       if (!mayStrike(battleState, actor, target)) continue;
       const base = (actor.hero?.melee.damage ?? M2_MELEE_DEFINITION.baseDamage) * (charging ? horse.chargeScale : 1);
       if (charging) this.#chargeHitCount += 1;
+      // The man struck at may stop it (M2_Defense.js).
+      if (stopped(battleState, target, actor.position, `melee:${command.commandId}:${target.unitId}`, { charging })) {
+        this.#stoppedCount += 1;
+        continue;
+      }
       const damage = damageAfterBlock(target, actor.position, base);
       damageEvents.push({
         damageEventId: `melee:${command.commandId}:${target.unitId}`,
@@ -533,8 +542,12 @@ export class M2CombatSystem {
       const kind = m2UnitKind(attacker);
       const charging = kind.chargeSpeed > 0 && attacker.chargeRunTicks >= kind.chargeRunTicks;
       const baseDamage = attacker.commander ? attacker.commander.combat.melee.damage : meleeOf(attacker).meleeDamage;
-      damageEvents.push({
-        damageEventId: `auto_melee:${processingTick}:${attacker.unitId}:${target.unitId}`,
+      const eventId = `auto_melee:${processingTick}:${attacker.unitId}:${target.unitId}`;
+      // The man struck at may stop the blow (M2_Defense.js); it is spent all the same.
+      const blocked = stopped(battleState, target, attacker.position, eventId, { charging });
+      if (blocked) this.#stoppedCount += 1;
+      else damageEvents.push({
+        damageEventId: eventId,
         sourceUnitId: attacker.unitId,
         targetUnitId: target.unitId,
         damage: damageAfterBlock(target, attacker.position, baseDamage * (charging ? kind.chargeScale : 1))
@@ -568,11 +581,17 @@ export class M2CombatSystem {
 
       const target = step.selectedTargetUnitId ? battleState.getUnit(step.selectedTargetUnitId) : null;
       if (target && shotMayHit(projectile, target) && target.sideId !== projectile.sideId && target.unitId !== projectile.ownerUnitId) {
+        // A shield from in front may stop it (M2_Defense.js); either way the bolt is spent.
+        if (stopped(battleState, target, step.previousPosition, `projectile:${projectile.projectileId}:${target.unitId}`, { shot: true })) {
+          this.#stoppedCount += 1;
+          battleState.removeProjectile(projectile.projectileId);
+          continue;
+        }
         damageEvents.push({
           damageEventId: `projectile:${projectile.projectileId}:${target.unitId}`,
           sourceUnitId: projectile.ownerUnitId,
           targetUnitId: target.unitId,
-          damage: damageAfterBlock(target, step.previousPosition, projectile.damage, { shot: true }),
+          damage: damageAfterBlock(target, step.previousPosition, projectile.damage),
           ...(projectile.armorPierce ? { armorPierce: projectile.armorPierce } : {})
         });
         battleState.removeProjectile(projectile.projectileId);
