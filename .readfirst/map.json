@@ -328,6 +328,9 @@
           "files": [
             "src/domains/**"
           ]
+        },
+        {
+          "text": "Equipment item definitions carry the battle numbers the 3D battle reads, and each item's slot must equal the slot it is stored in. buildHeroSheet silently drops an item with an unknown definition or a mismatched slot. Renaming a slot id or a battle key, or adding a slot, needs HERO_SLOTS in src/game/battle-hero.js and m2/M2_HeroLoadout.js changed with it."
         }
       ]
     },
@@ -361,6 +364,9 @@
           "files": [
             "src/game/campaign.js"
           ]
+        },
+        {
+          "text": "A hero's gear in the group inventory counts only if assigned to him, or unassigned while he is the group's acting commander. Of two items in one slot the first found wins, his own inventory before the group's. Changing who counts as leader, or the search order, changes what the battle gives him."
         }
       ]
     },
