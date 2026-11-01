@@ -1,4 +1,6 @@
 import { m2Receipt } from "./M2_Config.js";
+import { ordersFor } from "./M2_Orders.js";
+import { formationTypesFor } from "./M2_FormationSystem.js";
 
 function validId(value) {
   return typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]*$/i.test(value);
@@ -42,6 +44,7 @@ const ALLOWED_TYPES = new Set([
   "formation_hold",
   "formation_attack",
   "formation_set_type",
+  "formation_set_tactic",
   "formation_rally",
   "formation_retreat",
   "player_move",
@@ -96,10 +99,17 @@ export class M2CommandQueue {
       } else if (command.type === "formation_hold") {
         normalized = { commandId: command.commandId, type: command.type, inputContextRevision, formationId: command.formationId };
       } else if (command.type === "formation_set_type") {
-        if (!["line", "column", "loose"].includes(command.formationTypeId)) {
+        // A shape this kind of soldier can take (M2_FormationSystem.js): no shield wall on horseback.
+        if (!formationTypesFor(source).includes(command.formationTypeId)) {
           return m2Receipt(false, { error: "m2_command_invalid_formation_type", commandId: command.commandId });
         }
         normalized = { commandId: command.commandId, type: command.type, inputContextRevision, formationId: command.formationId, formationTypeId: command.formationTypeId };
+      } else if (command.type === "formation_set_tactic") {
+        // An order the formation can be given (M2_Orders.js), or none.
+        if (command.tacticId !== null && !ordersFor(source).includes(command.tacticId)) {
+          return m2Receipt(false, { error: "m2_command_tactic_not_available", commandId: command.commandId });
+        }
+        normalized = { commandId: command.commandId, type: command.type, inputContextRevision, formationId: command.formationId, tacticId: command.tacticId };
       } else if (command.type === "formation_rally") {
         const routingLiving = source.memberUnitIds.some((unitId) => {
           const unit = battleState.getUnit(unitId);

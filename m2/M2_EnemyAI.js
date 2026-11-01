@@ -7,6 +7,7 @@
 // the enemy's own and are not part of the player's command log. Everything here depends only on the battle
 // state, so the same battle plays out the same way.
 import { isM2UnitAlive } from "./M2_BattleState.js";
+import { ordersFor } from "./M2_Orders.js";
 
 const AI_SIDE = "enemy";
 const THINK_EVERY_TICKS = 20;
@@ -65,6 +66,7 @@ export class M2EnemyAI {
         || a.formation.formationId.localeCompare(b.formation.formationId));
       const crossbows = byDistance.find((entry) => entry.formation.kindId === "crossbow");
       const target = (formation.kindId === "cavalry" && crossbows) || byDistance[0];
+      this.#chooseShapeAndOrder(formation, at, allies, target.formation);
       const current = formation.order;
       if (current.type === "attack_target" && current.targetFormationId === target.formation.formationId) return;
       formation.order = {
@@ -75,6 +77,38 @@ export class M2EnemyAI {
       };
       formation.revision += 1;
     });
+  }
+
+  // Each formation takes the shape and the order the moment calls for, among those it can (M2_Orders.js,
+  // M2_FormationSystem.js): foot plant their spears when horsemen come near, close up into a shield wall on
+  // the way in under the enemy's crossbows, and open into a line to fight; horsemen hit and run at foot in
+  // close order, or go round it, and charge anything else; crossbowmen step back from an enemy who comes too near, loose in
+  // volleys, or pick on one formation.
+  #chooseShapeAndOrder(formation, at, allies, target) {
+    const can = ordersFor(formation);
+    const distance = (entry) => Math.hypot(entry.at.x - at.x, entry.at.z - at.z);
+    const nearest = Math.min(...allies.map(distance));
+    let shape = formation.formationTypeId;
+    let order = null;
+    if (formation.kindId === "infantry") {
+      const horseNear = allies.some((entry) => entry.formation.kindId === "cavalry" && distance(entry) < 15);
+      const boltsComing = allies.some((entry) => entry.formation.kindId === "crossbow");
+      if (horseNear && can.includes("spear_brace")) order = "spear_brace";
+      shape = boltsComing && nearest > 10 ? "shield_wall" : "line";
+    } else if (formation.kindId === "cavalry") {
+      // Against foot in close order (where a horse is held fast) they hit and run, or go round; anything
+      // else they ride straight into.
+      const solidFoot = target?.kindId === "infantry" && ["line", "shield_wall", "circle"].includes(target.formationTypeId);
+      order = (solidFoot ? ["hit_and_run", "flank", "charge"] : ["charge"]).find((id) => can.includes(id)) || null;
+    } else if (formation.kindId === "crossbow") {
+      order = nearest < 15 && can.includes("skirmish") ? "skirmish" : ["volley", "focus_fire"].find((id) => can.includes(id)) || null;
+    }
+    if (formation.formationTypeId !== shape || formation.tactic !== order) {
+      formation.formationTypeId = shape;
+      if (formation.tactic !== order) formation.flankStage = 0;
+      formation.tactic = order;
+      formation.revision += 1;
+    }
   }
 
   #attacked(battleState) {

@@ -6,6 +6,7 @@ import {
 } from "./M2_Definitions.js";
 import { isM2UnitActive } from "./M2_BattleState.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
+import { M2_ORDERS, orderOf } from "./M2_Orders.js";
 
 const TAU = Math.PI * 2;
 
@@ -169,12 +170,16 @@ function potentialBowProjectile(battleState, command) {
 // themselves attacking (their formation ordered to attack), so he returns fire but does not start a fight.
 function potentialCrossbowShot(battleState, spatialGrid, shooter, processingTick) {
   const kind = m2UnitKind(shooter);
-  const anyEnemy = battleState.getFormation(shooter.formationId)?.order.type === "attack_target";
+  const own = battleState.getFormation(shooter.formationId);
+  const anyEnemy = own?.order.type === "attack_target";
+  const focus = orderOf(own)?.id === "focus_fire" && anyEnemy ? own.order.targetFormationId : null;
   let best = null;
   for (const unitId of spatialGrid.queryNearby(shooter.position.x, shooter.position.z, kind.range)) {
     const target = battleState.getUnit(unitId);
     if (!isM2UnitActive(target) || target.sideId === shooter.sideId) continue;
     if (!anyEnemy && battleState.getFormation(target.formationId)?.order.type !== "attack_target") continue;
+    // Focused fire: only the formation they are sent against (M2_Orders.js).
+    if (focus && target.formationId !== focus) continue;
     const distance = Math.hypot(target.position.x - shooter.position.x, target.position.z - shooter.position.z);
     if (distance > kind.range || distance <= 0) continue;
     if (!best || distance < best.distance || (distance === best.distance && unitId < best.unitId)) best = { unitId, distance };
@@ -203,10 +208,36 @@ function fights(formation) {
   return Boolean(formation) && formation.order.type !== "withdraw";
 }
 
-function shootsCrossbow(battleState, unit) {
+// planning: in the plan (phase 5), a volley also waits for every man; when the shots are made (phase 6) the
+// plan has already decided, and the first shot must not hold back the rest.
+function shootsCrossbow(battleState, unit, { planning = true } = {}) {
   if (!isM2UnitActive(unit) || unit.isPlayer || unit.kindId !== "crossbow" || unit.attackCooldownTicks !== 0) return false;
-  return fights(battleState.getFormation(unit.formationId));
+  const formation = battleState.getFormation(unit.formationId);
+  if (!fights(formation)) return false;
+  const order = orderOf(formation);
+  if (order?.id === "hold_fire") return false;
+  // A volley waits until every man still fighting has spanned his crossbow (M2_Orders.js).
+  if (planning && order?.id === "volley") {
+    return battleState.getActiveFormationMemberIds(formation).every((id) => battleState.getUnit(id).attackCooldownTicks === 0);
+  }
+  return true;
 }
+
+// The nearest active enemy within radius (m) that passes the test, or null.
+function nearestEnemy(battleState, spatialGrid, unit, radius, test = () => true) {
+  let best = null;
+  for (const id of spatialGrid.queryNearby(unit.position.x, unit.position.z, radius)) {
+    const enemy = battleState.getUnit(id);
+    if (!isM2UnitActive(enemy) || enemy.sideId === unit.sideId || !test(enemy)) continue;
+    const d = Math.hypot(enemy.position.x - unit.position.x, enemy.position.z - unit.position.z);
+    if (d <= radius && (!best || d < best.d || (d === best.d && id < best.enemy.unitId))) best = { d, enemy };
+  }
+  return best?.enemy || null;
+}
+
+// A shield wall keeps its shields up at a walk or slower (m/s); braced spearmen watch for horse this far (m).
+const SHIELD_WALL_BLOCK_SPEED = 1.7;
+const BRACE_WATCH = 12;
 
 export class M2CombatSystem {
   #projectileLaunchCount = 0;
@@ -239,6 +270,24 @@ export class M2CombatSystem {
       const chargeSpeed = m2UnitKind(unit).chargeSpeed;
       if (chargeSpeed > 0) {
         unit.chargeRunTicks = Math.hypot(unit.velocity.x, unit.velocity.z) >= chargeSpeed ? (unit.chargeRunTicks || 0) + 1 : 0;
+      }
+      if (unit.isPlayer || !unit.formationId) return;
+      const formation = battleState.getFormation(unit.formationId);
+      // In a shield wall the men keep their shields up, standing or walking (they block as a man blocking does).
+      unit.blocking = formation?.formationTypeId === "shield_wall" && Math.hypot(unit.velocity.x, unit.velocity.z) <= SHIELD_WALL_BLOCK_SPEED;
+      const order = orderOf(formation);
+      // Braced spearmen turn to face the nearest horseman coming at them.
+      if (order?.id === "spear_brace") {
+        const horse = nearestEnemy(battleState, spatialGrid, unit, BRACE_WATCH, (enemy) => m2UnitKind(enemy).chargeSpeed > 0);
+        if (horse) unit.heading = Math.atan2(horse.position.x - unit.position.x, horse.position.z - unit.position.z);
+      }
+      // Skirmishers step back from an enemy who comes too near.
+      if (order?.id === "skirmish" && !unit.withdrawTo) {
+        const near = nearestEnemy(battleState, spatialGrid, unit, order.keepAway);
+        if (near) {
+          const away = Math.atan2(unit.position.x - near.position.x, unit.position.z - near.position.z);
+          unit.withdrawTo = { x: unit.position.x + Math.sin(away) * order.stepBack, z: unit.position.z + Math.cos(away) * order.stepBack };
+        }
       }
     });
 
@@ -403,7 +452,7 @@ export class M2CombatSystem {
   resolveCrossbowVolleys(battleState, candidatePlan, processingTick) {
     for (const shot of candidatePlan.crossbowShots || []) {
       const shooter = battleState.getUnit(shot.shooterUnitId);
-      if (!shootsCrossbow(battleState, shooter)) continue;
+      if (!shootsCrossbow(battleState, shooter, { planning: false })) continue;
       if (battleState.projectileCount >= M2_PROJECTILE_DEFINITION.maxActive) {
         this.#projectileOverflowCount += 1;
         continue;
@@ -463,6 +512,14 @@ export class M2CombatSystem {
       });
       if (charging) this.#chargeHitCount += 1;
       if (kind.chargeSpeed > 0) attacker.chargeRunTicks = 0;
+      // Hit and run (M2_Orders.js): after the charge, wheel away from the enemy and come again.
+      if (charging && orderOf(formation)?.id === "hit_and_run") {
+        const away = Math.atan2(attacker.position.x - target.position.x, attacker.position.z - target.position.z);
+        attacker.withdrawTo = {
+          x: attacker.position.x + Math.sin(away) * M2_ORDERS.hit_and_run.withdrawDistance,
+          z: attacker.position.z + Math.cos(away) * M2_ORDERS.hit_and_run.withdrawDistance
+        };
+      }
       attacker.attackCooldownTicks = kind.meleeCooldownTicks;
       attacker.state = "attacking";
       attacker.revision += 1;

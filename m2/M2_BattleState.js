@@ -1,4 +1,5 @@
 import { m2UnitKind, m2UnitKindForFormation } from "./M2_UnitKinds.js";
+import { ordersFor } from "./M2_Orders.js";
 import { DEFAULT_HERO_SHEET, damageThroughArmor, heroCombat } from "./M2_HeroLoadout.js";
 import { DEFAULT_COMMANDER_SHEETS, commanderFromSheet } from "./M2_Commanders.js";
 
@@ -80,6 +81,9 @@ export class M2BattleState {
         chargeRunTicks: 0,
         // How many bodies pressed against him in the last tick (M2_CollisionSystem.js); slows him.
         crowd: 0,
+        // Where he steps or rides back to before taking his place again (a horseman wheeling away after a
+        // charge, a crossbowman keeping his distance: M2_Orders.js); null otherwise.
+        withdrawTo: null,
         targetUnitId: null,
         routeReasonId: null,
         routeTarget: null,
@@ -117,6 +121,10 @@ export class M2BattleState {
           targetFormationId: null,
           commandId: null
         },
+        // A formation order (M2_Orders.js: charge, braced spears, a volley...), or none; and how far a flank
+        // march has come (0: going round the side, 1: turning in on the rear).
+        tactic: null,
+        flankStage: 0,
         cohesion: 100,
         morale,
         revision: 0
@@ -273,6 +281,8 @@ export class M2BattleState {
         facing: formation.facing,
         formationTypeId: formation.formationTypeId,
         command: formation.command,
+        tactic: formation.tactic,
+        tactics: ordersFor(formation),
         spacing: formation.spacing,
         order: clone(formation.order),
         cohesion: formation.cohesion,

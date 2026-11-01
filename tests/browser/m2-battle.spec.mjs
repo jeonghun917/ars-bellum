@@ -237,10 +237,25 @@ test.describe('3D battle', () => {
     expect((await formation(page, selected)).order.type).toBe('attack_target');
   });
 
+  test('[m2.orders.tactic] the order list offers the selected formation\'s orders, and choosing one gives it', async ({ page }) => {
+    await switchToTactical(page);
+    const selected = await page.inputValue('#m2FriendlyFormation');
+    expect(selected).toBe('ally_line');
+    // Charge any formation can be given; an ordinary commander (tactics 30) adds one: braced spears.
+    expect(await page.locator('#m2Tactic option').allTextContents()).toEqual(['없음', '돌격', '장창 대기']);
+    await page.selectOption('#m2Tactic', 'spear_brace');
+    await waitTicks(page, 1);
+    expect((await formation(page, selected)).tactic).toBe('spear_brace');
+    await page.selectOption('#m2Tactic', '');
+    await waitTicks(page, 1);
+    expect((await formation(page, selected)).tactic).toBe(null);
+  });
+
   test('[m2.orders.formation-shape] line, column and loose buttons change the formation shape', async ({ page }) => {
     await switchToTactical(page);
     const selected = await page.inputValue('#m2FriendlyFormation');
-    for (const [button, shape] of [['#m2Line', 'line'], ['#m2Column', 'column'], ['#m2Loose', 'loose']]) {
+    for (const [button, shape] of [['#m2Line', 'line'], ['#m2Column', 'column'], ['#m2Loose', 'loose'],
+      ['#m2ShieldWall', 'shield_wall'], ['#m2Wedge', 'wedge'], ['#m2Circle', 'circle']]) {
       await tap(page, button);
       await waitTicks(page, 1);
       expect((await formation(page, selected)).formationTypeId, button).toBe(shape);

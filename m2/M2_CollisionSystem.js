@@ -5,13 +5,19 @@
 // reach the edge would push the rest back from it, and the retreat would never end). Pairs are taken in a fixed order (by soldier id) and each push is applied at once, so a crowd settles
 // in few rounds and the same battle always settles the same way.
 import { isM2UnitAlive } from "./M2_BattleState.js";
+import { M2_ORDERS } from "./M2_Orders.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
+
+function massOf(battleState, unit, kind) {
+  const formation = unit.formationId ? battleState.getFormation(unit.formationId) : null;
+  return formation?.tactic === "spear_brace" ? M2_ORDERS.spear_brace.braceMass : kind.mass;
+}
 
 const takesRoom = (unit) => isM2UnitAlive(unit) && unit.state !== "routing";
 
 // Rounds of pushing per tick: a crowd pressed from both sides (two columns of horses meeting head on) needs
 // several to settle; a round with no push ends the step early.
-const PASSES = 6;
+const PASSES = 8;
 const LARGEST_RADIUS = 0.8;
 // Faster than this (m/s) a soldier is on the move; how far, for each metre of overlap, comrades edge sideways.
 const MOVING = 0.3;
@@ -66,9 +72,12 @@ export class M2CollisionSystem {
             if (a.x * nx + a.z * nz > 0) unit.crowd += 1;
             if (c.x * nx + c.z * nz < 0) other.crowd += 1;
           }
-          const total = kind.mass + otherKind.mass;
-          let unitShare = otherKind.mass / total;
-          let otherShare = kind.mass / total;
+          // A spearman braced against horse (M2_Orders.js) has planted his feet: he does not give way.
+          const unitMass = massOf(battleState, unit, kind);
+          const otherMass = massOf(battleState, other, otherKind);
+          const total = unitMass + otherMass;
+          let unitShare = otherMass / total;
+          let otherShare = unitMass / total;
           // Two of the same side: the one standing steps aside for the one on the move, and both edge
           // sideways so the mover goes round instead of pressing into him (without this a man running to his
           // place stalls against a comrade holding his).

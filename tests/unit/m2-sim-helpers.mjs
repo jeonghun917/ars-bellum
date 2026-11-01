@@ -62,11 +62,11 @@ export function tick(b) {
   b.combat.resolvePlayerMelee(b.state, commands, plan, events);
   b.combat.resolveBowLaunch(b.state, commands, n);
   b.combat.resolveCrossbowVolleys(b.state, plan, n);
-  // Every bolt shot this tick, with whose it is.
+  // Every bolt shot this tick, with whose it is and whom it was aimed at.
   for (const id of b.state.getProjectileIdsStable()) {
     if (!id.startsWith(`bolt:${String(n).padStart(8, '0')}:`)) continue;
     const p = b.state.getProjectile(id);
-    b.bolts.push({ tick: n, ownerUnitId: p.ownerUnitId, sideId: p.sideId });
+    b.bolts.push({ tick: n, ownerUnitId: p.ownerUnitId, sideId: p.sideId, aimedAt: b.state.getUnit(p.ownerUnitId).targetUnitId });
   }
   b.combat.resolveNonPlayerContactMelee(b.state, plan, events, n);
   b.combat.progressProjectiles(b.state, plan, events);
