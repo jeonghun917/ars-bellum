@@ -32,7 +32,7 @@ export class M2MovementSystem {
       unit.previousPosition.z = unit.position.z;
 
       // A horseman moves faster than a man on foot (M2_UnitKinds.js).
-      const maxSpeed = this.#maxSpeed * m2UnitKind(unit).speedScale;
+      const maxSpeed = unit.hero ? unit.hero.moveSpeed : this.#maxSpeed * m2UnitKind(unit).speedScale;
       if (!isM2UnitAlive(unit)) {
         unit.velocity.x = 0;
         unit.velocity.z = 0;

@@ -68,6 +68,7 @@ export class M2BattleRuntime {
     this.#formationSystem.updateSlots(candidateState);
     // Start everyone on his place in the formation: the snapshot spaces horsemen like men on foot.
     candidateState.forEachUnitStable((unit) => {
+      if (!unit.slotTarget) return;
       unit.position.x = unit.previousPosition.x = unit.slotTarget.x;
       unit.position.z = unit.previousPosition.z = unit.slotTarget.z;
     });

@@ -1,4 +1,5 @@
 import { m2UnitKind, m2UnitKindForFormation } from "./M2_UnitKinds.js";
+import { DEFAULT_HERO_SHEET, damageThroughArmor, heroCombat } from "./M2_HeroLoadout.js";
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -43,16 +44,24 @@ export class M2BattleState {
       const profile = combatProfiles.get(character.combatProfileId);
       // Vitality is the man; hpScale is what he wears and rides (mail, a horse), until equipment comes in
       // (M2_UnitKinds.js).
-      const maxHp = Math.round((profile?.stats?.vitality ?? 0) * m2UnitKind(m2UnitKindForFormation(character.formationId)).hpScale);
+      // The player is a hero of his own (M2_HeroLoadout.js): his sheet, not a formation, says how he fights.
+      const isPlayer = character.characterId === snapshot.playerCharacterId;
+      const hero = isPlayer ? heroCombat(snapshot.heroSheet || DEFAULT_HERO_SHEET) : null;
+      const kindId = hero ? (hero.mounted ? "cavalry" : "infantry") : m2UnitKindForFormation(character.formationId);
+      const maxHp = hero ? hero.maxHp : Math.round((profile?.stats?.vitality ?? 0) * m2UnitKind(kindId).hpScale);
       const initialMorale = Number(profile?.stats?.morale ?? 0);
       this.#units.set(character.characterId, {
         unitId: character.characterId,
         sideId: character.sideId,
-        formationId: character.formationId,
+        // The hero belongs to no formation: the snapshot places every character in one, and the battle takes
+        // him out of it (below).
+        formationId: hero ? null : character.formationId,
         roleId: character.roleId,
-        kindId: m2UnitKindForFormation(character.formationId),
+        kindId,
+        hero,
+        armor: hero ? hero.armor : 0,
         combatProfileId: character.combatProfileId,
-        isPlayer: character.characterId === snapshot.playerCharacterId,
+        isPlayer,
         position: { x: character.spawn.x, y: 0, z: character.spawn.z },
         previousPosition: { x: character.spawn.x, y: 0, z: character.spawn.z },
         heading: character.spawn.heading,
@@ -73,12 +82,16 @@ export class M2BattleState {
         routeReasonId: null,
         routeTarget: null,
         revision: 0,
-        slotTarget: { x: character.spawn.x, z: character.spawn.z }
+        // The hero goes where he is steered and stays where he stops: he has no place in a line.
+        slotTarget: hero ? null : { x: character.spawn.x, z: character.spawn.z }
       });
     }
 
     for (const source of snapshot.formations) {
-      const livingMorales = source.memberUnitIds
+      // Without the hero: if he led this formation, the next man (by id) leads it.
+      const memberUnitIds = source.memberUnitIds.filter((unitId) => unitId !== snapshot.playerCharacterId);
+      const commanderUnitId = source.commanderUnitId === snapshot.playerCharacterId ? ([...memberUnitIds].sort()[0] ?? null) : source.commanderUnitId;
+      const livingMorales = memberUnitIds
         .map((unitId) => this.#units.get(unitId))
         .filter((unit) => isM2UnitAlive(unit))
         .map((unit) => unit.morale);
@@ -88,8 +101,8 @@ export class M2BattleState {
       this.#formations.set(source.formationId, {
         formationId: source.formationId,
         sideId: source.sideId,
-        commanderUnitId: source.commanderUnitId,
-        memberUnitIds: [...source.memberUnitIds],
+        commanderUnitId,
+        memberUnitIds,
         anchor: { x: source.anchor.x, z: source.anchor.z },
         facing: source.facing,
         formationTypeId: source.formationTypeId,
@@ -164,7 +177,8 @@ export class M2BattleState {
     this.#appliedDamageEventIds.add(event.damageEventId);
     const target = this.#units.get(event.targetUnitId);
     if (!isM2UnitActive(target)) return { applied: false, idempotent: false, damage: 0 };
-    const damage = Math.max(0, Math.round(Number(event.damage) || 0));
+    // Armor (the hero's, for now) takes its share of the blow (M2_HeroLoadout.js).
+    const damage = Math.max(0, Math.round(damageThroughArmor(Number(event.damage) || 0, target.armor || 0)));
     const before = target.hp;
     target.hp = Math.max(0, Math.min(target.maxHp, target.hp - damage));
     const applied = before - target.hp;
@@ -208,6 +222,8 @@ export class M2BattleState {
         formationId: unit.formationId,
         kindId: unit.kindId,
         isPlayer: unit.isPlayer,
+        hero: unit.hero,
+        armor: unit.armor,
         position: clone(unit.position),
         previousPosition: clone(unit.previousPosition),
         heading: unit.heading,

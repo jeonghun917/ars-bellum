@@ -3160,6 +3160,42 @@
       "title": "a beaten side breaks and runs before it is wiped out, and the battle ends in a retreat",
       "kind": "unit",
       "source": "tests/unit/m2-morale.test.mjs"
+    },
+    {
+      "id": "m2.hero.own-man",
+      "title": "the hero belongs to no formation: the line gets another leader and its orders do not move him",
+      "kind": "unit",
+      "source": "tests/unit/m2-hero.test.mjs"
+    },
+    {
+      "id": "m2.hero.skills-and-gear",
+      "title": "skill and equipment set the hero's blow, reach, armor, block, bow and pace",
+      "kind": "unit",
+      "source": "tests/unit/m2-hero.test.mjs"
+    },
+    {
+      "id": "m2.hero.fights-as-equipped",
+      "title": "in battle the hero strikes with his weapon, wears his armor, and has no bow if he carries none",
+      "kind": "unit",
+      "source": "tests/unit/m2-hero.test.mjs"
+    },
+    {
+      "id": "m2.hero.mounted",
+      "title": "a hero on a horse rides as fast as a horseman and charges at the end of a run-up",
+      "kind": "unit",
+      "source": "tests/unit/m2-hero.test.mjs"
+    },
+    {
+      "id": "m2.hero.army-retreat",
+      "title": "when the whole army withdraws the hero goes with it: the battle ends as a retreat",
+      "kind": "unit",
+      "source": "tests/unit/m2-hero.test.mjs"
+    },
+    {
+      "id": "m2.hero.default-sheet",
+      "title": "without a sheet the hero carries spear, shield, bow and mail",
+      "kind": "unit",
+      "source": "tests/unit/m2-hero.test.mjs"
     }
   ]
 }

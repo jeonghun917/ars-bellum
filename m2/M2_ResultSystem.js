@@ -19,8 +19,10 @@ function canonicalSerialize(value) {
 }
 function fnv1a32(text) { let hash = 0x811c9dc5; for (const byte of new TextEncoder().encode(text)) { hash ^= byte; hash = Math.imul(hash, 0x01000193); } return `fnv1a32:${(hash >>> 0).toString(16).padStart(8, "0")}`; }
 function hashCanonical(value) { return fnv1a32(canonicalSerialize(value)); }
+// A side has withdrawn when all its living soldiers are past its edge. The player's hero (M2_HeroLoadout.js)
+// belongs to no formation and leads the whole army: when his army has gone, he has withdrawn with it.
 function sideRetreatComplete(battleState, sideId) {
-  const living = battleState.getUnitIdsStable().map((id) => battleState.getUnit(id)).filter((unit) => unit.sideId === sideId && isM2UnitAlive(unit));
+  const living = battleState.getUnitIdsStable().map((id) => battleState.getUnit(id)).filter((unit) => unit.sideId === sideId && isM2UnitAlive(unit) && !unit.hero);
   if (!living.length) return false;
   return sideId === "ally" ? living.every((unit) => unit.position.z >= M2_MORALE_DEFINITION.retreatEdgeZ) : living.every((unit) => unit.position.z <= -M2_MORALE_DEFINITION.retreatEdgeZ);
 }

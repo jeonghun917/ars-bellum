@@ -65,7 +65,8 @@ function damageAfterBlock(target, attackerPosition, baseDamage) {
   if (!inFacingArc(target.heading, incomingX, incomingZ, M2_BLOCK_DEFINITION.frontArcDegrees)) {
     return Math.max(0, Math.round(baseDamage));
   }
-  return Math.max(0, Math.round(baseDamage * M2_BLOCK_DEFINITION.damageMultiplier));
+  // The hero blocks as well as his shield (or weapon) allows (M2_HeroLoadout.js).
+  return Math.max(0, Math.round(baseDamage * (target.hero?.blockMultiplier ?? M2_BLOCK_DEFINITION.damageMultiplier)));
 }
 
 function freezeDeep(value) {
@@ -75,15 +76,19 @@ function freezeDeep(value) {
   return value;
 }
 
+// The hero's weapon reaches as far as it is long (a spear further than a sword).
+const reachOf = (actor) => actor.hero?.melee.reach ?? M2_MELEE_DEFINITION.range;
+
 function collectMeleeCandidateFacts(battleState, spatialGrid, actor, aimHeading) {
   const candidates = [];
-  for (const unitId of spatialGrid.queryNearby(actor.position.x, actor.position.z, M2_MELEE_DEFINITION.range)) {
+  const reach = reachOf(actor);
+  for (const unitId of spatialGrid.queryNearby(actor.position.x, actor.position.z, reach)) {
     const target = battleState.getUnit(unitId);
     if (!isM2UnitActive(target) || target.sideId === actor.sideId || target.unitId === actor.unitId) continue;
     const dx = target.position.x - actor.position.x;
     const dz = target.position.z - actor.position.z;
     const distance = Math.hypot(dx, dz);
-    if (distance > M2_MELEE_DEFINITION.range) continue;
+    if (distance > reach) continue;
     if (!inFacingArc(aimHeading, dx, dz, M2_MELEE_DEFINITION.facingArcDegrees)) continue;
     candidates.push({ unitId: target.unitId, distance });
   }
@@ -137,17 +142,25 @@ function collectProjectileStepFacts(battleState, spatialGrid, projectile, deltaS
   };
 }
 
+// The hero's bow or crossbow (M2_HeroLoadout.js); without a sheet, the test bow.
+function rangedOf(actor) {
+  if (!actor.hero) return { damage: M2_BOW_DEFINITION.baseDamage, reloadTicks: M2_BOW_DEFINITION.cooldownTicks, speed: M2_PROJECTILE_DEFINITION.speed, range: M2_PROJECTILE_DEFINITION.maxRange };
+  return actor.hero.ranged;
+}
+
 function potentialBowProjectile(battleState, command) {
   const actor = battleState.getUnit(command.actorUnitId);
   if (!actor || !actor.isPlayer || !isM2UnitActive(actor)) return null;
+  const ranged = rangedOf(actor);
+  if (!ranged) return null;
   return {
     projectileId: `projectile:${command.commandId}`,
     ownerUnitId: actor.unitId,
     sideId: actor.sideId,
     position: { x: actor.position.x, y: 1.25, z: actor.position.z },
     direction: { x: Math.sin(command.aimHeading), z: Math.cos(command.aimHeading) },
-    speed: M2_PROJECTILE_DEFINITION.speed,
-    remainingRange: M2_PROJECTILE_DEFINITION.maxRange
+    speed: ranged.speed,
+    remainingRange: ranged.range
   };
 }
 
@@ -322,13 +335,19 @@ export class M2CombatSystem {
       // A swing costs its cooldown whether or not it reaches anyone (owner decision 2026-10-28),
       // the same as the bow; otherwise tapping attack out of reach could be repeated every tick.
       actor.heading = command.aimHeading;
-      actor.attackCooldownTicks = M2_MELEE_DEFINITION.cooldownTicks;
+      actor.attackCooldownTicks = actor.hero?.melee.cooldownTicks ?? M2_MELEE_DEFINITION.cooldownTicks;
       actor.state = "attacking";
       actor.revision += 1;
       const targetId = byCommandId.get(command.commandId)?.selectedTargetUnitId || null;
       const target = targetId ? battleState.getUnit(targetId) : null;
+      // A mounted hero at the end of a run-up charges, as a horseman does (M2_UnitKinds.js).
+      const horse = m2UnitKind("cavalry");
+      const charging = Boolean(actor.hero?.mounted) && actor.chargeRunTicks >= horse.chargeRunTicks;
+      if (actor.hero?.mounted) actor.chargeRunTicks = 0;
       if (!isM2UnitActive(target) || target.sideId === actor.sideId) continue;
-      const damage = damageAfterBlock(target, actor.position, M2_MELEE_DEFINITION.baseDamage);
+      const base = (actor.hero?.melee.damage ?? M2_MELEE_DEFINITION.baseDamage) * (charging ? horse.chargeScale : 1);
+      if (charging) this.#chargeHitCount += 1;
+      const damage = damageAfterBlock(target, actor.position, base);
       damageEvents.push({
         damageEventId: `melee:${command.commandId}:${target.unitId}`,
         sourceUnitId: actor.unitId,
@@ -344,6 +363,9 @@ export class M2CombatSystem {
       if (command.type !== "player_bow_fire") continue;
       const actor = battleState.getUnit(command.actorUnitId);
       if (!actor || !actor.isPlayer || !isM2UnitActive(actor) || actor.attackCooldownTicks !== 0) continue;
+      // No bow, no shot (and no cooldown spent).
+      const ranged = rangedOf(actor);
+      if (!ranged) continue;
       if (battleState.projectileCount >= M2_PROJECTILE_DEFINITION.maxActive) {
         this.#projectileOverflowCount += 1;
         continue;
@@ -361,13 +383,13 @@ export class M2CombatSystem {
         position: { x: actor.position.x, y: 1.25, z: actor.position.z },
         previousPosition: { x: actor.position.x, y: 1.25, z: actor.position.z },
         direction,
-        speed: M2_PROJECTILE_DEFINITION.speed,
-        remainingRange: M2_PROJECTILE_DEFINITION.maxRange,
-        damage: M2_BOW_DEFINITION.baseDamage,
+        speed: ranged.speed,
+        remainingRange: ranged.range,
+        damage: ranged.damage,
         revision: 0
       };
       if (battleState.addProjectile(projectile)) {
-        actor.attackCooldownTicks = M2_BOW_DEFINITION.cooldownTicks;
+        actor.attackCooldownTicks = ranged.reloadTicks;
         actor.heading = command.aimHeading;
         actor.state = "attacking";
         actor.revision += 1;
