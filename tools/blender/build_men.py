@@ -2594,7 +2594,7 @@ def javelins(mats, count=3, length=1.15):
 def great_helm(head_top, radius, mat, dark):
     """A great helm: a flat-topped barrel over the whole head, an eye slit and breaths, a cross on the face.
     head_top is the brow's centre; it closes over the coif and the nasal helm (which is hidden under it)."""
-    r = radius * 1.07
+    r = radius * 1.03
     profile = [(r * 0.9, -0.13), (r * 0.97, -0.08), (r * 1.0, 0.0), (r, 0.08), (r * 0.94, 0.12), (r * 0.6, 0.135), (0.01, 0.14)]
     bm = lathe(profile, 20)
     bmesh.ops.contextual_create(bm, geom=[v for v in bm.verts if v.co.z > 0.139])
@@ -2909,7 +2909,7 @@ def infantry(zf, f):
         return o
     leather_coat = like_mail("gear_armor_leather", mats["leather"])
     plate = [like_mail("gear_armor_plate", mats["steel"]),
-             surface_layer(body, "gear_armor_plate_greaves", lambda i: dom[i] in LEG_BONES and 0.14 < body.data.vertices[i].co.z < knee_z - 0.16,
+             surface_layer(body, "gear_armor_plate_greaves", lambda i: dom[i] in LEG_BONES and 0.2 < body.data.vertices[i].co.z < knee_z - 0.16,
                            lambda co: 0.012, mats["steel"], decimate=0.25, smoothing=1)]
     box_uvs(plate[1], 0.25)
     # The horse's barrel under a mounted man (test and cloth only, removed before export): what his skirt
