@@ -751,9 +751,14 @@
         "tools/blender/check_soldier.py",
         "tools/blender/makehuman_data.py",
         "tools/blender/slim_glb.py",
+        "tools/blender/build_horse.py",
+        "tools/blender/horse_data.py",
         "m2/M2_SoldierModels.js",
         "assets/models/infantry_ally.glb",
-        "assets/models/infantry_enemy.glb"
+        "assets/models/infantry_enemy.glb",
+        "assets/models/horse_ally.glb",
+        "assets/models/horse_enemy.glb",
+        "assets/models/CREDITS.md"
       ],
       "validators": [
         {
@@ -785,6 +790,13 @@
           "risk": "MakeHuman 데이터는 빌드 때 extensions.blender.org에서 받아 SHA-256으로 확인한다. 그 주소는 2026-10-31부터 404라, 같은 파일을 이 저장소의 가지 ccr-3692cb93-6pjzuu-mpfb에 두고 주소가 실패하면 거기서 받는다(makehuman_data.py). 그 가지를 지우면 다시 만들 수 없다",
           "trigger": "모델을 다시 만들 때 내려받기 실패나 지문 불일치",
           "preWriteRule": "고정된 지문을 바꾸지 말고, 데이터 가지(ccr-3692cb93-6pjzuu-mpfb)를 지우지 않는다. 둘 다 안 되면 같은 판(2.0.18)을 구하거나 사용자에게 묻는다. MPFB 코드는 실행하지 않는다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        },
+        {
+          "id": "models-05",
+          "risk": "기병의 말(horse_*.glb)은 Ayan의 \"Animated Rigged Horse With Saddle\"(Sketchfab, CC BY 4.0)로 만든다. 저작자 표시가 조건이라 assets/models/CREDITS.md와 모델 안(뼈대 노드의 credit)에 이름을 적었고, 게임 크레딧에도 넣어야 한다. 원본은 저장소 가지 ccr-3692cb93-6pjzuu-horse-src에 지문(SHA-256)과 함께 둔다",
+          "trigger": "말 모델을 바꾸거나 크레딧 화면을 만들 때, 또는 원본 가지를 정리할 때",
+          "preWriteRule": "원본 가지를 지우지 않고, CREDITS.md와 credit 값을 빼지 않는다. 원본의 .blend는 스크립트를 끈 채로만 연다",
           "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
         },
         {

@@ -166,7 +166,7 @@ def slim(doc, blob):
             values = accessor(doc, blob, s["output"])
             interp = s.get("interpolation", "LINEAR")
             if path not in REST or interp not in ("LINEAR", "STEP"):
-                channels.append((ch["target"], interp, times, values, None))
+                channels.append((ch["target"], interp, times, values, (times, values)))   # (kept as it is)
                 continue
             node = nodes[ch["target"]["node"]]
             kept = slim_channel(times, values, interp, path, node.get(path, REST[path]))
