@@ -135,6 +135,12 @@
           "files": [
             "m2/M2_RendererThree.js"
           ]
+        },
+        {
+          "text": "m2UnitKindForFormation strips a trailing _<number> from the formation id before looking up its kind (\"ally_loose_2\" is crossbow like \"ally_loose\"). Large-battle formation ids must keep a base id from the kind table plus _N; a new formation name that ends in digits silently gets the base name's kind, or infantry if the base is unknown."
+        },
+        {
+          "text": "buildScaleSnapshot lays out a fixed field for 20 to 100 a side; the lines are placed so everyone stands inside the 18 m retreat edge. More than 100 a side would start men past the edges, so m2_prototype.html?scale=N ignores values outside 20 to 100 and opens the normal 20-a-side fixture. The 100-a-side battle measured about 690–790 draw calls and 0.8–1.2 million triangles (software rendering), because every soldier is drawn separately."
         }
       ]
     },
@@ -196,7 +202,8 @@
       "id": "src",
       "title": "Composition root: main.js picks browser storage and the battle starter and passes them to mountApp",
       "files": [
-        "src/main.js"
+        "src/main.js",
+        "src/battle3d/**"
       ],
       "checks": [
         {
@@ -516,6 +523,9 @@
           "files": [
             "tools/blender/build_men.py"
           ]
+        },
+        {
+          "text": "m2_scale_bench.mjs re-runs M2BattleRuntime's fixed-tick systems in a hand-copied order, timing each phase. If the runtime's tick gains, drops or reorders a system, the bench no longer measures the real tick until it is updated. It writes to test-results/ by default and is not part of npm test; m2_scale_render.mjs needs Playwright Chromium and draws in software (SwiftShader) when there is no GPU."
         }
       ]
     },
