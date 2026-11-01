@@ -83,8 +83,10 @@ test.describe('3D battle', () => {
   });
 
   test('[m2.render.cavalry] the horsemen ride drawn horses that gallop with them when they charge', async ({ page }) => {
-    // 7 horsemen a side, each on a horse standing at the start.
-    await expect.poll(async () => (await diagnostics(page)).horseAnimations?.idle || 0).toBe(14);
+    // 7 horsemen a side, each on a drawn horse (whatever its gait: at the start some are still settling into
+    // place, the enemy column's starting places crossing its line; in CI frames come slowly, so the wait is long).
+    const horses = (g) => Object.values(g.horseAnimations || {}).reduce((sum, n) => sum + n, 0);
+    await expect.poll(async () => horses(await diagnostics(page)), { timeout: 30_000 }).toBe(14);
     const receipt = await page.evaluate(() => window.ArsM2Battle.issueCommand({
       commandId: 'charge', type: 'formation_attack', formationId: 'ally_column', targetFormationId: 'enemy_line' }));
     expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
@@ -408,12 +410,17 @@ test.describe('3D battle', () => {
   });
 
   test('[m2.lifecycle.restart-after-result] restart after a result clears it on the same canvas', async ({ page }) => {
+    // A battle fought to its end, then a restart that loads it again (the soldier models drawn afresh): in CI,
+    // drawing in software, that alone can take most of a minute.
+    test.setTimeout(150_000);
     await finishByRetreat(page);
     const listeners = (await diagnostics(page)).inputListenerCount;
     await page.evaluate(() => { window.__canvas = document.getElementById('m2Canvas'); });
     await page.click('#m2Restart');
     await page.waitForFunction(() => window.ArsM2Battle.getResult() === null && window.ArsM2Battle.getSnapshot()?.totalUnits === 40);
-    await waitTicks(page, 1);
+    // It ticks again (the first tick after the reload waits for its first frame).
+    const before = (await diagnostics(page)).fixedTickCount;
+    await expect.poll(async () => (await diagnostics(page)).fixedTickCount, { timeout: 60_000 }).toBeGreaterThan(before);
     expect(await page.evaluate(() => document.getElementById('m2Canvas') === window.__canvas)).toBe(true);
     expect((await diagnostics(page)).inputListenerCount).toBe(listeners);
   });

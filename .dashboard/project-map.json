@@ -685,6 +685,7 @@
         "tests/unit/m2-tactics.test.mjs",
         "tests/unit/m2-plans.test.mjs",
         "tests/unit/m2-subtypes.test.mjs",
+        "tests/unit/m2-scale.test.mjs",
         "tests/unit/m2-sim-helpers.mjs",
         "tests/unit/ui-helpers.mjs",
         "playwright.config.mjs",
@@ -854,6 +855,47 @@
           "trigger": "전투 스냅샷의 대형 이름이나 구성을 바꿀 때",
           "preWriteRule": "M2_UnitKinds.js의 대형-병종 표를 함께 고치고, 스냅샷에 병종 칸이 생기면 그쪽으로 옮긴다",
           "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        }
+      ]
+    },
+    {
+      "id": "bellum-battle3d-scale",
+      "title": "3D 전투 큰 규모 측정(100 대 100)",
+      "owner": "m2/fixtures/m2_scale_fixture.js가 한쪽 20~100명의 큰 전투 배치를 만들고(m2_prototype.html?scale=N), tools/m2_scale_bench.mjs가 그리지 않고 계산만 단계별로 재며, tools/m2_scale_render.mjs가 브라우저에서 그리기를 잰다. 결과와 보고서는 docs/m2-scale에 둔다(사용자 휴대폰 확인 포함). 측정을 다시 하는 세션이 결과 파일과 보고서를 함께 고친다",
+      "files": [
+        "m2/fixtures/m2_scale_fixture.js",
+        "tools/m2_scale_bench.mjs",
+        "tools/m2_scale_render.mjs",
+        "docs/m2-scale/README.md",
+        "docs/m2-scale/sim-100v100.json",
+        "docs/m2-scale/sim-20v20.json",
+        "docs/m2-scale/owner-phone.json",
+        "docs/m2-scale/render-100v100-partial.json"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/m2-scale.test.mjs",
+          "kind": "TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "scale-01",
+          "risk": "배치는 한쪽 100명까지만 후퇴선(z=±18) 안에 들어간다. 더 늘리면 시작부터 일부가 후퇴선 밖에 서서 전투가 바로 끝날 수 있다",
+          "trigger": "buildScaleSnapshot의 인원·간격·배치를 바꿀 때",
+          "preWriteRule": "tests/unit/m2-scale.test.mjs(모두 경기장 안)를 함께 고치고 돌린다",
+          "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
+        },
+        {
+          "id": "scale-02",
+          "risk": "이 서버의 그리기 측정은 그래픽 장치 없는 소프트웨어(SwiftShader)라 휴대폰 성능을 말해 주지 않는다. 휴대폰 판단은 사용자 확인(owner-phone.json)이 근거다",
+          "trigger": "그리기 성능으로 결정을 내릴 때",
+          "preWriteRule": "소프트웨어 숫자를 휴대폰 숫자처럼 보고하지 않고, 필요하면 사용자에게 ?scale=100&debug로 확인을 부탁한다",
+          "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
         }
       ]
     },
