@@ -8,8 +8,8 @@
 // mail and a horse, in place of the equipment the battle does not carry yet; a 20-v-20 fight lasts about two
 // minutes. Each soldier is a circle of radius (m) on the field that others cannot enter; mass says who gives
 // way when two push. Every enemy body a soldier presses against slows him by crowdDrag of his speed, so a horse
-// shoves through a man or two but stops in a crowd three deep (the owner's season-2 design: cavalry that
-// hits a thick block is trapped).
+// breaks through a line one man deep but is held by a block two or more deep (the owner's season-2 design:
+// cavalry that hits a thick block is trapped).
 export const M2_UNIT_KINDS = Object.freeze({
   infantry: Object.freeze({
     id: "infantry",
