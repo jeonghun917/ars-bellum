@@ -1,4 +1,5 @@
 import { m2UnitKind, m2UnitKindForFormation } from "./M2_UnitKinds.js";
+import { plansFor } from "./M2_Plans.js";
 import { ordersFor } from "./M2_Orders.js";
 import { DEFAULT_HERO_SHEET, damageThroughArmor, heroCombat } from "./M2_HeroLoadout.js";
 import { DEFAULT_COMMANDER_SHEETS, commanderFromSheet } from "./M2_Commanders.js";
@@ -35,6 +36,8 @@ export class M2BattleState {
   #projectiles = new Map();
   #appliedDamageEventIds = new Set();
   #finalResult = null;
+  // Each side's battle plan (M2_Plans.js): { planId, startTick, stage }, or null.
+  #plans = { ally: null, enemy: null };
   #tick = 0;
 
   constructor(snapshot, combatProfiles) {
@@ -125,6 +128,10 @@ export class M2BattleState {
         // march has come (0: going round the side, 1: turning in on the rear).
         tactic: null,
         flankStage: 0,
+        // Under its side's battle plan (M2_Plans.js), and on which side a plan sends it round (1 right, -1
+        // left, null: the nearer).
+        underPlan: false,
+        flankSide: null,
         cohesion: 100,
         morale,
         revision: 0
@@ -160,6 +167,8 @@ export class M2BattleState {
   getUnit(unitId) { return this.#units.get(unitId) || null; }
   getProjectile(projectileId) { return this.#projectiles.get(projectileId) || null; }
   getResult() { return this.#finalResult; }
+  getPlan(sideId) { return this.#plans[sideId] || null; }
+  setPlan(sideId, plan) { this.#plans[sideId] = plan; }
 
   getUnitIdsStable() { return [...this.#units.keys()].sort(); }
   getFormationIdsStable() { return [...this.#formations.keys()].sort(); }
@@ -282,6 +291,7 @@ export class M2BattleState {
         formationTypeId: formation.formationTypeId,
         command: formation.command,
         tactic: formation.tactic,
+        underPlan: formation.underPlan,
         tactics: ordersFor(formation),
         spacing: formation.spacing,
         order: clone(formation.order),
@@ -313,7 +323,9 @@ export class M2BattleState {
       battleResultOutcome: this.#finalResult?.outcome || null,
       units,
       formations,
-      projectiles
+      projectiles,
+      plans: { ally: this.#plans.ally ? clone(this.#plans.ally) : null, enemy: this.#plans.enemy ? clone(this.#plans.enemy) : null },
+      plansAvailable: { ally: plansFor(this, "ally"), enemy: plansFor(this, "enemy") }
     });
   }
 }

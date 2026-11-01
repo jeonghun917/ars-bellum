@@ -1,4 +1,5 @@
 import { M2_CONFIG, m2Receipt } from "./M2_Config.js";
+import { M2PlanSystem, setPlan } from "./M2_Plans.js";
 import { validateBattleLaunchSnapshot } from "./M2_BattleSnapshot.js";
 import { M2BattleState, isM2UnitAlive } from "./M2_BattleState.js";
 import { M2CommandQueue } from "./M2_CommandQueue.js";
@@ -28,6 +29,7 @@ export class M2BattleRuntime {
   #resultSystem = new M2ResultSystem();
   #enemyAI = new M2EnemyAI();
   #collisionSystem = new M2CollisionSystem();
+  #planSystem = new M2PlanSystem();
   #renderSnapshot = null;
   #cameraController = null;
   #inputController = null;
@@ -160,7 +162,10 @@ export class M2BattleRuntime {
     const commands = drained.commands;
 
     for (const command of commands) if (command.type.startsWith("formation_")) this.#formationSystem.applyCommand(this.#battleState, command);
+    for (const command of commands) if (command.type === "army_set_plan") setPlan(this.#battleState, command.sideId, command.planId, processingTick);
     this.#enemyAI.step(this.#battleState, processingTick);
+    // Battle plans give their formations orders after the enemy commander has had his say (M2_Plans.js).
+    this.#planSystem.step(this.#battleState, processingTick);
     this.#formationSystem.updateAttackGoals(this.#battleState);
     this.#formationSystem.updateSlots(this.#battleState);
 

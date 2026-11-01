@@ -271,6 +271,12 @@
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.orders.plan",
+      "title": "the plan list offers the battle plans the army can use, and choosing one puts it to work",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
       "id": "m2.orders.formation-shape",
       "title": "line, column and loose buttons change the formation shape",
       "kind": "browser",
@@ -3334,6 +3340,66 @@
       "title": "the enemy commander shapes and orders his formations as the moment calls for",
       "kind": "unit",
       "source": "tests/unit/m2-tactics.test.mjs"
+    },
+    {
+      "id": "m2.plan.available",
+      "title": "a side can use frontal push, and two plans for each of its best commander's tactic slots, of those its kinds allow",
+      "kind": "unit",
+      "source": "tests/unit/m2-plans.test.mjs"
+    },
+    {
+      "id": "m2.plan.anvil-hammer",
+      "title": "the foot attack the enemy's nearest formation; the horse go round and strike it from behind",
+      "kind": "unit",
+      "source": "tests/unit/m2-plans.test.mjs"
+    },
+    {
+      "id": "m2.plan.shoot-then-charge",
+      "title": "the foot wait in a shield wall while the crossbows shoot, and charge once the target has lost a third",
+      "kind": "unit",
+      "source": "tests/unit/m2-plans.test.mjs"
+    },
+    {
+      "id": "m2.plan.screen-archers",
+      "title": "the horse keep by the crossbows and charge whatever comes within 10 m of them",
+      "kind": "unit",
+      "source": "tests/unit/m2-plans.test.mjs"
+    },
+    {
+      "id": "m2.plan.defend-counter",
+      "title": "the foot hold in a shield wall and the horse wait behind them, until the enemy is locked with the foot",
+      "kind": "unit",
+      "source": "tests/unit/m2-plans.test.mjs"
+    },
+    {
+      "id": "m2.plan.double-envelopment",
+      "title": "the foot take the front; two other formations go round it, one on each side",
+      "kind": "unit",
+      "source": "tests/unit/m2-plans.test.mjs"
+    },
+    {
+      "id": "m2.plan.feigned-retreat",
+      "title": "the horse ride in, fall back behind their own foot, and charge again",
+      "kind": "unit",
+      "source": "tests/unit/m2-plans.test.mjs"
+    },
+    {
+      "id": "m2.plan.by-hand",
+      "title": "a formation the player orders by hand leaves the plan; the others carry on",
+      "kind": "unit",
+      "source": "tests/unit/m2-plans.test.mjs"
+    },
+    {
+      "id": "m2.plan.enemy-picks",
+      "title": "the enemy commander picks the best plan his commanders know for what he has",
+      "kind": "unit",
+      "source": "tests/unit/m2-plans.test.mjs"
+    },
+    {
+      "id": "m2.plan.deterministic",
+      "title": "the same plans give the same battle",
+      "kind": "unit",
+      "source": "tests/unit/m2-plans.test.mjs"
     }
   ]
 }

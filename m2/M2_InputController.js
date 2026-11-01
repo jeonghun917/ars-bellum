@@ -1,3 +1,4 @@
+import { M2_PLANS } from "./M2_Plans.js";
 import { M2_ORDERS } from "./M2_Orders.js";
 function stopEvent(event) {
   event.preventDefault?.();
@@ -152,6 +153,22 @@ export class M2InputController {
     fill(this.#elements.friendlyFormation, friendly, this.#selectedFormationId);
     fill(this.#elements.enemyFormation, enemy, this.#selectedEnemyFormationId);
     this.#fillTactics(friendly.find((entry) => entry.formationId === this.#selectedFormationId));
+    this.#fillPlans(snapshot);
+  }
+
+  // The battle plans the player's side can use now (M2_Plans.js), and none.
+  #fillPlans(snapshot) {
+    const select = this.#elements.plan;
+    if (!select) return;
+    select.textContent = "";
+    const current = snapshot.plans?.ally?.planId || null;
+    for (const planId of [null, ...(snapshot.plansAvailable?.ally || [])]) {
+      const option = document.createElement("option");
+      option.value = planId || "";
+      option.textContent = planId ? M2_PLANS[planId].label : "없음";
+      option.selected = current === planId;
+      select.appendChild(option);
+    }
   }
 
   // The orders the selected formation can be given (M2_Orders.js), and none.
@@ -304,6 +321,9 @@ export class M2InputController {
     this.#listen(this.#elements.friendlyFormation, "change", (event) => {
       this.#selectedFormationId = event.target.value || null;
       this.refreshFormationLists();
+    });
+    this.#listen(this.#elements.plan, "change", (event) => {
+      this.#issue("army_set_plan", { planId: event.target.value || null });
     });
     this.#listen(this.#elements.tactic, "change", (event) => {
       if (this.#selectedFormationId) this.#issue("formation_set_tactic", { formationId: this.#selectedFormationId, tacticId: event.target.value || null });
