@@ -1,5 +1,6 @@
 import { isM2UnitActive, isM2UnitAlive } from "./M2_BattleState.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
+import { pursuitTarget } from "./M2_Pursuit.js";
 
 // Under a charge order (M2_Orders.js) against a formation, the nearest of its men still fighting.
 function chargeTarget(battleState, unit) {
@@ -101,9 +102,11 @@ export class M2MovementSystem {
       } else {
         // Stepping or riding back first (M2_Orders.js: a horseman wheeling away after a charge, a
         // crossbowman keeping his distance); then his place, or under a charge order the nearest enemy of the
-        // formation he is sent against.
+        // formation he is sent against, or, pursuing a broken formation, the nearest of its runners
+        // (M2_Pursuit.js; crossbowmen near enough to shoot at them).
         if (unit.withdrawTo && Math.hypot(unit.withdrawTo.x - unit.position.x, unit.withdrawTo.z - unit.position.z) <= 1) unit.withdrawTo = null;
-        const target = unit.withdrawTo || chargeTarget(battleState, unit) || unit.slotTarget || { x: unit.position.x, z: unit.position.z };
+        const chase = pursuitTarget(battleState, unit, m2UnitKind(unit).standOff || 0);
+        const target = unit.withdrawTo || chargeTarget(battleState, unit) || chase || unit.slotTarget || { x: unit.position.x, z: unit.position.z };
         dx = target.x - unit.position.x;
         dz = target.z - unit.position.z;
       }

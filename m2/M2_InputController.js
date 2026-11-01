@@ -153,6 +153,7 @@ export class M2InputController {
     fill(this.#elements.friendlyFormation, friendly, this.#selectedFormationId);
     fill(this.#elements.enemyFormation, enemy, this.#selectedEnemyFormationId);
     this.#fillTactics(friendly.find((entry) => entry.formationId === this.#selectedFormationId));
+    this.#showPursuit(friendly.find((entry) => entry.formationId === this.#selectedFormationId)?.pursuit);
     this.#fillPlans(snapshot);
   }
 
@@ -169,6 +170,14 @@ export class M2InputController {
       option.selected = current === planId;
       select.appendChild(option);
     }
+  }
+
+  // Whether the selected formation pursues an enemy it breaks (M2_Pursuit.js).
+  #showPursuit(pursue) {
+    const button = this.#elements.pursuit;
+    if (!button) return;
+    button.textContent = pursue ? "추격: 켬" : "추격: 끔";
+    button.setAttribute("aria-pressed", pursue ? "true" : "false");
   }
 
   // The orders the selected formation can be given (M2_Orders.js), and none.
@@ -303,6 +312,11 @@ export class M2InputController {
     });
     control(this.#elements.retreat, "pointerdown", () => {
       if (this.#selectedFormationId) this.#issue("formation_retreat", { formationId: this.#selectedFormationId });
+    });
+    control(this.#elements.pursuit, "pointerdown", () => {
+      if (!this.#selectedFormationId) return;
+      const pursue = this.#elements.pursuit.getAttribute("aria-pressed") !== "true";
+      if (this.#issue("formation_set_pursuit", { formationId: this.#selectedFormationId, pursue }).ok) this.#showPursuit(pursue);
     });
 
     for (const [element, formationTypeId] of [

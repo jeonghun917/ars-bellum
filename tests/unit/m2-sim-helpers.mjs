@@ -20,8 +20,10 @@ const DT = M2_CONFIG.fixedTickMs / 1000;
 
 // A battle with the enemy commander (M2_EnemyAI.js) when withAI is true, and the player's hero carrying
 // heroSheet (M2_HeroLoadout.js) and formations' commanders commanderSheets (M2_Commanders.js) when given.
-export function battle({ withAI = false, heroSheet = null, commanderSheets = null } = {}) {
+export function battle({ withAI = false, heroSheet = null, commanderSheets = null, formations = null } = {}) {
   const snapshot = { ...M2_TECHNICAL_SNAPSHOT, ...(heroSheet ? { heroSheet } : {}), ...(commanderSheets ? { commanderSheets } : {}) };
+  // formations ({ formationId: fields }): more fields for formations of the snapshot (pursuit...).
+  if (formations) snapshot.formations = snapshot.formations.map((f) => ({ ...f, ...(formations[f.formationId] || {}) }));
   const state = new M2BattleState(snapshot, createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES));
   const queue = new M2CommandQueue();
   queue.beginBattleEpoch();

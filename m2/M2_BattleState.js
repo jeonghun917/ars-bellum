@@ -118,6 +118,9 @@ export class M2BattleState {
         // Horses need more room than men on foot (M2_UnitKinds.js).
         spacing: source.spacing * m2UnitKind(m2UnitKindForFormation(source.formationId)).spacingScale,
         kindId: m2UnitKindForFormation(source.formationId),
+        // Whether it pursues an enemy it breaks (M2_Pursuit.js): as the snapshot says, else horse do and foot
+        // and crossbowmen do not (the owner, 2026-11-01).
+        pursuit: typeof source.pursuit === "boolean" ? source.pursuit : m2UnitKindForFormation(source.formationId) === "cavalry",
         order: {
           type: source.order || "hold",
           target: source.order === "move" && source.target ? { x: source.target.x, z: source.target.z } : null,
@@ -209,7 +212,8 @@ export class M2BattleState {
     }
     this.#appliedDamageEventIds.add(event.damageEventId);
     const target = this.#units.get(event.targetUnitId);
-    if (!isM2UnitActive(target)) return { applied: false, idempotent: false, damage: 0 };
+    // (A running man can be struck too, by those pursuing him: M2_Pursuit.js decides who may.)
+    if (!isM2UnitAlive(target)) return { applied: false, idempotent: false, damage: 0 };
     // Armor (the hero's, for now) takes its share of the blow (M2_HeroLoadout.js).
     const damage = Math.max(0, Math.round(damageThroughArmor(Number(event.damage) || 0, target.armor || 0)));
     const before = target.hp;
@@ -289,6 +293,7 @@ export class M2BattleState {
         anchor: clone(formation.anchor),
         facing: formation.facing,
         formationTypeId: formation.formationTypeId,
+        pursuit: formation.pursuit,
         command: formation.command,
         tactic: formation.tactic,
         underPlan: formation.underPlan,
