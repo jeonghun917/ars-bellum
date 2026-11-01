@@ -80,8 +80,9 @@ const FORMATION_KINDS = Object.freeze({
   enemy_column: "cavalry"
 });
 
+// (A larger battle numbers its formations: "ally_loose_2" carries crossbows as "ally_loose" does.)
 export function m2UnitKindForFormation(formationId) {
-  return FORMATION_KINDS[formationId] || "infantry";
+  return FORMATION_KINDS[String(formationId).replace(/_\d+$/, "")] || "infantry";
 }
 
 export function m2UnitKind(unitOrKindId) {

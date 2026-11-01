@@ -4,6 +4,12 @@ import { M2CameraController } from "./M2_CameraController.js";
 import { M2InputController } from "./M2_InputController.js";
 import { createCombatProfileCatalog, M2_COMBAT_PROFILE_CONTRACT } from "./M2_CombatProfiles.js";
 import { M2_TECHNICAL_COMBAT_PROFILES, M2_TECHNICAL_SNAPSHOT } from "./fixtures/m2_technical_fixture_v1.js";
+import { buildScaleSnapshot } from "./fixtures/m2_scale_fixture.js";
+
+// m2_prototype.html?scale=100: a battle of that many a side (20 to 100), to see how the battle copes on a
+// phone or any machine (the diagnostics panel, ?debug, shows its frame rate). Without it, the 20-a-side fixture.
+const SCALE = Number(new URLSearchParams(window.location.search).get("scale"));
+const LAUNCH_SNAPSHOT = Number.isInteger(SCALE) && SCALE >= 20 && SCALE <= 100 ? buildScaleSnapshot({ perSide: SCALE }) : M2_TECHNICAL_SNAPSHOT;
 import { useSoldierModels } from "./M2_RendererThree.js";
 import { loadSoldierModels } from "./M2_SoldierModels.js";
 
@@ -126,7 +132,7 @@ function destroyControllers() {
 function createRuntime() {
   diagnostics = new M2Diagnostics();
   runtime = new M2BattleRuntime({ canvas: elements.canvas, diagnostics, combatProfiles: profileCatalog });
-  const loaded = runtime.loadSnapshot(M2_TECHNICAL_SNAPSHOT);
+  const loaded = runtime.loadSnapshot(LAUNCH_SNAPSHOT);
   if (!loaded.ok) throw new Error(`${loaded.error}:${(loaded.issues || []).join("|")}`);
 
   cameraController = new M2CameraController();

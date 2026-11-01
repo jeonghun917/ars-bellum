@@ -1,0 +1,9 @@
+{
+  "format": "ars-bellum-m2-scale-owner-observation/v1",
+  "date": "2026-11-01",
+  "build": "ccr-3692cb93-6pjzuu-scale@135d372 (preview), m2_prototype.html?scale=100&debug",
+  "device": "the owner's phone (model not recorded)",
+  "measured": false,
+  "observation": "Only the first load stutters; after that it runs smoothly at 100 against 100. The controls are poor: to be reworked later (roadmap step 6, tactical-mode controls).",
+  "owner_words": "렉 처음 로딩만 걸리고 쾌적함. 근데 조작이 ㅈㄴ 쓰레기긴 하네 ㅋㅋㅋㅋ. 나중에 손보자 이건"
+}

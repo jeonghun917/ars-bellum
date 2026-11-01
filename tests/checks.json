@@ -3402,6 +3402,12 @@
       "source": "tests/unit/m2-plans.test.mjs"
     },
     {
+      "id": "m2.scale.fixture",
+      "title": "a 100-against-100 battle of the same kinds is a valid launch snapshot, everyone inside the field",
+      "kind": "unit",
+      "source": "tests/unit/m2-scale.test.mjs"
+    },
+    {
       "id": "battle3d.launch",
       "title": "the campaign's battle is the 3D fixture with the campaign's seed and the player's hero",
       "kind": "unit",

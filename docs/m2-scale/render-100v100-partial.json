@@ -1,0 +1,20 @@
+{
+  "format": "ars-bellum-m2-scale-render/v1",
+  "perSide": 100,
+  "build": "ccr-3692cb93-6pjzuu-scale@70eb5a4",
+  "completed": false,
+  "why_not_completed": "The helper session's background run was killed after 4 of 9 runs (no JSON written); the 20-a-side render run never started. Not rerun: in software graphics these numbers show where the cost is, not what a player sees, and the owner's phone result (owner-phone.json) is the one that answers the frame-rate question.",
+  "graphics": "ANGLE (Vulkan 1.3.0 SwiftShader Device Subzero): software, no GPU",
+  "cpu": "Intel Xeon @ 2.10GHz (Sapphire Rapids), 4 cores, KVM guest",
+  "runs": {
+    "approach": [
+      { "averageFps": 1.6, "medianFrameMs": 550, "p95FrameMs": 1116.5, "p99FrameMs": 2949.9, "maxDrawCalls": 792, "maxTriangles": 1182238, "peakHeapMb": 132.2, "droppedTicks": 0 },
+      { "averageFps": 1.5, "medianFrameMs": 600, "p95FrameMs": 1200, "p99FrameMs": 2366.5, "maxDrawCalls": 783, "maxTriangles": 1167930, "peakHeapMb": 133.9, "droppedTicks": 0 },
+      { "averageFps": 1.7, "medianFrameMs": 533.3, "p95FrameMs": 1083.4, "p99FrameMs": 1899.9, "maxDrawCalls": 792, "maxTriangles": 1182238, "peakHeapMb": 136, "droppedTicks": 0 }
+    ],
+    "overview": [
+      { "averageFps": 1.1, "medianFrameMs": 983.4, "p95FrameMs": 1900, "p99FrameMs": 3266.6, "maxDrawCalls": 687, "maxTriangles": 826710, "peakHeapMb": 124, "droppedTicks": 0 }
+    ],
+    "rout": "NOT_TESTED"
+  }
+}
