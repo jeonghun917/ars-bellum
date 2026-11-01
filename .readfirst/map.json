@@ -196,7 +196,8 @@
       "id": "src",
       "title": "Composition root: main.js picks browser storage and the battle starter and passes them to mountApp",
       "files": [
-        "src/main.js"
+        "src/main.js",
+        "src/battle3d/**"
       ],
       "checks": [
         {
