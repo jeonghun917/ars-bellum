@@ -1,5 +1,6 @@
 import { M2_FORMATION_ATTACK_DEFINITION, M2_MORALE_DEFINITION } from "./M2_Definitions.js";
 import { isM2UnitActive } from "./M2_BattleState.js";
+import { m2UnitKind } from "./M2_UnitKinds.js";
 
 function rotateLocal(localX, localZ, facing) {
   const rightX = Math.cos(facing);
@@ -90,11 +91,13 @@ export class M2FormationSystem {
       const dz = targetAnchor.z - formation.anchor.z;
       const distance = Math.hypot(dx, dz);
       if (distance > 0) formation.facing = Math.atan2(dx, dz);
-      if (distance > M2_FORMATION_ATTACK_DEFINITION.attackStopRange) {
+      // Crossbowmen stop at shooting distance; everyone else closes in.
+      const stopRange = m2UnitKind(formation.kindId).standOff ?? M2_FORMATION_ATTACK_DEFINITION.attackStopRange;
+      if (distance > stopRange) {
         const nx = dx / distance;
         const nz = dz / distance;
-        formation.anchor.x = targetAnchor.x - nx * M2_FORMATION_ATTACK_DEFINITION.attackStopRange;
-        formation.anchor.z = targetAnchor.z - nz * M2_FORMATION_ATTACK_DEFINITION.attackStopRange;
+        formation.anchor.x = targetAnchor.x - nx * stopRange;
+        formation.anchor.z = targetAnchor.z - nz * stopRange;
       }
       formation.revision += 1;
     });

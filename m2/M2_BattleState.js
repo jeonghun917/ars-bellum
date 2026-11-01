@@ -1,3 +1,5 @@
+import { m2UnitKind, m2UnitKindForFormation } from "./M2_UnitKinds.js";
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -46,6 +48,7 @@ export class M2BattleState {
         sideId: character.sideId,
         formationId: character.formationId,
         roleId: character.roleId,
+        kindId: m2UnitKindForFormation(character.formationId),
         combatProfileId: character.combatProfileId,
         isPlayer: character.characterId === snapshot.playerCharacterId,
         position: { x: character.spawn.x, y: 0, z: character.spawn.z },
@@ -60,6 +63,8 @@ export class M2BattleState {
         directMoveIntent: { x: 0, z: 0 },
         state: "idle",
         attackCooldownTicks: 0,
+        // Ticks in a row a horseman has ridden at charging speed without striking (M2_UnitKinds.js).
+        chargeRunTicks: 0,
         targetUnitId: null,
         routeReasonId: null,
         routeTarget: null,
@@ -84,7 +89,9 @@ export class M2BattleState {
         anchor: { x: source.anchor.x, z: source.anchor.z },
         facing: source.facing,
         formationTypeId: source.formationTypeId,
-        spacing: source.spacing,
+        // Horses need more room than men on foot (M2_UnitKinds.js).
+        spacing: source.spacing * m2UnitKind(m2UnitKindForFormation(source.formationId)).spacingScale,
+        kindId: m2UnitKindForFormation(source.formationId),
         order: {
           type: source.order || "hold",
           target: source.order === "move" && source.target ? { x: source.target.x, z: source.target.z } : null,
@@ -195,6 +202,7 @@ export class M2BattleState {
         unitId: unit.unitId,
         sideId: unit.sideId,
         formationId: unit.formationId,
+        kindId: unit.kindId,
         isPlayer: unit.isPlayer,
         position: clone(unit.position),
         previousPosition: clone(unit.previousPosition),

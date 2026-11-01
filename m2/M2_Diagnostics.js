@@ -18,6 +18,7 @@ export class M2Diagnostics {
   #renderedUnits = 0;
   #soldierModel = "none";
   #soldierAnimations = {};
+  #horseAnimations = {};
   #lastError = null;
   #cameraMode = "third_person";
   #inputContextRevision = 0;
@@ -28,6 +29,8 @@ export class M2Diagnostics {
   #activeProjectileCount = 0;
   #projectileHitCount = 0;
   #projectileOverflowCount = 0;
+  #crossbowLaunchCount = 0;
+  #chargeHitCount = 0;
   #moraleSummary = Object.freeze({ ally: 0, enemy: 0 });
   #routingCounts = Object.freeze({ ally: 0, enemy: 0, total: 0 });
   #battleResultOutcome = null;
@@ -54,6 +57,8 @@ export class M2Diagnostics {
     this.#activeProjectileCount = Math.max(0, observation.activeProjectileCount | 0);
     this.#projectileHitCount = Math.max(0, observation.projectileHitCount | 0);
     this.#projectileOverflowCount = Math.max(0, observation.projectileOverflowCount | 0);
+    this.#crossbowLaunchCount = Math.max(0, observation.crossbowLaunchCount | 0);
+    this.#chargeHitCount = Math.max(0, observation.chargeHitCount | 0);
   }
 
   setBattleObservation(renderSnapshot = {}) {
@@ -80,6 +85,7 @@ export class M2Diagnostics {
     this.#renderedUnits = Number(rendererInfo.renderedUnits || 0);
     this.#soldierModel = rendererInfo.soldierModel || "none";
     this.#soldierAnimations = Object.freeze({ ...(rendererInfo.soldierAnimations || {}) });
+    this.#horseAnimations = Object.freeze({ ...(rendererInfo.horseAnimations || {}) });
   }
 
   getSnapshot() {
@@ -98,6 +104,7 @@ export class M2Diagnostics {
       renderedUnits: this.#renderedUnits,
       soldierModel: this.#soldierModel,
       soldierAnimations: this.#soldierAnimations,
+      horseAnimations: this.#horseAnimations,
       animationOwner: "M2BattleRuntime",
       runtimeNetworkImport: false,
       persistenceAccess: false,
@@ -110,6 +117,8 @@ export class M2Diagnostics {
       activeProjectileCount: this.#activeProjectileCount,
       projectileHitCount: this.#projectileHitCount,
       projectileOverflowCount: this.#projectileOverflowCount,
+      crossbowLaunchCount: this.#crossbowLaunchCount,
+      chargeHitCount: this.#chargeHitCount,
       moraleSummary: this.#moraleSummary,
       routingCounts: this.#routingCounts,
       battleResultOutcome: this.#battleResultOutcome,

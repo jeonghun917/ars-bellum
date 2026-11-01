@@ -181,6 +181,18 @@
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.render.cavalry",
+      "title": "the horsemen ride drawn horses that gallop with them when they charge",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.render.crossbow",
+      "title": "crossbowmen ordered to attack shoot bolts by themselves",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
       "id": "m2.render.soldier-gait",
       "title": "soldiers crossing the field at full speed run, not walk",
       "kind": "browser",
@@ -2986,6 +2998,42 @@
       "id": "ui.battle.time-stops-during-battle",
       "title": "game time does not run while a battle is on and runs again afterwards",
       "kind": "browser"
+    },
+    {
+      "id": "m2.kinds.assigned",
+      "title": "each side has foot soldiers, crossbowmen (the loose formation) and horsemen (the column)",
+      "kind": "unit",
+      "source": "tests/unit/m2-unit-kinds.test.mjs"
+    },
+    {
+      "id": "m2.kinds.crossbow-volley",
+      "title": "crossbowmen ordered to attack keep their distance, shoot bolts that hit, and reload",
+      "kind": "unit",
+      "source": "tests/unit/m2-unit-kinds.test.mjs"
+    },
+    {
+      "id": "m2.kinds.crossbow-close-in",
+      "title": "crossbowmen ordered to attack a far enemy close only to shooting distance",
+      "kind": "unit",
+      "source": "tests/unit/m2-unit-kinds.test.mjs"
+    },
+    {
+      "id": "m2.kinds.crossbow-no-friendly-fire",
+      "title": "bolts pass their own side and only enemies are hurt",
+      "kind": "unit",
+      "source": "tests/unit/m2-unit-kinds.test.mjs"
+    },
+    {
+      "id": "m2.kinds.cavalry-charge",
+      "title": "horsemen ride faster than men on foot and a blow after a run-up is a charge, once per run-up",
+      "kind": "unit",
+      "source": "tests/unit/m2-unit-kinds.test.mjs"
+    },
+    {
+      "id": "m2.kinds.deterministic",
+      "title": "the same orders give the same battle, bolt for bolt",
+      "kind": "unit",
+      "source": "tests/unit/m2-unit-kinds.test.mjs"
     }
   ]
 }
