@@ -128,6 +128,22 @@ test.describe('3D battle', () => {
       .some(([clip, count]) => /^(s_)?low_/.test(clip) && count > 0), null, { timeout: 20_000 });
   });
 
+  test('[m2.ai.enemy-fights-back] once attacked, the enemy army is ordered into the fight and moves', async ({ page }) => {
+    // Left alone, the enemy holds.
+    await waitTicks(page, 25);
+    expect((await diagnostics(page)).enemyAwake).toBe(false);
+    expect((await snapshot(page)).formations.filter((f) => f.sideId === 'enemy').every((f) => f.order.type === 'hold')).toBe(true);
+    const receipt = await page.evaluate(() => window.ArsM2Battle.issueCommand({
+      commandId: 'provoke', type: 'formation_attack', formationId: 'ally_line', targetFormationId: 'enemy_line' }));
+    expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
+    await expect.poll(async () => (await diagnostics(page)).enemyAwake, { timeout: 20_000 }).toBe(true);
+    const enemies = (s) => s.units.filter((u) => u.sideId === 'enemy').map((u) => `${u.position.x.toFixed(2)},${u.position.z.toFixed(2)}`).join(';');
+    const s = await snapshot(page);
+    expect(s.formations.filter((f) => f.sideId === 'enemy').every((f) => f.order.type === 'attack_target')).toBe(true);
+    const before = enemies(s);
+    await expect.poll(async () => enemies(await snapshot(page)), { timeout: 20_000 }).not.toBe(before);
+  });
+
   test('[m2.camera.starts-third-person] the camera starts behind the player with input attached', async ({ page }) => {
     const g = await diagnostics(page);
     expect(g.cameraMode).toBe('third_person');

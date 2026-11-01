@@ -8,6 +8,7 @@ import { M2MovementSystem } from "./M2_MovementSystem.js";
 import { M2CombatSystem } from "./M2_CombatSystem.js";
 import { M2MoraleSystem } from "./M2_MoraleSystem.js";
 import { M2ResultSystem } from "./M2_ResultSystem.js";
+import { M2EnemyAI } from "./M2_EnemyAI.js";
 import { createRenderSnapshot } from "./M2_RenderSnapshot.js";
 import { M2RendererThree } from "./M2_RendererThree.js";
 
@@ -24,6 +25,7 @@ export class M2BattleRuntime {
   #combatSystem = new M2CombatSystem();
   #moraleSystem = new M2MoraleSystem();
   #resultSystem = new M2ResultSystem();
+  #enemyAI = new M2EnemyAI();
   #renderSnapshot = null;
   #cameraController = null;
   #inputController = null;
@@ -72,6 +74,8 @@ export class M2BattleRuntime {
 
     this.#launchSnapshot = validation.snapshot;
     this.#battleState = candidateState;
+    // A new battle: the enemy waits to be attacked again.
+    this.#enemyAI = new M2EnemyAI();
     this.#commandQueue.beginBattleEpoch();
     this.#renderSnapshot = candidateRenderSnapshot;
     this.#renderer.loadRenderSnapshot(this.#renderSnapshot, this.#combatProfiles);
@@ -153,6 +157,7 @@ export class M2BattleRuntime {
     const commands = drained.commands;
 
     for (const command of commands) if (command.type.startsWith("formation_")) this.#formationSystem.applyCommand(this.#battleState, command);
+    this.#enemyAI.step(this.#battleState, processingTick);
     this.#formationSystem.updateAttackGoals(this.#battleState);
     this.#formationSystem.updateSlots(this.#battleState);
 
@@ -193,7 +198,7 @@ export class M2BattleRuntime {
     }
 
     this.#renderSnapshot = createRenderSnapshot(this.#battleState, { tick: processingTick, selectedFormationId: this.#inputController?.selectedFormationId ?? null });
-    this.#diagnostics.setCombatObservation(this.#combatSystem.getObservation(this.#battleState));
+    this.#diagnostics.setCombatObservation({ ...this.#combatSystem.getObservation(this.#battleState), ...this.#enemyAI.getObservation() });
     this.#diagnostics.setBattleObservation(this.#renderSnapshot);
     this.#diagnostics.markTick(processingTick);
     this.#battleState.markTick(processingTick);

@@ -2,69 +2,9 @@
 // same systems in the same order as M2BattleRuntime's fixed tick.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { M2_CONFIG } from '../../m2/M2_Config.js';
-import { M2BattleState, isM2UnitActive, isM2UnitAlive } from '../../m2/M2_BattleState.js';
-import { M2CommandQueue } from '../../m2/M2_CommandQueue.js';
-import { M2FormationSystem } from '../../m2/M2_FormationSystem.js';
-import { M2MovementSystem } from '../../m2/M2_MovementSystem.js';
-import { M2CombatSystem } from '../../m2/M2_CombatSystem.js';
-import { M2SpatialGrid } from '../../m2/M2_SpatialGrid.js';
-import { M2MoraleSystem } from '../../m2/M2_MoraleSystem.js';
-import { createCombatProfileCatalog } from '../../m2/M2_CombatProfiles.js';
 import { M2_UNIT_KINDS } from '../../m2/M2_UnitKinds.js';
-import { M2_TECHNICAL_COMBAT_PROFILES, M2_TECHNICAL_SNAPSHOT } from '../../m2/fixtures/m2_technical_fixture_v1.js';
-
-const DT = M2_CONFIG.fixedTickMs / 1000;
-
-function battle() {
-  const state = new M2BattleState(M2_TECHNICAL_SNAPSHOT, createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES));
-  const queue = new M2CommandQueue();
-  queue.beginBattleEpoch();
-  const b = {
-    state, queue,
-    formation: new M2FormationSystem(),
-    movement: new M2MovementSystem({ maxSpeed: M2_CONFIG.unitMaxSpeed, arrivalEpsilon: M2_CONFIG.arrivalEpsilon }),
-    grid: new M2SpatialGrid(M2_CONFIG.spatialCellSize),
-    combat: new M2CombatSystem(),
-    morale: new M2MoraleSystem(),
-  };
-  b.formation.updateSlots(state);
-  state.forEachUnitStable((u) => { u.position.x = u.previousPosition.x = u.slotTarget.x; u.position.z = u.previousPosition.z = u.slotTarget.z; });
-  b.grid.rebuild(state);
-  return b;
-}
-
-function tick(b) {
-  const n = b.state.tick + 1;
-  const commands = b.queue.drain().commands;
-  for (const c of commands) if (c.type.startsWith('formation_')) b.formation.applyCommand(b.state, c);
-  b.formation.updateAttackGoals(b.state);
-  b.formation.updateSlots(b.state);
-  b.movement.step(b.state, DT);
-  b.grid.rebuild(b.state);
-  const plan = b.combat.prepareTick(b.state, b.grid, commands, DT, n);
-  const events = [];
-  b.combat.resolveBowLaunch(b.state, commands, n);
-  b.combat.resolveCrossbowVolleys(b.state, plan, n);
-  b.combat.resolveNonPlayerContactMelee(b.state, plan, events, n);
-  b.combat.progressProjectiles(b.state, plan, events);
-  const living = b.state.getUnitIdsStable().filter((id) => isM2UnitAlive(b.state.getUnit(id)));
-  b.combat.applyDamageEvents(b.state, events);
-  const lost = living.filter((id) => !isM2UnitAlive(b.state.getUnit(id))).map((id) => {
-    const u = b.state.getUnit(id);
-    return { unitId: id, sideId: u.sideId, formationId: u.formationId, position: { x: u.position.x, z: u.position.z } };
-  });
-  b.morale.step(b.state, { newlyLostThisTick: lost, commands, processingTick: n });
-  b.state.markTick(n);
-  return events;
-}
-
-const attack = (b, formationId, targetFormationId) => {
-  const receipt = b.queue.enqueue({ commandId: `attack_${formationId}`, type: 'formation_attack', formationId, targetFormationId }, b.state);
-  assert.equal(receipt.ok, true, JSON.stringify(receipt));
-};
-const members = (b, formationId) => b.state.getFormation(formationId).memberUnitIds.map((id) => b.state.getUnit(id));
-const hpOf = (b, side) => b.state.getUnitIdsStable().map((id) => b.state.getUnit(id)).filter((u) => u.sideId === side).reduce((s, u) => s + u.hp, 0);
+import { isM2UnitActive } from '../../m2/M2_BattleState.js';
+import { battle, tick, attack, members, hpOf } from './m2-sim-helpers.mjs';
 
 test('[m2.kinds.assigned] each side has foot soldiers, crossbowmen (the loose formation) and horsemen (the column)', () => {
   const b = battle();
@@ -94,12 +34,13 @@ test('[m2.kinds.crossbow-volley] crossbowmen ordered to attack keep their distan
     launches.push(b.combat.getObservation(b.state).crossbowLaunchCount);
   }
   const seen = b.combat.getObservation(b.state);
-  assert.ok(seen.crossbowLaunchCount >= 6 * 4, `launches ${seen.crossbowLaunchCount}`);
+  const allyBolts = b.bolts.filter((bolt) => bolt.sideId === 'ally').length;
+  assert.ok(allyBolts >= 6 * 4, `launches ${allyBolts}`);
   assert.ok(seen.projectileHitCount > 0, 'some bolts hit');
   assert.ok(hpOf(b, 'enemy') < before, 'the enemy is hurt');
   // Each crossbowman shoots at most once per reload.
   const shooter = members(b, 'ally_loose')[1];
-  assert.ok(seen.crossbowLaunchCount <= 6 * Math.ceil(400 / M2_UNIT_KINDS.crossbow.reloadTicks));
+  assert.ok(allyBolts <= 6 * Math.ceil(400 / M2_UNIT_KINDS.crossbow.reloadTicks));
   assert.ok(shooter.attackCooldownTicks <= M2_UNIT_KINDS.crossbow.reloadTicks);
   // Already within range at the start, they shoot from where they stand instead of closing to melee.
   const target = b.state.getFormation('enemy_line').anchor;
@@ -122,7 +63,6 @@ test('[m2.kinds.crossbow-close-in] crossbowmen ordered to attack a far enemy clo
 test('[m2.kinds.crossbow-no-friendly-fire] bolts pass their own side and only enemies are hurt', () => {
   const b = battle();
   attack(b, 'ally_loose', 'enemy_line');
-  const allyBefore = hpOf(b, 'ally');
   // An ally stands in the line of fire, halfway between a crossbowman and the enemy nearest him.
   const shooter = members(b, 'ally_loose')[1];
   const inTheWay = b.state.getUnit('m2_fixture_ally_02');
@@ -139,7 +79,8 @@ test('[m2.kinds.crossbow-no-friendly-fire] bolts pass their own side and only en
   }
   assert.ok(struck.length > 0, 'the crossbowman hit someone');
   assert.deepEqual([...new Set(struck)], ['enemy']);
-  assert.equal(hpOf(b, 'ally'), allyBefore);
+  // (The enemy crossbowmen shoot back at the attackers, so the allies do get hurt: but never by their own.)
+  assert.ok(b.events.every((e) => b.state.getUnit(e.sourceUnitId).sideId !== b.state.getUnit(e.targetUnitId).sideId));
 });
 
 test('[m2.kinds.cavalry-charge] horsemen ride faster than men on foot and a blow after a run-up is a charge, once per run-up', () => {

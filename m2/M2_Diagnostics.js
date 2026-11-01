@@ -31,6 +31,7 @@ export class M2Diagnostics {
   #projectileOverflowCount = 0;
   #crossbowLaunchCount = 0;
   #chargeHitCount = 0;
+  #enemyAwake = false;
   #moraleSummary = Object.freeze({ ally: 0, enemy: 0 });
   #routingCounts = Object.freeze({ ally: 0, enemy: 0, total: 0 });
   #battleResultOutcome = null;
@@ -59,6 +60,7 @@ export class M2Diagnostics {
     this.#projectileOverflowCount = Math.max(0, observation.projectileOverflowCount | 0);
     this.#crossbowLaunchCount = Math.max(0, observation.crossbowLaunchCount | 0);
     this.#chargeHitCount = Math.max(0, observation.chargeHitCount | 0);
+    this.#enemyAwake = observation.enemyAwake === true;
   }
 
   setBattleObservation(renderSnapshot = {}) {
@@ -119,6 +121,7 @@ export class M2Diagnostics {
       projectileOverflowCount: this.#projectileOverflowCount,
       crossbowLaunchCount: this.#crossbowLaunchCount,
       chargeHitCount: this.#chargeHitCount,
+      enemyAwake: this.#enemyAwake,
       moraleSummary: this.#moraleSummary,
       routingCounts: this.#routingCounts,
       battleResultOutcome: this.#battleResultOutcome,
