@@ -237,6 +237,21 @@ test.describe('3D battle', () => {
     expect((await formation(page, selected)).order.type).toBe('attack_target');
   });
 
+  test('[m2.orders.stance] the stance list offers the selected formation\'s stances, and choosing one sets it', async ({ page }) => {
+    await switchToTactical(page);
+    const selected = await page.inputValue('#m2FriendlyFormation');
+    const labels = await page.locator('#m2Stance option').allTextContents();
+    // An ordinary commander (tactics 30) can lead one stance: the line's is the shield wall.
+    expect(selected).toBe('ally_line');
+    expect(labels).toEqual(['없음', '방패진']);
+    await page.selectOption('#m2Stance', 'shield_wall');
+    await waitTicks(page, 1);
+    expect((await formation(page, selected)).stance).toBe('shield_wall');
+    await page.selectOption('#m2Stance', '');
+    await waitTicks(page, 1);
+    expect((await formation(page, selected)).stance).toBe(null);
+  });
+
   test('[m2.orders.formation-shape] line, column and loose buttons change the formation shape', async ({ page }) => {
     await switchToTactical(page);
     const selected = await page.inputValue('#m2FriendlyFormation');

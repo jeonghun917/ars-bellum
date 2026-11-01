@@ -70,6 +70,15 @@ export class M2FormationSystem {
       formation.order = { type: "attack_target", target: null, targetFormationId: command.targetFormationId, commandId: command.commandId };
     } else if (command.type === "formation_set_type") {
       formation.formationTypeId = command.formationTypeId;
+    } else if (command.type === "formation_set_stance") {
+      formation.stance = command.stanceId;
+      // Leaving the shield wall, the men lower their shields.
+      if (command.stanceId !== "shield_wall") {
+        for (const unitId of formation.memberUnitIds) {
+          const unit = battleState.getUnit(unitId);
+          if (unit && !unit.isPlayer) unit.blocking = false;
+        }
+      }
     } else if (command.type === "formation_rally") {
       formation.order = { type: "rally", target: null, targetFormationId: null, commandId: command.commandId };
     } else if (command.type === "formation_retreat") {

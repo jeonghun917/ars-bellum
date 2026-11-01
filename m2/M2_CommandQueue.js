@@ -1,4 +1,5 @@
 import { m2Receipt } from "./M2_Config.js";
+import { stancesFor } from "./M2_Stances.js";
 
 function validId(value) {
   return typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]*$/i.test(value);
@@ -42,6 +43,7 @@ const ALLOWED_TYPES = new Set([
   "formation_hold",
   "formation_attack",
   "formation_set_type",
+  "formation_set_stance",
   "formation_rally",
   "formation_retreat",
   "player_move",
@@ -100,6 +102,12 @@ export class M2CommandQueue {
           return m2Receipt(false, { error: "m2_command_invalid_formation_type", commandId: command.commandId });
         }
         normalized = { commandId: command.commandId, type: command.type, inputContextRevision, formationId: command.formationId, formationTypeId: command.formationTypeId };
+      } else if (command.type === "formation_set_stance") {
+        // A stance the formation can use (its kind's, as many as its commander's tactics allow), or none.
+        if (command.stanceId !== null && !stancesFor(source).includes(command.stanceId)) {
+          return m2Receipt(false, { error: "m2_command_stance_not_available", commandId: command.commandId });
+        }
+        normalized = { commandId: command.commandId, type: command.type, inputContextRevision, formationId: command.formationId, stanceId: command.stanceId };
       } else if (command.type === "formation_rally") {
         const routingLiving = source.memberUnitIds.some((unitId) => {
           const unit = battleState.getUnit(unitId);

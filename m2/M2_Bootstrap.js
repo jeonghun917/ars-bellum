@@ -31,6 +31,7 @@ const elements = {
   time1: document.getElementById("m2Time1"),
   friendlyFormation: document.getElementById("m2FriendlyFormation"),
   enemyFormation: document.getElementById("m2EnemyFormation"),
+  stance: document.getElementById("m2Stance"),
   virtualStick: document.getElementById("m2VirtualStick"),
   moraleAlly: document.getElementById("m2MoraleAlly"),
   moraleEnemy: document.getElementById("m2MoraleEnemy"),

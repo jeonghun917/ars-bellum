@@ -6,6 +6,7 @@ import {
 } from "./M2_Definitions.js";
 import { isM2UnitActive } from "./M2_BattleState.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
+import { M2_STANCES, stanceOf, unitStance } from "./M2_Stances.js";
 
 const TAU = Math.PI * 2;
 
@@ -66,7 +67,9 @@ function damageAfterBlock(target, attackerPosition, baseDamage) {
     return Math.max(0, Math.round(baseDamage));
   }
   // The hero blocks as well as his shield (or weapon) allows (M2_HeroLoadout.js).
-  return Math.max(0, Math.round(baseDamage * (target.hero?.blockMultiplier ?? M2_BLOCK_DEFINITION.damageMultiplier)));
+  // A man in a shield wall keeps out less than one braced alone behind his shield (M2_Stances.js).
+  const wall = target.hero ? null : (target.blockMultiplier ?? null);
+  return Math.max(0, Math.round(baseDamage * (target.hero?.blockMultiplier ?? wall ?? M2_BLOCK_DEFINITION.damageMultiplier)));
 }
 
 function freezeDeep(value) {
@@ -203,9 +206,17 @@ function fights(formation) {
   return Boolean(formation) && formation.order.type !== "withdraw";
 }
 
-function shootsCrossbow(battleState, unit) {
+// planning: in the plan (phase 5), a volley also waits for every man; when the shots are made (phase 6) the
+// plan has already decided, and the first shot must not hold back the rest.
+function shootsCrossbow(battleState, unit, { planning = true } = {}) {
   if (!isM2UnitActive(unit) || unit.isPlayer || unit.kindId !== "crossbow" || unit.attackCooldownTicks !== 0) return false;
-  return fights(battleState.getFormation(unit.formationId));
+  const formation = battleState.getFormation(unit.formationId);
+  if (!fights(formation)) return false;
+  // A volley waits until every man still fighting has spanned his crossbow (M2_Stances.js).
+  if (planning && stanceOf(formation)?.id === "volley") {
+    return battleState.getActiveFormationMemberIds(formation).every((id) => battleState.getUnit(id).attackCooldownTicks === 0);
+  }
+  return true;
 }
 
 export class M2CombatSystem {
@@ -239,6 +250,13 @@ export class M2CombatSystem {
       const chargeSpeed = m2UnitKind(unit).chargeSpeed;
       if (chargeSpeed > 0) {
         unit.chargeRunTicks = Math.hypot(unit.velocity.x, unit.velocity.z) >= chargeSpeed ? (unit.chargeRunTicks || 0) + 1 : 0;
+      }
+      // In a shield wall a man standing in his place keeps his shield up (M2_Stances.js); on the move he
+      // cannot.
+      if (!unit.isPlayer && unit.formationId) {
+        const wall = unitStance(battleState, unit);
+        unit.blocking = wall?.id === "shield_wall" && Math.hypot(unit.velocity.x, unit.velocity.z) <= wall.blockSpeed;
+        unit.blockMultiplier = unit.blocking ? wall.blockMultiplier : null;
       }
     });
 
@@ -403,7 +421,7 @@ export class M2CombatSystem {
   resolveCrossbowVolleys(battleState, candidatePlan, processingTick) {
     for (const shot of candidatePlan.crossbowShots || []) {
       const shooter = battleState.getUnit(shot.shooterUnitId);
-      if (!shootsCrossbow(battleState, shooter)) continue;
+      if (!shootsCrossbow(battleState, shooter, { planning: false })) continue;
       if (battleState.projectileCount >= M2_PROJECTILE_DEFINITION.maxActive) {
         this.#projectileOverflowCount += 1;
         continue;
@@ -422,7 +440,8 @@ export class M2CombatSystem {
         direction: { ...shot.projectile.direction },
         speed: kind.boltSpeed,
         remainingRange: kind.boltMaxRange,
-        damage: kind.boltDamage,
+        // A volley's bolts strike harder (M2_Stances.js).
+        damage: kind.boltDamage * (unitStance(battleState, shooter)?.boltScale ?? 1),
         revision: 0
       };
       if (battleState.addProjectile(projectile)) {
@@ -453,15 +472,34 @@ export class M2CombatSystem {
       attacker.heading = Math.atan2(target.position.x - attacker.position.x, target.position.z - attacker.position.z);
       // A horseman who strikes at the end of a run-up charges: his horse's weight is behind the blow.
       const kind = m2UnitKind(attacker);
-      const charging = kind.chargeSpeed > 0 && attacker.chargeRunTicks >= kind.chargeRunTicks;
+      const stance = stanceOf(formation);
+      const targetStance = unitStance(battleState, target);
+      // Spears braced against him from the front: his charge breaks on them (M2_Stances.js).
+      const intoBracedSpears = targetStance?.id === "spear_brace"
+        && inFacingArc(target.heading, attacker.position.x - target.position.x, attacker.position.z - target.position.z, M2_BLOCK_DEFINITION.frontArcDegrees);
+      const charging = kind.chargeSpeed > 0 && attacker.chargeRunTicks >= kind.chargeRunTicks && !intoBracedSpears;
       const baseDamage = attacker.commander ? attacker.commander.combat.melee.damage : kind.meleeDamage;
+      // A wedge charges harder; braced spears meet a horseman riding in fast with three times the blow and
+      // break his charge.
+      const chargeScale = charging ? kind.chargeScale * (stance?.chargeScale ?? 1) : 1;
+      const targetKind = m2UnitKind(target);
+      const meetsCharge = stance?.id === "spear_brace" && targetKind.chargeSpeed > 0 && Math.hypot(target.velocity.x, target.velocity.z) >= targetKind.chargeSpeed;
+      if (meetsCharge) target.chargeRunTicks = 0;
       damageEvents.push({
         damageEventId: `auto_melee:${processingTick}:${attacker.unitId}:${target.unitId}`,
         sourceUnitId: attacker.unitId,
         targetUnitId: target.unitId,
-        damage: damageAfterBlock(target, attacker.position, baseDamage * (charging ? kind.chargeScale : 1))
+        damage: damageAfterBlock(target, attacker.position, baseDamage * chargeScale * (meetsCharge ? M2_STANCES.spear_brace.braceScale : 1))
       });
       if (charging) this.#chargeHitCount += 1;
+      // Hit and run: after the charge, wheel away from the enemy and come again.
+      if (charging && stance?.id === "hit_and_run") {
+        const away = Math.atan2(attacker.position.x - target.position.x, attacker.position.z - target.position.z);
+        attacker.withdrawTo = {
+          x: attacker.position.x + Math.sin(away) * stance.withdrawDistance,
+          z: attacker.position.z + Math.cos(away) * stance.withdrawDistance
+        };
+      }
       if (kind.chargeSpeed > 0) attacker.chargeRunTicks = 0;
       attacker.attackCooldownTicks = kind.meleeCooldownTicks;
       attacker.state = "attacking";

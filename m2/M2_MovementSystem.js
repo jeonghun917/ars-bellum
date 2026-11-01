@@ -1,5 +1,6 @@
 import { isM2UnitActive, isM2UnitAlive } from "./M2_BattleState.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
+import { unitStance } from "./M2_Stances.js";
 
 // How far (m) a soldier standing at his place may be pushed before he steps back to it.
 const SETTLED_DISTANCE = 0.5;
@@ -84,7 +85,9 @@ export class M2MovementSystem {
         dz = unit.directMoveIntent.z;
         direct = true;
       } else {
-        const target = unit.slotTarget || { x: unit.position.x, z: unit.position.z };
+        // A horseman wheeling away after a charge (hit and run, M2_Stances.js) rides there first.
+        if (unit.withdrawTo && Math.hypot(unit.withdrawTo.x - unit.position.x, unit.withdrawTo.z - unit.position.z) <= 1) unit.withdrawTo = null;
+        const target = unit.withdrawTo || unit.slotTarget || { x: unit.position.x, z: unit.position.z };
         dx = target.x - unit.position.x;
         dz = target.z - unit.position.z;
       }
@@ -118,8 +121,11 @@ export class M2MovementSystem {
       // The player runs where he is steered. Soldiers run to their places and walk the last few metres;
       // bodies pressing against them last tick hold them back (M2_UnitKinds.js).
       const kind = m2UnitKind(unit);
-      const pace = direct || distance > kind.walkDistance ? maxSpeed : maxSpeed * kind.walkScale;
-      const speed = pace * Math.max(0, 1 - kind.crowdDrag * (unit.crowd || 0));
+      // A stance can slow the formation (a shield wall at half pace) or let it push through a crowd (a
+      // wedge); M2_Stances.js.
+      const stance = unitStance(battleState, unit);
+      const pace = (direct || distance > kind.walkDistance ? maxSpeed : maxSpeed * kind.walkScale) * (stance?.speedScale ?? 1);
+      const speed = pace * Math.max(0, 1 - kind.crowdDrag * (stance?.crowdDragScale ?? 1) * (unit.crowd || 0));
       const travel = direct ? speed * deltaSeconds : Math.min(distance, speed * deltaSeconds);
       const moveX = nx * travel;
       const moveZ = nz * travel;

@@ -1,6 +1,7 @@
 import { m2UnitKind, m2UnitKindForFormation } from "./M2_UnitKinds.js";
 import { DEFAULT_HERO_SHEET, damageThroughArmor, heroCombat } from "./M2_HeroLoadout.js";
 import { DEFAULT_COMMANDER_SHEETS, commanderFromSheet } from "./M2_Commanders.js";
+import { stancesFor } from "./M2_Stances.js";
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -80,6 +81,10 @@ export class M2BattleState {
         chargeRunTicks: 0,
         // How many bodies pressed against him in the last tick (M2_CollisionSystem.js); slows him.
         crowd: 0,
+        // Where a horseman wheels away to after a charge, under hit-and-run (M2_Stances.js); null otherwise.
+        withdrawTo: null,
+        // How much of a blocked blow still lands on a man in a shield wall (M2_Stances.js); null otherwise.
+        blockMultiplier: null,
         targetUnitId: null,
         routeReasonId: null,
         routeTarget: null,
@@ -117,6 +122,8 @@ export class M2BattleState {
           targetFormationId: null,
           commandId: null
         },
+        // A stance (M2_Stances.js), or none.
+        stance: null,
         cohesion: 100,
         morale,
         revision: 0
@@ -273,6 +280,8 @@ export class M2BattleState {
         facing: formation.facing,
         formationTypeId: formation.formationTypeId,
         command: formation.command,
+        stance: formation.stance,
+        stances: stancesFor(formation),
         spacing: formation.spacing,
         order: clone(formation.order),
         cohesion: formation.cohesion,

@@ -1,3 +1,4 @@
+import { M2_STANCES } from "./M2_Stances.js";
 function stopEvent(event) {
   event.preventDefault?.();
   event.stopPropagation?.();
@@ -150,6 +151,22 @@ export class M2InputController {
     };
     fill(this.#elements.friendlyFormation, friendly, this.#selectedFormationId);
     fill(this.#elements.enemyFormation, enemy, this.#selectedEnemyFormationId);
+    this.#fillStances(friendly.find((entry) => entry.formationId === this.#selectedFormationId));
+  }
+
+  // The stances the selected formation can use (M2_Stances.js: as many as its commander's tactics allow),
+  // and none.
+  #fillStances(formation) {
+    const select = this.#elements.stance;
+    if (!select) return;
+    select.textContent = "";
+    for (const stanceId of [null, ...(formation?.stances || [])]) {
+      const option = document.createElement("option");
+      option.value = stanceId || "";
+      option.textContent = stanceId ? M2_STANCES[stanceId].label : "없음";
+      option.selected = (formation?.stance || null) === stanceId;
+      select.appendChild(option);
+    }
   }
 
   #install() {
@@ -286,6 +303,10 @@ export class M2InputController {
 
     this.#listen(this.#elements.friendlyFormation, "change", (event) => {
       this.#selectedFormationId = event.target.value || null;
+      this.refreshFormationLists();
+    });
+    this.#listen(this.#elements.stance, "change", (event) => {
+      if (this.#selectedFormationId) this.#issue("formation_set_stance", { formationId: this.#selectedFormationId, stanceId: event.target.value || null });
     });
     this.#listen(this.#elements.enemyFormation, "change", (event) => {
       this.#selectedEnemyFormationId = event.target.value || null;

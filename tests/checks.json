@@ -265,6 +265,12 @@
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.orders.stance",
+      "title": "the stance list offers the selected formation's stances, and choosing one sets it",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
       "id": "m2.orders.formation-shape",
       "title": "line, column and loose buttons change the formation shape",
       "kind": "browser",
@@ -3268,6 +3274,48 @@
       "title": "a character's command skills reach the battle in his sheet",
       "kind": "unit",
       "source": "tests/unit/m2-commanders.test.mjs"
+    },
+    {
+      "id": "m2.stance.slots",
+      "title": "a formation can take only the stances its commander's tactics allow, or none",
+      "kind": "unit",
+      "source": "tests/unit/m2-stances.test.mjs"
+    },
+    {
+      "id": "m2.stance.shield-wall",
+      "title": "in a shield wall the men take less from bolts in front of them, and move at half pace",
+      "kind": "unit",
+      "source": "tests/unit/m2-stances.test.mjs"
+    },
+    {
+      "id": "m2.stance.spear-brace",
+      "title": "braced spears break a cavalry charge and hit the horsemen hard",
+      "kind": "unit",
+      "source": "tests/unit/m2-stances.test.mjs"
+    },
+    {
+      "id": "m2.stance.wedge",
+      "title": "a wedge charges harder",
+      "kind": "unit",
+      "source": "tests/unit/m2-stances.test.mjs"
+    },
+    {
+      "id": "m2.stance.hit-and-run",
+      "title": "horsemen who hit and run wheel away after a charge and charge again",
+      "kind": "unit",
+      "source": "tests/unit/m2-stances.test.mjs"
+    },
+    {
+      "id": "m2.stance.volley",
+      "title": "crossbowmen in a volley loose together, and their bolts strike harder",
+      "kind": "unit",
+      "source": "tests/unit/m2-stances.test.mjs"
+    },
+    {
+      "id": "m2.stance.enemy-uses",
+      "title": "the enemy commander takes stances: shields up on the way in, braced spears against horse, a wedge",
+      "kind": "unit",
+      "source": "tests/unit/m2-stances.test.mjs"
     }
   ]
 }
