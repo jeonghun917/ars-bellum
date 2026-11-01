@@ -3,18 +3,19 @@
 // each side's loose formation carries crossbows and its column rides. Formations not listed are infantry.
 
 // Pace: soldiers run to their places (speedScale is the running speed against a man on foot) and walk
-// (walkScale of it) only for the last walkDistance metres, settling into line. A blow lands every
-// meleeCooldownTicks (1.5 s), not every half second. Blows are meant to hurt (the owner, 2026-11-01: "a sword,
-// not a pencil"): a man without armour has hpScale times his vitality in hit points, about 30, and falls to
-// three or four blows; what he wears (M2_ARMOR_VALUES) makes him last longer, and what keeps a fight going
-// for about two minutes is that men stop most blows aimed at their front (M2_Defense.js). Each soldier is a circle of radius (m) on the field that others cannot enter; mass says who gives
+// (walkScale of it) only for the last walkDistance metres, settling into line. A blow comes every
+// meleeCooldownTicks (3 s): a man strikes, recovers his guard, and strikes again. Blows are meant to hurt (the
+// owner, 2026-11-01: "a sword, not a pencil"; then "about option 2"): a man without armour has hpScale times
+// his vitality in hit points, about 90, and falls to about ten blows; in mail to about seventeen
+// (M2_ARMOR_VALUES), and men stop most blows aimed at their front (M2_Defense.js): a fight of 20 or 40 a
+// side lasts about a minute. Each soldier is a circle of radius (m) on the field that others cannot enter; mass says who gives
 // way when two push. Every enemy body a soldier presses against slows him by crowdDrag of his speed, so a horse
 // breaks through a line one man deep but is held by a block two or more deep (the owner's season-2 design:
 // cavalry that hits a thick block is trapped).
 export const M2_UNIT_KINDS = Object.freeze({
   infantry: Object.freeze({
     id: "infantry",
-    hpScale: 0.5,
+    hpScale: 1.5,
     speedScale: 1,
     walkScale: 0.45,
     walkDistance: 3,
@@ -24,14 +25,14 @@ export const M2_UNIT_KINDS = Object.freeze({
     mass: 1,
     meleeRange: 1.6,
     meleeDamage: 9,
-    meleeCooldownTicks: 30
+    meleeCooldownTicks: 60
   }),
   // A crossbowman shoots the nearest enemy in range when his formation is ordered to attack, and keeps his
   // distance (standOff, m) instead of closing in. The cooldown is the shot and the reload as drawn (the
   // "x_shoot" and "x_reload" clips, 1.2 s + 3.2 s at 20 ticks a second).
   crossbow: Object.freeze({
     id: "crossbow",
-    hpScale: 0.4,
+    hpScale: 1.2,
     speedScale: 1,
     walkScale: 0.45,
     walkDistance: 3,
@@ -39,7 +40,7 @@ export const M2_UNIT_KINDS = Object.freeze({
     spacingScale: 1,
     radius: 0.35,
     mass: 1,
-    meleeCooldownTicks: 30,
+    meleeCooldownTicks: 60,
     meleeRange: 0,
     meleeDamage: 0,
     standOff: 14,
@@ -55,7 +56,7 @@ export const M2_UNIT_KINDS = Object.freeze({
   // does not renew it, only a new run-up does.
   cavalry: Object.freeze({
     id: "cavalry",
-    hpScale: 0.6,
+    hpScale: 1.8,
     speedScale: 1.75,
     // Walking (1.7 m/s, the horse's walking clip) only to settle into place; a gallop otherwise.
     walkScale: 0.3,
@@ -63,7 +64,7 @@ export const M2_UNIT_KINDS = Object.freeze({
     crowdDrag: 0.25,
     radius: 0.8,
     mass: 4,
-    meleeCooldownTicks: 30,
+    meleeCooldownTicks: 60,
     // A horse is about 2.4 m long: a column at the infantry's 1.25 m would stack them on one another.
     spacingScale: 2.2,
     meleeRange: 2.2,
@@ -100,14 +101,14 @@ export const M2_ARMOR_VALUES = Object.freeze({ mail: 15, leather: 7, plate: 30 }
 const SIDEARM = Object.freeze({ meleeRange: 1.4, meleeDamage: 6 });
 const subtype = (kindId, label, values) => Object.freeze({ ...M2_UNIT_KINDS[kindId], id: values.id, kindId, label, ...values });
 export const M2_UNIT_TYPES = Object.freeze({
-  shield: subtype("infantry", "방패병", { id: "shield", hpScale: 0.5, meleeDamage: 6, mass: 2.5, speedScale: 0.9, frontShield: true }),
-  pike: subtype("infantry", "장창병", { id: "pike", hpScale: 0.45, meleeDamage: 9, meleeRange: 2.8 }),
-  shock: subtype("infantry", "충격보병", { id: "shock", hpScale: 0.4, meleeDamage: 15, speedScale: 1.1, armorId: "leather", helmId: "leather" }),
-  skirmisher: subtype("infantry", "척후병", { id: "skirmisher", hpScale: 0.35, meleeDamage: 6, speedScale: 1.15, visionRange: 45, armorId: "leather", helmId: "leather" }),
+  shield: subtype("infantry", "방패병", { id: "shield", hpScale: 1.5, meleeDamage: 6, mass: 2.5, speedScale: 0.9, frontShield: true }),
+  pike: subtype("infantry", "장창병", { id: "pike", hpScale: 1.35, meleeDamage: 9, meleeRange: 2.8 }),
+  shock: subtype("infantry", "충격보병", { id: "shock", hpScale: 1.2, meleeDamage: 15, speedScale: 1.1, armorId: "leather", helmId: "leather" }),
+  skirmisher: subtype("infantry", "척후병", { id: "skirmisher", hpScale: 1.05, meleeDamage: 6, speedScale: 1.15, visionRange: 45, armorId: "leather", helmId: "leather" }),
   crossbow: subtype("crossbow", "석궁병", { id: "crossbow", armorPierce: 0.8, ammo: 15, sidearm: SIDEARM }),
-  longbow: subtype("crossbow", "장궁병", { id: "longbow", hpScale: 0.35, range: 26, standOff: 18, boltSpeed: 34, boltMaxRange: 30, boltDamage: 18, reloadTicks: 44, armorPierce: 0, ammo: 30, sidearm: SIDEARM, armorId: "leather", helmId: "leather" }),
-  light_cav: subtype("cavalry", "경기병", { id: "light_cav", hpScale: 0.5, meleeDamage: 10, speedScale: 2.0, mass: 3, chargeRunTicks: 12, armorId: "leather", helmId: "leather" }),
-  heavy_cav: subtype("cavalry", "중기병", { id: "heavy_cav", hpScale: 0.7, meleeDamage: 14, speedScale: 1.55, mass: 6, chargeRunTicks: 24, armorId: "plate", helmId: "great" })
+  longbow: subtype("crossbow", "장궁병", { id: "longbow", hpScale: 1.05, range: 26, standOff: 18, boltSpeed: 34, boltMaxRange: 30, boltDamage: 18, reloadTicks: 44, armorPierce: 0, ammo: 30, sidearm: SIDEARM, armorId: "leather", helmId: "leather" }),
+  light_cav: subtype("cavalry", "경기병", { id: "light_cav", hpScale: 1.5, meleeDamage: 10, speedScale: 2.0, mass: 3, chargeRunTicks: 12, armorId: "leather", helmId: "leather" }),
+  heavy_cav: subtype("cavalry", "중기병", { id: "heavy_cav", hpScale: 2.1, meleeDamage: 14, speedScale: 1.55, mass: 6, chargeRunTicks: 24, armorId: "plate", helmId: "great" })
 });
 
 // The weapons a soldier carries (the soldier model's clip sets: M2_RendererThree.js), given to the men of each

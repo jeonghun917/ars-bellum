@@ -17,7 +17,7 @@ export const M2_DEFENSE = Object.freeze({
   sideArcDegrees: 240,
   sideScale: 0.5,
   // Against a blow, by what he defends with.
-  melee: Object.freeze({ shield: 0.55, two_handed: 0.42, one_handed: 0.3 }),
+  melee: Object.freeze({ shield: 0.85, two_handed: 0.78, one_handed: 0.7 }),
   // Against a bolt or an arrow from in front: a shield, a shield-bearer's big shield (frontShield).
   shot: Object.freeze({ shield: 0.4, big_shield: 0.8 }),
   // Guard 50 (an ordinary man) adds nothing; each point over adds 0.4%, each under takes it.
@@ -26,7 +26,7 @@ export const M2_DEFENSE = Object.freeze({
   skillPerPoint: 0.002,
   shieldWall: 0.2,
   chargeScale: 0.5,
-  most: 0.9
+  most: 0.95
 });
 
 const TAU = Math.PI * 2;

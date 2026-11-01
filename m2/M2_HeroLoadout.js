@@ -35,10 +35,10 @@ export function heroCombat(sheet = DEFAULT_HERO_SHEET) {
   const athletics = skill(sheet, "athletics");
   const riding = skill(sheet, "riding");
   return Object.freeze({
-    // A man falls to a few good blows (about 30 hit points, as a soldier: M2_UnitKinds.js); a trained one stands
+    // A man falls to about ten good blows (about 90 hit points, as a soldier: M2_UnitKinds.js); a trained one stands
     // a little longer, and a horse carries him further before he falls. What keeps him up is his armour and
     // his guard (M2_Defense.js).
-    maxHp: Math.round(25 + athletics / 5 + (mount ? number(mount.hpBonus, 100) / 10 : 0)),
+    maxHp: Math.round(75 + athletics * 0.6 + (mount ? number(mount.hpBonus, 100) * 0.3 : 0)),
     // Armor takes a share of every blow: armor 20 halves it.
     armor: number(equipment.body?.armor, 0),
     melee: Object.freeze({
