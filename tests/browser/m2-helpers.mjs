@@ -31,9 +31,9 @@ export const formation = (page, id) => page.evaluate((formationId) =>
 // Waits until the fixed simulation tick has advanced by n. CI draws with a software renderer (no GPU), where
 // a frame of the full soldier models can take a second or more, so the wait is generous; it measures that
 // the simulation advances, not how fast.
-export async function waitTicks(page, n) {
+export async function waitTicks(page, n, timeout = 20_000) {
   const start = (await diagnostics(page)).fixedTickCount;
-  await expect.poll(async () => (await diagnostics(page)).fixedTickCount, { timeout: 20_000 }).toBeGreaterThanOrEqual(start + n);
+  await expect.poll(async () => (await diagnostics(page)).fixedTickCount, { timeout }).toBeGreaterThanOrEqual(start + n);
 }
 
 // Pointer helpers dispatch the same PointerEvents a touch screen or mouse would.
@@ -72,7 +72,9 @@ export async function loadVariant(page, edit) {
     return window.ArsM2Battle.start();
   }, edit);
   expect(result.ok, JSON.stringify(result)).toBe(true);
-  await waitTicks(page, 1);
+  // A new battle is drawn afresh (every soldier's model again): in CI, drawing in software, its first tick can
+  // be most of a minute away.
+  await waitTicks(page, 1, 60_000);
 }
 
 export async function noPageErrors(page, errors) {
