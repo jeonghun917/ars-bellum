@@ -13,9 +13,12 @@ import { el } from './dom.js';
 import { describeFailure } from './messages.js';
 import { renderMenu } from './menu-screen.js';
 import { createWorldScreen } from './world-screen.js';
+import { buildHeroSheet } from '../game/battle-hero.js';
+import { PLAYER_CHARACTER_ID } from '../game/new-game.js';
 
 // storage: { get, set, remove }. startBattle: see battle-flow.js. newSeed(): a whole number for a new game or practice battle.
-export function mountApp({ root, storage, startBattle, newSeed = () => Date.now() >>> 0, world = defaultWorld }) {
+// battleView: { get() -> '2d' | '3d', set(view) } when the player may choose how battles are drawn (src/main.js).
+export function mountApp({ root, storage, startBattle, newSeed = () => Date.now() >>> 0, world = defaultWorld, battleView = null }) {
   const menuRoot = el('section', { id: 'screen-menu', class: 'screen menu' });
   const worldRoot = el('section', { id: 'screen-world', class: 'screen world', hidden: true });
   const battleHost = el('div', { id: 'battle-host', class: 'overlay battle-host', hidden: true });
@@ -43,12 +46,20 @@ export function mountApp({ root, storage, startBattle, newSeed = () => Date.now(
   }
 
   // ---- screens
+  function menuHandlers() {
+    return {
+      onPractice: startPractice, onMainGame, onStartNew,
+      // 2D or 3D battles: remembered for next time, and the menu shows the choice.
+      onToggleBattleView: battleView ? () => { battleView.set(battleView.get() === '3d' ? '2d' : '3d'); showMenu(); } : null,
+    };
+  }
+
   function showMenu(notice = '') {
     worldScreen?.dispose();
     worldScreen = null;
     worldRoot.hidden = true;
     menuRoot.hidden = false;
-    renderMenu(menuRoot, { opened: openSave(), notice, handlers: { onPractice: startPractice, onMainGame, onStartNew } });
+    renderMenu(menuRoot, { opened: openSave(), notice, handlers: menuHandlers(), battleView: battleView?.get() ?? null });
   }
 
   function enterCampaign(campaign) {
@@ -66,7 +77,7 @@ export function mountApp({ root, storage, startBattle, newSeed = () => Date.now(
   function onMainGame() {
     const opened = openSave();
     if (opened.ok) enterCampaign(opened.campaign);
-    else renderMenu(menuRoot, { opened, notice: '', handlers: { onPractice: startPractice, onMainGame, onStartNew } });
+    else renderMenu(menuRoot, { opened, notice: '', handlers: menuHandlers(), battleView: battleView?.get() ?? null });
   }
 
   // The player chose to start over an unreadable save: the one place that may replace it.
@@ -78,7 +89,8 @@ export function mountApp({ root, storage, startBattle, newSeed = () => Date.now(
       renderMenu(menuRoot, {
         opened: opened.ok ? fail('save_refused_stored_save_unreadable') : opened,
         notice: `새로 시작하지 못했습니다: ${describeFailure(saved)}`,
-        handlers: { onPractice: startPractice, onMainGame, onStartNew },
+        handlers: menuHandlers(),
+        battleView: battleView?.get() ?? null,
       });
       return;
     }
@@ -103,9 +115,9 @@ export function mountApp({ root, storage, startBattle, newSeed = () => Date.now(
     });
   }
 
-  async function fight({ mode, seed }) {
+  async function fight({ mode, seed, options = {} }) {
     battleHost.hidden = false;
-    const ended = await runBattle({ startBattle, container: battleContainer, mode, seed });
+    const ended = await runBattle({ startBattle, container: battleContainer, mode, seed, options });
     battleHost.hidden = true;
     return ended;
   }
@@ -131,7 +143,9 @@ export function mountApp({ root, storage, startBattle, newSeed = () => Date.now(
     worldScreen?.pause();
     try {
       const state = campaign.getState();
-      const ended = await fight({ mode: 'campaign', seed: (state.rng.state ^ state.revision) >>> 0 });
+      // The player's hero fights with his own skills and equipment (the 3D battle; the 2D ignores it).
+      const heroSheet = buildHeroSheet(state, PLAYER_CHARACTER_ID);
+      const ended = await fight({ mode: 'campaign', seed: (state.rng.state ^ state.revision) >>> 0, options: { heroSheet } });
       if (!ended.ok) {
         await showResult({ title: '전투를 마치지 못했습니다', lines: [describeFailure(ended), '아무것도 기록하지 않았습니다.'], kind: 'error' });
         return;

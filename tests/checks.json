@@ -3406,6 +3406,30 @@
       "title": "a 100-against-100 battle of the same kinds is a valid launch snapshot, everyone inside the field",
       "kind": "unit",
       "source": "tests/unit/m2-scale.test.mjs"
+    },
+    {
+      "id": "battle3d.launch",
+      "title": "the campaign's battle is the 3D fixture with the campaign's seed and the player's hero",
+      "kind": "unit",
+      "source": "tests/unit/battle3d.test.mjs"
+    },
+    {
+      "id": "battle3d.result",
+      "title": "the 3D battle's end reaches the campaign in its own terms, with the dead, the routed and the standing counted",
+      "kind": "unit",
+      "source": "tests/unit/battle3d.test.mjs"
+    },
+    {
+      "id": "m2.campaign.practice-3d",
+      "title": "a practice battle in 3D opens the 3D battle with the game's seed and brings its end back to the game",
+      "kind": "browser",
+      "source": "tests/browser/m2-campaign.spec.mjs"
+    },
+    {
+      "id": "m2.campaign.menu-choice",
+      "title": "the menu offers 2D or 3D battles and remembers the choice",
+      "kind": "browser",
+      "source": "tests/browser/m2-campaign.spec.mjs"
     }
   ]
 }
