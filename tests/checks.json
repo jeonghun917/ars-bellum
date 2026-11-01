@@ -3136,6 +3136,12 @@
       "title": "a battle now lasts minutes, not seconds",
       "kind": "unit",
       "source": "tests/unit/m2-pace-bodies.test.mjs"
+    },
+    {
+      "id": "m2.bodies.rout-reaches-edge",
+      "title": "a whole side ordered to retreat leaves the field, and the battle ends",
+      "kind": "unit",
+      "source": "tests/unit/m2-pace-bodies.test.mjs"
     }
   ]
 }

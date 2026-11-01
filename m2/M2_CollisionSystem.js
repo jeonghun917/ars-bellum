@@ -1,10 +1,13 @@
 // Bodies on the field: no two living soldiers overlap. After everyone has moved, each pair closer than the
 // sum of their radii (M2_UnitKinds.js) is pushed apart along the line between them, the lighter one giving
 // way more (a horse shoves a man aside; two men share the step). The fallen lie where they fell and take no
-// room. Pairs are taken in a fixed order (by soldier id) and each push is applied at once, so a crowd settles
+// room, and so do men running from the field: a rout scatters and does not jostle (otherwise the first to
+// reach the edge would push the rest back from it, and the retreat would never end). Pairs are taken in a fixed order (by soldier id) and each push is applied at once, so a crowd settles
 // in few rounds and the same battle always settles the same way.
 import { isM2UnitAlive } from "./M2_BattleState.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
+
+const takesRoom = (unit) => isM2UnitAlive(unit) && unit.state !== "routing";
 
 // Rounds of pushing per tick: a crowd pressed from both sides (two columns of horses meeting head on) needs
 // several to settle; a round with no push ends the step early.
@@ -25,12 +28,12 @@ export class M2CollisionSystem {
     for (let pass = 0; pass < PASSES; pass += 1) {
       let pushed = false;
       battleState.forEachUnitStable((unit) => {
-        if (!isM2UnitAlive(unit)) return;
+        if (!takesRoom(unit)) return;
         const kind = m2UnitKind(unit);
         for (const otherId of spatialGrid.queryNearby(unit.position.x, unit.position.z, kind.radius + LARGEST_RADIUS)) {
           if (otherId <= unit.unitId) continue;
           const other = battleState.getUnit(otherId);
-          if (!isM2UnitAlive(other)) continue;
+          if (!takesRoom(other)) continue;
           const otherKind = m2UnitKind(other);
           let dx = other.position.x - unit.position.x;
           let dz = other.position.z - unit.position.z;

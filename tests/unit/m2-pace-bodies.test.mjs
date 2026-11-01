@@ -123,6 +123,18 @@ test('[m2.bodies.fallen-take-no-room] the fallen lie where they fell and do not 
   assert.deepEqual([dead.position.x, man.position.x], [20, 20.2]);
 });
 
+test('[m2.bodies.rout-reaches-edge] a whole side ordered to retreat leaves the field, and the battle ends', () => {
+  // Fleeing men take no room: if they jostled, the first at the edge would push the rest back from it.
+  const b = battle();
+  for (const id of ['ally_line', 'ally_column', 'ally_loose']) {
+    const r = b.queue.enqueue({ commandId: `retreat_${id}`, type: 'formation_retreat', formationId: id }, b.state);
+    assert.equal(r.ok, true);
+  }
+  let i = 0;
+  for (; i < 20 * 60 && !b.outcome; i += 1) tick(b);
+  assert.equal(b.outcome, 'ally_retreat', `after ${i / 20} s`);
+});
+
 test('[m2.pace.longer-battle] a battle now lasts minutes, not seconds', () => {
   const b = battle({ withAI: true });
   attack(b, 'ally_line', 'enemy_line');
