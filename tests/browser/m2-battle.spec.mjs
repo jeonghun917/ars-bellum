@@ -83,8 +83,10 @@ test.describe('3D battle', () => {
   });
 
   test('[m2.render.cavalry] the horsemen ride drawn horses that gallop with them when they charge', async ({ page }) => {
-    // 7 horsemen a side, each on a horse standing at the start.
-    await expect.poll(async () => (await diagnostics(page)).horseAnimations?.idle || 0).toBe(14);
+    // 7 horsemen a side, each on a drawn horse (whatever its gait: at the start some are still settling into
+    // place, the enemy column's starting places crossing its line; in CI frames come slowly, so the wait is long).
+    const horses = (g) => Object.values(g.horseAnimations || {}).reduce((sum, n) => sum + n, 0);
+    await expect.poll(async () => horses(await diagnostics(page)), { timeout: 30_000 }).toBe(14);
     const receipt = await page.evaluate(() => window.ArsM2Battle.issueCommand({
       commandId: 'charge', type: 'formation_attack', formationId: 'ally_column', targetFormationId: 'enemy_line' }));
     expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
