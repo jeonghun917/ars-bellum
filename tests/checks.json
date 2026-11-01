@@ -265,6 +265,12 @@
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.orders.tactic",
+      "title": "the order list offers the selected formation's orders, and choosing one gives it",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
       "id": "m2.orders.formation-shape",
       "title": "line, column and loose buttons change the formation shape",
       "kind": "browser",
@@ -3268,6 +3274,66 @@
       "title": "a character's command skills reach the battle in his sheet",
       "kind": "unit",
       "source": "tests/unit/m2-commanders.test.mjs"
+    },
+    {
+      "id": "m2.shape.kinds",
+      "title": "each kind takes only its shapes, and each shape stands as it should",
+      "kind": "unit",
+      "source": "tests/unit/m2-tactics.test.mjs"
+    },
+    {
+      "id": "m2.shape.shield-wall",
+      "title": "a shield wall keeps its shields up at a walk and takes less from the bolts in front of it",
+      "kind": "unit",
+      "source": "tests/unit/m2-tactics.test.mjs"
+    },
+    {
+      "id": "m2.order.slots",
+      "title": "charge and hold fire any formation can be given; the rest as its commander's tactics allow",
+      "kind": "unit",
+      "source": "tests/unit/m2-tactics.test.mjs"
+    },
+    {
+      "id": "m2.order.no-added-effects",
+      "title": "no order or shape makes a blow, a charge or a bolt stronger",
+      "kind": "unit",
+      "source": "tests/unit/m2-tactics.test.mjs"
+    },
+    {
+      "id": "m2.order.charge",
+      "title": "under a charge the men run straight at the enemy instead of keeping their places",
+      "kind": "unit",
+      "source": "tests/unit/m2-tactics.test.mjs"
+    },
+    {
+      "id": "m2.order.spear-brace",
+      "title": "horsemen are held by a single braced line they would break through unbraced",
+      "kind": "unit",
+      "source": "tests/unit/m2-tactics.test.mjs"
+    },
+    {
+      "id": "m2.order.hit-and-run",
+      "title": "horsemen who hit and run wheel away after a charge and charge again",
+      "kind": "unit",
+      "source": "tests/unit/m2-tactics.test.mjs"
+    },
+    {
+      "id": "m2.order.flank",
+      "title": "a flanking formation goes round and comes at its target from behind",
+      "kind": "unit",
+      "source": "tests/unit/m2-tactics.test.mjs"
+    },
+    {
+      "id": "m2.order.crossbows",
+      "title": "crossbowmen hold their fire, pick on one formation, loose in volleys, or keep their distance, as ordered",
+      "kind": "unit",
+      "source": "tests/unit/m2-tactics.test.mjs"
+    },
+    {
+      "id": "m2.tactics.enemy-uses",
+      "title": "the enemy commander shapes and orders his formations as the moment calls for",
+      "kind": "unit",
+      "source": "tests/unit/m2-tactics.test.mjs"
     }
   ]
 }

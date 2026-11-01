@@ -1,3 +1,4 @@
+import { M2_ORDERS } from "./M2_Orders.js";
 function stopEvent(event) {
   event.preventDefault?.();
   event.stopPropagation?.();
@@ -150,12 +151,27 @@ export class M2InputController {
     };
     fill(this.#elements.friendlyFormation, friendly, this.#selectedFormationId);
     fill(this.#elements.enemyFormation, enemy, this.#selectedEnemyFormationId);
+    this.#fillTactics(friendly.find((entry) => entry.formationId === this.#selectedFormationId));
+  }
+
+  // The orders the selected formation can be given (M2_Orders.js), and none.
+  #fillTactics(formation) {
+    const select = this.#elements.tactic;
+    if (!select) return;
+    select.textContent = "";
+    for (const tacticId of [null, ...(formation?.tactics || [])]) {
+      const option = document.createElement("option");
+      option.value = tacticId || "";
+      option.textContent = tacticId ? M2_ORDERS[tacticId].label : "없음";
+      option.selected = (formation?.tactic || null) === tacticId;
+      select.appendChild(option);
+    }
   }
 
   #install() {
     const canvas = this.#elements.canvas;
     this.#listen(window, "keydown", (event) => {
-      if (event.repeat && ["KeyJ","KeyL","Tab","Digit1","Digit2","Digit3"].includes(event.code)) return;
+      if (event.repeat && ["KeyJ","KeyL","Tab","Digit1","Digit2","Digit3","Digit4","Digit5","Digit6"].includes(event.code)) return;
       if (["KeyW","KeyA","KeyS","KeyD"].includes(event.code)) {
         this.#keys.add(event.code);
         const vector = keyVector(this.#keys);
@@ -171,8 +187,8 @@ export class M2InputController {
       } else if (event.code === "Tab") {
         stopEvent(event);
         this.switchMode();
-      } else if (this.#camera.mode === "tactical" && ["Digit1","Digit2","Digit3"].includes(event.code)) {
-        const formationTypeId = { Digit1: "line", Digit2: "column", Digit3: "loose" }[event.code];
+      } else if (this.#camera.mode === "tactical" && ["Digit1","Digit2","Digit3","Digit4","Digit5","Digit6"].includes(event.code)) {
+        const formationTypeId = { Digit1: "line", Digit2: "column", Digit3: "loose", Digit4: "shield_wall", Digit5: "wedge", Digit6: "circle" }[event.code];
         if (this.#selectedFormationId) this.#issue("formation_set_type", { formationId: this.#selectedFormationId, formationTypeId });
       }
     });
@@ -273,7 +289,8 @@ export class M2InputController {
     });
 
     for (const [element, formationTypeId] of [
-      [this.#elements.line, "line"], [this.#elements.column, "column"], [this.#elements.loose, "loose"]
+      [this.#elements.line, "line"], [this.#elements.column, "column"], [this.#elements.loose, "loose"],
+      [this.#elements.shieldWall, "shield_wall"], [this.#elements.wedge, "wedge"], [this.#elements.circle, "circle"]
     ]) {
       control(element, "pointerdown", () => {
         if (this.#selectedFormationId) this.#issue("formation_set_type", { formationId: this.#selectedFormationId, formationTypeId });
@@ -286,6 +303,10 @@ export class M2InputController {
 
     this.#listen(this.#elements.friendlyFormation, "change", (event) => {
       this.#selectedFormationId = event.target.value || null;
+      this.refreshFormationLists();
+    });
+    this.#listen(this.#elements.tactic, "change", (event) => {
+      if (this.#selectedFormationId) this.#issue("formation_set_tactic", { formationId: this.#selectedFormationId, tacticId: event.target.value || null });
     });
     this.#listen(this.#elements.enemyFormation, "change", (event) => {
       this.#selectedEnemyFormationId = event.target.value || null;

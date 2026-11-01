@@ -25,6 +25,10 @@ const elements = {
   line: document.getElementById("m2Line"),
   column: document.getElementById("m2Column"),
   loose: document.getElementById("m2Loose"),
+  shieldWall: document.getElementById("m2ShieldWall"),
+  wedge: document.getElementById("m2Wedge"),
+  circle: document.getElementById("m2Circle"),
+  tactic: document.getElementById("m2Tactic"),
   time0: document.getElementById("m2Time0"),
   time025: document.getElementById("m2Time025"),
   time05: document.getElementById("m2Time05"),
@@ -62,7 +66,7 @@ function setStatus(text) {
 function setCommandControlsDisabled(disabled) {
   for (const element of [
     elements.attack, elements.block, elements.bow, elements.attackOrder,
-    elements.line, elements.column, elements.loose, elements.rally, elements.retreat
+    elements.line, elements.column, elements.loose, elements.shieldWall, elements.wedge, elements.circle, elements.rally, elements.retreat
   ]) {
     if (element) element.disabled = Boolean(disabled);
   }
