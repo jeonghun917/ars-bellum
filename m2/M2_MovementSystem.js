@@ -1,6 +1,9 @@
 import { isM2UnitActive, isM2UnitAlive } from "./M2_BattleState.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
 
+// How far (m) a soldier standing at his place may be pushed before he steps back to it.
+const SETTLED_DISTANCE = 0.5;
+
 export class M2MovementSystem {
   #maxSpeed;
   #arrivalEpsilon;
@@ -95,6 +98,14 @@ export class M2MovementSystem {
         unit.state = "idle";
         return;
       }
+      // A man standing at his place who has been jostled a little stays where he is rather than shoving back
+      // to the exact spot (two places that overlap would otherwise have him and his neighbour push at each
+      // other for ever).
+      if (!direct && unit.state === "idle" && distance <= SETTLED_DISTANCE) {
+        unit.velocity.x = 0;
+        unit.velocity.z = 0;
+        return;
+      }
       if (distance <= 0) {
         unit.velocity.x = 0;
         unit.velocity.z = 0;
@@ -104,7 +115,12 @@ export class M2MovementSystem {
 
       const nx = dx / distance;
       const nz = dz / distance;
-      const travel = direct ? maxSpeed * deltaSeconds : Math.min(distance, maxSpeed * deltaSeconds);
+      // The player runs where he is steered. Soldiers run to their places and walk the last few metres;
+      // bodies pressing against them last tick hold them back (M2_UnitKinds.js).
+      const kind = m2UnitKind(unit);
+      const pace = direct || distance > kind.walkDistance ? maxSpeed : maxSpeed * kind.walkScale;
+      const speed = pace * Math.max(0, 1 - kind.crowdDrag * (unit.crowd || 0));
+      const travel = direct ? speed * deltaSeconds : Math.min(distance, speed * deltaSeconds);
       const moveX = nx * travel;
       const moveZ = nz * travel;
       unit.position.x += moveX;

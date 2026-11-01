@@ -41,7 +41,9 @@ export class M2BattleState {
 
     for (const character of snapshot.characters) {
       const profile = combatProfiles.get(character.combatProfileId);
-      const maxHp = profile?.stats?.vitality ?? 0;
+      // Vitality is the man; hpScale is what he wears and rides (mail, a horse), until equipment comes in
+      // (M2_UnitKinds.js).
+      const maxHp = Math.round((profile?.stats?.vitality ?? 0) * m2UnitKind(m2UnitKindForFormation(character.formationId)).hpScale);
       const initialMorale = Number(profile?.stats?.morale ?? 0);
       this.#units.set(character.characterId, {
         unitId: character.characterId,
@@ -65,6 +67,8 @@ export class M2BattleState {
         attackCooldownTicks: 0,
         // Ticks in a row a horseman has ridden at charging speed without striking (M2_UnitKinds.js).
         chargeRunTicks: 0,
+        // How many bodies pressed against him in the last tick (M2_CollisionSystem.js); slows him.
+        crowd: 0,
         targetUnitId: null,
         routeReasonId: null,
         routeTarget: null,

@@ -9,6 +9,7 @@ import { M2CombatSystem } from "./M2_CombatSystem.js";
 import { M2MoraleSystem } from "./M2_MoraleSystem.js";
 import { M2ResultSystem } from "./M2_ResultSystem.js";
 import { M2EnemyAI } from "./M2_EnemyAI.js";
+import { M2CollisionSystem } from "./M2_CollisionSystem.js";
 import { createRenderSnapshot } from "./M2_RenderSnapshot.js";
 import { M2RendererThree } from "./M2_RendererThree.js";
 
@@ -26,6 +27,7 @@ export class M2BattleRuntime {
   #moraleSystem = new M2MoraleSystem();
   #resultSystem = new M2ResultSystem();
   #enemyAI = new M2EnemyAI();
+  #collisionSystem = new M2CollisionSystem();
   #renderSnapshot = null;
   #cameraController = null;
   #inputController = null;
@@ -165,6 +167,8 @@ export class M2BattleRuntime {
     this.#movementSystem.step(this.#battleState, M2_CONFIG.fixedTickMs / 1000);
 
     this.#spatialGrid.rebuild(this.#battleState);
+    // No two soldiers stand in the same place (pushes rebuild the grid as they go).
+    this.#collisionSystem.step(this.#battleState, this.#spatialGrid, M2_CONFIG.fixedTickMs / 1000);
 
     const candidatePlan = this.#combatSystem.prepareTick(this.#battleState, this.#spatialGrid, commands, M2_CONFIG.fixedTickMs / 1000, processingTick);
     const damageEvents = [];

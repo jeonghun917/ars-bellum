@@ -107,19 +107,21 @@ test.describe('3D battle', () => {
       { timeout: 30_000 }).toBeLessThan(enemyHp);
   });
 
-  test('[m2.render.soldier-gait] soldiers crossing the field at full speed run, not walk', async ({ page }) => {
-    // The battle starts with everyone standing: send the ally foot soldiers 15 m forward. Units move at about
-    // 3.2 m/s; the walk clip's feet move at about 1.3 m/s, so walking would skate.
+  test('[m2.render.soldier-gait] soldiers crossing the field run, and walk only to settle into place', async ({ page }) => {
+    // Sent 15 m forward, the ally foot soldiers run (3.2 m/s; the walk clip's feet move at about 1.3 m/s, so
+    // walking would skate), then walk the last few metres.
     const receipt = await page.evaluate(() => {
       const f = window.ArsM2Battle.getSnapshot().formations.find((item) => item.formationId === 'ally_line');
       return window.ArsM2Battle.issueCommand({ commandId: 'gait_move', type: 'formation_move', formationId: f.formationId,
         target: { x: f.anchor.x, z: f.anchor.z - 15 } });
     });
     expect(receipt.ok, JSON.stringify(receipt)).toBe(true);
-    // (Only that some run: while a soldier speeds up or arrives he passes through walking speeds. The run
-    // clips are "run", "low_run", "s_low_run", ...)
-    await page.waitForFunction(() => Object.entries(window.ArsM2Diagnostics.getSnapshot().soldierAnimations || {})
-      .some(([clip, count]) => /run$/.test(clip) && count > 0), null, { timeout: 20_000 });
+    // (The check runs in the page, so the clip pattern is passed in. Run clips are "run", "low_run",
+    // "s_low_run", ...; walk clips likewise.)
+    const playing = (pattern) => Object.entries(window.ArsM2Diagnostics.getSnapshot().soldierAnimations || {})
+      .some(([clip, count]) => new RegExp(pattern).test(clip) && count > 0);
+    await page.waitForFunction(playing, 'run$', { polling: 'raf', timeout: 20_000 });
+    await page.waitForFunction(playing, 'walk$', { polling: 'raf', timeout: 30_000 });
   });
 
   test('[m2.render.shield-low] with no enemy near, soldiers carry their shields low at their side', async ({ page }) => {

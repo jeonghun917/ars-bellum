@@ -200,7 +200,7 @@
     },
     {
       "id": "m2.render.soldier-gait",
-      "title": "soldiers crossing the field at full speed run, not walk",
+      "title": "soldiers crossing the field run, and walk only to settle into place",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
     },
@@ -3094,6 +3094,60 @@
       "title": "the same battle with the enemy commander plays out the same way",
       "kind": "unit",
       "source": "tests/unit/m2-enemy-ai.test.mjs"
+    },
+    {
+      "id": "m2.pace.run-then-settle",
+      "title": "soldiers run to their places and walk only the last few metres",
+      "kind": "unit",
+      "source": "tests/unit/m2-pace-bodies.test.mjs"
+    },
+    {
+      "id": "m2.bodies.horse-trapped",
+      "title": "a horse breaks through a line one man deep but is stopped by a block two deep or more",
+      "kind": "unit",
+      "source": "tests/unit/m2-pace-bodies.test.mjs"
+    },
+    {
+      "id": "m2.pace.blow-rhythm",
+      "title": "a soldier in a fight strikes about every one and a half seconds",
+      "kind": "unit",
+      "source": "tests/unit/m2-pace-bodies.test.mjs"
+    },
+    {
+      "id": "m2.bodies.no-overlap",
+      "title": "in the thick of a fight no two living soldiers stand inside one another",
+      "kind": "unit",
+      "source": "tests/unit/m2-pace-bodies.test.mjs"
+    },
+    {
+      "id": "m2.bodies.horse-shoves",
+      "title": "a horse pushes a man aside; two men share the step",
+      "kind": "unit",
+      "source": "tests/unit/m2-pace-bodies.test.mjs"
+    },
+    {
+      "id": "m2.bodies.comrades-make-way",
+      "title": "a soldier on the move goes round a comrade standing in his way",
+      "kind": "unit",
+      "source": "tests/unit/m2-pace-bodies.test.mjs"
+    },
+    {
+      "id": "m2.bodies.fallen-take-no-room",
+      "title": "the fallen lie where they fell and do not push anyone",
+      "kind": "unit",
+      "source": "tests/unit/m2-pace-bodies.test.mjs"
+    },
+    {
+      "id": "m2.pace.longer-battle",
+      "title": "a battle now lasts minutes, not seconds",
+      "kind": "unit",
+      "source": "tests/unit/m2-pace-bodies.test.mjs"
+    },
+    {
+      "id": "m2.bodies.rout-reaches-edge",
+      "title": "a whole side ordered to retreat leaves the field, and the battle ends",
+      "kind": "unit",
+      "source": "tests/unit/m2-pace-bodies.test.mjs"
     }
   ]
 }
