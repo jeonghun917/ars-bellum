@@ -59,8 +59,11 @@ function segmentCircleHit(previous, current, center, radius) {
   return { t, distanceSq };
 }
 
-function damageAfterBlock(target, attackerPosition, baseDamage) {
-  if (!target.blocking) return Math.max(0, Math.round(baseDamage));
+// shot: a bolt or arrow, which a shield-bearer (방패병, M2_UnitKinds.js) stops from in front as a block does,
+// his shield up or not.
+function damageAfterBlock(target, attackerPosition, baseDamage, { shot = false } = {}) {
+  const shielded = target.blocking || (shot && m2UnitKind(target).frontShield && target.state !== "routing");
+  if (!shielded) return Math.max(0, Math.round(baseDamage));
   const incomingX = attackerPosition.x - target.position.x;
   const incomingZ = attackerPosition.z - target.position.z;
   if (!inFacingArc(target.heading, incomingX, incomingZ, M2_BLOCK_DEFINITION.frontArcDegrees)) {
@@ -203,6 +206,13 @@ function potentialCrossbowShot(battleState, spatialGrid, shooter, processingTick
   };
 }
 
+// How a soldier strikes in melee: with his kind's weapon, or, a bowman whose bolts are spent, with his short
+// sword (M2_UnitKinds.js).
+function meleeOf(unit) {
+  const kind = m2UnitKind(unit);
+  return unit.ammo === 0 && kind.sidearm ? kind.sidearm : kind;
+}
+
 // Formations that fight where they meet the enemy: all but one withdrawing (its men are running).
 function fights(formation) {
   return Boolean(formation) && formation.order.type !== "withdraw";
@@ -211,7 +221,7 @@ function fights(formation) {
 // planning: in the plan (phase 5), a volley also waits for every man; when the shots are made (phase 6) the
 // plan has already decided, and the first shot must not hold back the rest.
 function shootsCrossbow(battleState, unit, { planning = true } = {}) {
-  if (!isM2UnitActive(unit) || unit.isPlayer || unit.kindId !== "crossbow" || unit.attackCooldownTicks !== 0) return false;
+  if (!isM2UnitActive(unit) || unit.isPlayer || unit.kindId !== "crossbow" || unit.attackCooldownTicks !== 0 || unit.ammo === 0) return false;
   const formation = battleState.getFormation(unit.formationId);
   if (!fights(formation)) return false;
   const order = orderOf(formation);
@@ -312,7 +322,8 @@ export class M2CombatSystem {
       if (!isM2UnitActive(attacker) || attacker.isPlayer) continue;
       // Crossbowmen shoot instead (below).
       // A commander strikes with his own weapon (M2_Commanders.js); a crossbowman's commander shoots too.
-      const reach = attacker.commander && m2UnitKind(attacker).meleeRange > 0 ? Math.max(m2UnitKind(attacker).meleeRange, attacker.commander.combat.melee.reach) : m2UnitKind(attacker).meleeRange;
+      const weapon = meleeOf(attacker);
+      const reach = attacker.commander && weapon.meleeRange > 0 ? Math.max(weapon.meleeRange, attacker.commander.combat.melee.reach) : weapon.meleeRange;
       if (!(reach > 0)) continue;
       const formation = battleState.getFormation(attacker.formationId);
       // A soldier strikes an enemy within reach whatever his formation's order, unless it is withdrawing:
@@ -472,10 +483,12 @@ export class M2CombatSystem {
         speed: kind.boltSpeed,
         remainingRange: kind.boltMaxRange,
         damage: kind.boltDamage,
+        armorPierce: kind.armorPierce || 0,
         revision: 0
       };
       if (battleState.addProjectile(projectile)) {
         shooter.attackCooldownTicks = kind.reloadTicks;
+        if (shooter.ammo !== null && shooter.ammo !== undefined) shooter.ammo -= 1;
         shooter.heading = shot.aimHeading;
         shooter.targetUnitId = shot.targetUnitId;
         shooter.state = "attacking";
@@ -503,7 +516,7 @@ export class M2CombatSystem {
       // A horseman who strikes at the end of a run-up charges: his horse's weight is behind the blow.
       const kind = m2UnitKind(attacker);
       const charging = kind.chargeSpeed > 0 && attacker.chargeRunTicks >= kind.chargeRunTicks;
-      const baseDamage = attacker.commander ? attacker.commander.combat.melee.damage : kind.meleeDamage;
+      const baseDamage = attacker.commander ? attacker.commander.combat.melee.damage : meleeOf(attacker).meleeDamage;
       damageEvents.push({
         damageEventId: `auto_melee:${processingTick}:${attacker.unitId}:${target.unitId}`,
         sourceUnitId: attacker.unitId,
@@ -543,7 +556,8 @@ export class M2CombatSystem {
           damageEventId: `projectile:${projectile.projectileId}:${target.unitId}`,
           sourceUnitId: projectile.ownerUnitId,
           targetUnitId: target.unitId,
-          damage: damageAfterBlock(target, step.previousPosition, projectile.damage)
+          damage: damageAfterBlock(target, step.previousPosition, projectile.damage, { shot: true }),
+          ...(projectile.armorPierce ? { armorPierce: projectile.armorPierce } : {})
         });
         battleState.removeProjectile(projectile.projectileId);
         this.#projectileHitCount += 1;

@@ -20,6 +20,14 @@ function rotate(x, z, facing) {
   return { x: x * Math.cos(facing) + z * Math.sin(facing), z: -x * Math.sin(facing) + z * Math.cos(facing) };
 }
 
+// mixed: the same formations as subtypes (병종, M2_UnitKinds.js), each side a different mix: the ally shield-
+// bearers and pikemen, crossbowmen and longbowmen, heavy horse; the enemy shock foot and pikemen, longbowmen
+// and crossbowmen, light horse.
+const MIXED = Object.freeze({
+  ally: { line: "shield", line_2: "pike", loose: "crossbow", loose_2: "longbow", column: "heavy_cav" },
+  enemy: { line: "shock", line_2: "pike", loose: "longbow", loose_2: "crossbow", column: "light_cav" }
+});
+
 // Formation places as the battle lays them out (the fixture's own rule for line, column and loose).
 function places(ids, type, anchor, facing, spacing) {
   const sorted = [...ids].sort();
@@ -44,7 +52,7 @@ function places(ids, type, anchor, facing, spacing) {
 
 // A battle of perSide against perSide (20 to 100: larger armies would stand past the retreat edges), the two lines `gap` metres apart (each side's
 // crossbowmen and horse behind its lines, inside its retreat edge at 18 m).
-export function buildScaleSnapshot({ perSide = 100, gap = 16 } = {}) {
+export function buildScaleSnapshot({ perSide = 100, gap = 16, mixed = false } = {}) {
   const formations = [];
   const characters = [];
   for (const side of ["ally", "enemy"]) {
@@ -58,7 +66,7 @@ export function buildScaleSnapshot({ perSide = 100, gap = 16 } = {}) {
       const ids = Array.from({ length: count }, (_, i) => `scale_${side}_${share.suffix}_${String(i + 1).padStart(3, "0")}`);
       if (side === "ally" && index === 0) ids[0] = M2_TECHNICAL_SNAPSHOT.playerCharacterId;
       const anchor = { x: share.at.x * (side === "ally" ? -1 : 1), z: back * (gap / 2 - share.at.z) };
-      formations.push({ formationId, sideId: side, commanderUnitId: ids[ids.length > 1 ? 1 : 0], memberUnitIds: ids, anchor, facing, formationTypeId: share.type, spacing: 1.25, order: "hold" });
+      formations.push({ formationId, sideId: side, commanderUnitId: ids[ids.length > 1 ? 1 : 0], memberUnitIds: ids, anchor, facing, formationTypeId: share.type, spacing: 1.25, order: "hold", ...(mixed ? { unitTypeId: MIXED[side][share.suffix] } : {}) });
       const at = places(ids, share.type, anchor, facing, 1.25);
       ids.forEach((id, i) => {
         characters.push({
@@ -77,7 +85,7 @@ export function buildScaleSnapshot({ perSide = 100, gap = 16 } = {}) {
   }
   return {
     schemaVersion: 1,
-    battleId: `m2_scale_${perSide}v${perSide}`,
+    battleId: `m2_scale_${perSide}v${perSide}${mixed ? "_mixed" : ""}`,
     seed: M2_TECHNICAL_SNAPSHOT.seed,
     sourceScope: "M2_TEST_ONLY",
     canonical: false,

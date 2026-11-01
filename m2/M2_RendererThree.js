@@ -101,6 +101,18 @@ const MOUNTED_CLIPS = Object.freeze({
   })
 });
 
+// Which weapons each subtype's men carry, in turn (M2_UnitKinds.js).
+const SUBTYPE_LOADOUTS = Object.freeze({
+  shield: ["spear", "sword"],
+  pike: ["spear_free"],
+  shock: ["great", "sword_free"],
+  skirmisher: ["sword_free"],
+  crossbow: ["xbow"],
+  longbow: ["xbow"],
+  light_cav: ["cavs"],
+  heavy_cav: ["cav"]
+});
+
 // An attack (or reload) is played over the soldier's base clip once; when it ends it fades out again, or
 // the pose it ends in would stay mixed into everything he does after.
 const OVERLAY_FADE = 0.2;
@@ -482,12 +494,17 @@ export class M2RendererThree {
       // Crossbowmen carry the crossbow; horsemen ride with a lance or a sword in turn. In turn, foot soldiers
       // fight with spear and shield, sword and shield, a spear in both hands, the sword alone or a longsword
       // (the player as his equipment says: M2_HeroLoadout.js).
-      const counter = (this.#loadoutCounts[unit.kindId] = (this.#loadoutCounts[unit.kindId] || 0) + 1) - 1;
+      // A subtype (병종, M2_UnitKinds.js) carries its own weapons: shield-bearers spear or sword with the shield,
+      // pikemen the spear in both hands, shock foot the longsword or the sword alone, skirmishers the sword
+      // alone; light horse the sword, heavy horse the lance. (Longbowmen carry the crossbow until a bow is
+      // drawn for the soldiers' model.)
+      const turn = unit.unitTypeId || unit.kindId;
+      const counter = (this.#loadoutCounts[turn] = (this.#loadoutCounts[turn] || 0) + 1) - 1;
+      const loadouts = SUBTYPE_LOADOUTS[unit.unitTypeId]
+        || (unit.kindId === "crossbow" ? ["xbow"] : unit.kindId === "cavalry" ? ["cav", "cavs"] : ["spear", "sword", "spear_free", "sword_free", "great"]);
       const loadout = unit.isPlayer ? (unit.heroAppearance || "spear")
         : unit.commanderAppearance ? unit.commanderAppearance
-        : unit.kindId === "crossbow" ? "xbow"
-          : unit.kindId === "cavalry" ? ["cav", "cavs"][counter % 2]
-            : ["spear", "sword", "spear_free", "sword_free", "great"][counter % 5];
+        : loadouts[counter % loadouts.length];
       const group = model
         ? createModelSoldier(model, marker, this.#geometries, this.#materials.shadow, loadout)
         : createHumanoid(unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy, marker, this.#geometries, this.#materials.shadow);

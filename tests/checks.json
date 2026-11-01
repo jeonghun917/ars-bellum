@@ -3430,6 +3430,66 @@
       "title": "the menu offers 2D or 3D battles and remembers the choice",
       "kind": "browser",
       "source": "tests/browser/m2-campaign.spec.mjs"
+    },
+    {
+      "id": "m2.subtypes.assigned",
+      "title": "a formation the snapshot names a subtype has its men, of its kind; a subtype of another kind is not taken",
+      "kind": "unit",
+      "source": "tests/unit/m2-subtypes.test.mjs"
+    },
+    {
+      "id": "m2.subtypes.shield-stops-bolts",
+      "title": "shield-bearers stop bolts from in front with their shields, as men in plain mail do not",
+      "kind": "unit",
+      "source": "tests/unit/m2-subtypes.test.mjs"
+    },
+    {
+      "id": "m2.subtypes.pike-outreaches-horse",
+      "title": "pikemen strike charging horse before the horse reaches them; men with short spears are struck first",
+      "kind": "unit",
+      "source": "tests/unit/m2-subtypes.test.mjs"
+    },
+    {
+      "id": "m2.subtypes.crossbow-pierces",
+      "title": "the crossbowman's (석궁병) bolts go through armor; the kind's crossbow bolts do not",
+      "kind": "unit",
+      "source": "tests/unit/m2-subtypes.test.mjs"
+    },
+    {
+      "id": "m2.subtypes.ammo",
+      "title": "the crossbowmen (석궁병) shoot their bolts, then close in and fight with their short swords",
+      "kind": "unit",
+      "source": "tests/unit/m2-subtypes.test.mjs"
+    },
+    {
+      "id": "m2.subtypes.longbow",
+      "title": "longbowmen shoot more often and from further off than crossbowmen",
+      "kind": "unit",
+      "source": "tests/unit/m2-subtypes.test.mjs"
+    },
+    {
+      "id": "m2.subtypes.horse",
+      "title": "light horse reaches the enemy first, heavy horse last; heavy horse loses less to the same blows",
+      "kind": "unit",
+      "source": "tests/unit/m2-subtypes.test.mjs"
+    },
+    {
+      "id": "m2.subtypes.shock",
+      "title": "shock foot strike harder than the kind's foot soldiers",
+      "kind": "unit",
+      "source": "tests/unit/m2-subtypes.test.mjs"
+    },
+    {
+      "id": "m2.subtypes.mixed-battle",
+      "title": "the mixed battle (?mixed) is a valid launch snapshot with every subtype but the skirmisher",
+      "kind": "unit",
+      "source": "tests/unit/m2-subtypes.test.mjs"
+    },
+    {
+      "id": "m2.subtypes.mixed-page",
+      "title": "m2_prototype.html?mixed opens a battle of subtypes, named in the formation lists, and fights it",
+      "kind": "browser",
+      "source": "tests/browser/m2-subtypes.spec.mjs"
     }
   ]
 }

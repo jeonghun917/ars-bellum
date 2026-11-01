@@ -158,10 +158,13 @@ export class M2FormationSystem {
         if (distance > 0) formation.facing = Math.atan2(dx, dz);
         return;
       }
-      // Crossbowmen stop at shooting distance; everyone else closes in.
-      const stopRange = m2UnitKind(formation.kindId).standOff ?? M2_FORMATION_ATTACK_DEFINITION.attackStopRange;
+      // Crossbowmen stop at shooting distance; everyone else closes in, and so do bowmen whose bolts are all
+      // spent (they draw their short swords: M2_UnitKinds.js).
+      const kind = m2UnitKind(formation);
+      const spent = kind.ammo !== undefined && battleState.getActiveFormationMemberIds(formation).every((id) => battleState.getUnit(id).ammo === 0);
+      const stopRange = (spent ? undefined : kind.standOff) ?? M2_FORMATION_ATTACK_DEFINITION.attackStopRange;
       // A flank march (M2_Orders.js): first abeam of the target, out on the nearer side, then in on its rear.
-      if (formation.tactic === "flank" && m2UnitKind(formation.kindId).standOff === undefined) {
+      if (formation.tactic === "flank" && kind.standOff === undefined) {
         this.#flank(battleState, formation, target, stopRange);
         formation.revision += 1;
         return;
