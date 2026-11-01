@@ -3091,10 +3091,10 @@ def infantry(zf, f):
                   italo_norman_helm(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["steel"])]
     # The other helmets, in the nasal helm's place over the coif (the renderer shows one of the three): the great
     # helm and a leather cap.
-    for p in great_helm(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["steel"], mats["iris"]):
-        rigid(p, skeleton, "prop_greathelm")
-    for p in leather_cap(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["leather"]):
-        rigid(p, skeleton, "prop_leathercap")
+    great_helm_parts = [rigid(p, skeleton, "prop_greathelm") for p in
+                        great_helm(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["steel"], mats["iris"])]
+    leather_cap_parts = [rigid(p, skeleton, "prop_leathercap") for p in
+                         leather_cap(Vector((0, coif_cy, brow_z)), coif_r + 0.006, mats["leather"])]
 
     # Shield on the left forearm, facing forward in the stance; spear upright in the right fist.
     stance(skeleton)
@@ -3250,13 +3250,23 @@ def infantry(zf, f):
         **({"barrel": [barrel]} if barrel is not None else {}),
         "surcoat_or_skirt": [surcoat, coat_skirt], "shoes": [shoes], "legs": [hose], "mail_skirt": [mail_skirt],
         # (what the bones bend: none of it may be drawn out far past its own size)
-        "stretch": [hauberk, surcoat, coif, coat_skirt, mail_skirt, hose, shoes],
+        "stretch": [hauberk, surcoat, coif, coat_skirt, mail_skirt, hose, shoes, leather_coat] + plate,
+        # The subtypes' gear (hidden in every clip, shown by the renderer: check_soldier shows each in the
+        # clips it is carried in, GEAR_SHOWN) and the other body armours.
+        "axe": axe_parts, "glaive": glaive_parts, "javelins": javelin_parts,
+        "great_helm": great_helm_parts, "leather_cap": leather_cap_parts,
+        "leather_coat": [leather_coat], "plate_body": [plate[0]], "plate_legs": [plate[1]],
     })
     return body, skeleton
 
 
 # Parts handed to check_soldier (name -> objects), filled by infantry().
 CHECK_PARTS = {}
+# The gear every clip hides, and the clips (by name prefix) in which check_soldier shows it as the renderer
+# does (M2_RendererThree.js gearFor): the axe with the sword alone ("f_"), the glaive with the two-handed spear
+# ("n_"), the javelins with sword and shield ("s_"), the helmets in every clip ("").
+GEAR_SHOWN = {"axe": ("prop_axe", ("f_",)), "glaive": ("prop_glaive", ("n_",)), "javelins": ("prop_javelins", ("s_",)),
+              "great_helm": ("prop_greathelm", ("",)), "leather_cap": ("prop_leathercap", ("",))}
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -3492,7 +3502,7 @@ def main():
                                                                               "t_" + base, "x_" + base)}
         problems = check_soldier.check(skeleton, CHECK_PARTS, [t.strips[0].action for t in skeleton.animation_data.nla_tracks],
                                        report, SPEAR_AXIS["local"], side, gaits, attack_aims(),
-                                       (EDGE_AXIS["local"], edge_cuts()))
+                                       (EDGE_AXIS["local"], edge_cuts()), gear_shown=GEAR_SHOWN)
         for p in problems:
             print(f"CHECK {side}: {p}")
         print(f"CHECK {side}: {len(problems)} problem(s), report {report}")
