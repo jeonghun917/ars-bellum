@@ -1,6 +1,6 @@
 // Runs one battle through the injected startBattle function and reports how it ended.
 //
-// startBattle({ container, mode, seed, enemyStrength, allyStrength, onEnd }) -> { dispose() }
+// startBattle({ container, mode, seed, enemyStrength, allyStrength, onEnd, options }) -> { dispose() }
 // (it may also return a promise of that). onEnd(result) is honoured once; a second call is ignored.
 // Resolves with ok({ result }) or a failure when the battle could not start or reported nonsense.
 import { fail, ok } from '../core/result.js';
@@ -8,7 +8,8 @@ import { normalizeBattleResult } from './battle-result.js';
 
 export const BATTLE_DEFAULTS = Object.freeze({ enemyStrength: 1, allyStrength: 1 });
 
-export function runBattle({ startBattle, container, mode, seed }) {
+// options: what the campaign gives the battle (the 3D battle reads options.heroSheet; the 2D ignores it).
+export function runBattle({ startBattle, container, mode, seed, options = {} }) {
   return new Promise((resolve) => {
     let handle = null;
     let started = false; // startBattle has returned (or failed)
@@ -30,7 +31,7 @@ export function runBattle({ startBattle, container, mode, seed }) {
     };
 
     Promise.resolve()
-      .then(() => startBattle({ container, mode, seed, ...BATTLE_DEFAULTS, onEnd }))
+      .then(() => startBattle({ container, mode, seed, ...BATTLE_DEFAULTS, onEnd, options }))
       .then((returned) => {
         handle = returned ?? null;
         started = true;

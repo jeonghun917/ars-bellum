@@ -674,6 +674,7 @@
         "tests/browser/ui-helpers.mjs",
         "tests/browser/m2-helpers.mjs",
         "tests/browser/m2-battle.spec.mjs",
+        "tests/browser/m2-campaign.spec.mjs",
         "tests/unit/m2-unit-kinds.test.mjs",
         "tests/unit/m2-enemy-ai.test.mjs",
         "tests/unit/m2-pace-bodies.test.mjs",
@@ -752,6 +753,39 @@
           "risk": "docs/REWRITE.md 첫 문단은 아직 \"옛 루트 파일이 남아 돌아간다\"고 적혀 있으나 갈아끼우기(f1faa8e)로 이미 지워졌다",
           "trigger": "문서를 근거로 구조를 판단할 때",
           "preWriteRule": "문서보다 코드와 이 지도를 먼저 믿고, 문서를 고칠 때 이 문단을 함께 고친다",
+          "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        }
+      ]
+    },
+    {
+      "id": "bellum-battle3d-link",
+      "title": "본편과 3D 전투 연결",
+      "owner": "src/battle3d/index.js가 본편의 전투 시작(2D와 같은 startBattle 모양)을 받아 m2_prototype.html을 틀(iframe) 안에 열고, launch.js가 본편의 시드와 영웅 정보(heroSheet)로 전투를 준비해 결과를 본편 형식(승리·패배·후퇴와 사상자 수)으로 돌려준다. 2D와 3D 중 무엇으로 싸울지는 src/main.js(메뉴 선택·?battle=)가 정한다",
+      "files": [
+        "src/battle3d/index.js",
+        "src/battle3d/launch.js",
+        "tests/unit/battle3d.test.mjs"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/battle3d.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/browser/m2-campaign.spec.mjs",
+          "kind": "BROWSER_TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "battle3d-link-01",
+          "risk": "틀 안의 3D 전투 페이지가 내놓는 window.ArsM2Battle(loadSnapshot·start·getResult·getSnapshot·dispose)에 기대므로, 그 모양이 바뀌면 본편에서 3D 전투가 열리지 않는다",
+          "trigger": "m2/M2_Bootstrap.js의 window.ArsM2Battle 또는 m2_prototype.html을 바꿀 때",
+          "preWriteRule": "tests/browser/m2-campaign.spec.mjs를 함께 돌린다",
           "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
         }
       ]
