@@ -3490,6 +3490,12 @@
       "title": "m2_prototype.html?mixed opens a battle of subtypes, named in the formation lists, and fights it",
       "kind": "browser",
       "source": "tests/browser/m2-subtypes.spec.mjs"
+    },
+    {
+      "id": "m2.subtypes.gear",
+      "title": "each subtype shows its own weapons: javelins with the shield-bearers, axe or glaive with shock foot, great helm and plate on heavy horse",
+      "kind": "browser",
+      "source": "tests/browser/m2-subtypes.spec.mjs"
     }
   ]
 }

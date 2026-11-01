@@ -11,7 +11,18 @@ export function useSoldierModels(models) {
 
 // A Blender soldier: its own copy of the side's rigged model (the skeleton is copied, meshes and materials
 // are shared), the same ground shadow and player ring as the box soldier, and an animator.
-function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, loadout) {
+// A subtype's own gear (병종, M2_UnitKinds.js; the models carry it hidden, tools/blender/build_men.py): the
+// prop bones to show and to hide once a clip has posed the soldier, and whether he wears the plate.
+function gearFor(unitTypeId, loadout) {
+  if (unitTypeId === "shield") return { show: ["prop_javelins"], hide: [], plate: false };
+  if (unitTypeId === "shock" && loadout === "sword_free") return { show: ["prop_axe"], hide: ["prop_sword", "prop_sheath"], plate: false };
+  if (unitTypeId === "shock" && loadout === "spear_free") return { show: ["prop_glaive"], hide: ["prop_spear"], plate: false };
+  if (unitTypeId === "heavy_cav") return { show: ["prop_greathelm"], hide: ["prop_helm"], plate: true };
+  return null;
+}
+const GEAR_HIDDEN = 1e-4;
+
+function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, loadout, gear = null) {
   const group = new THREE.Group();
   const soldier = cloneSkinned(model.scene);
   // The bounds of a skinned mesh are those of its rest pose; a fallen soldier lies outside them.
@@ -51,6 +62,28 @@ function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, l
   group.userData.animator = mounted
     ? new HorsemanAnimator(soldier, model.clips, horse, model.horse, MOUNTED_CLIPS[loadout])
     : new SoldierAnimator(soldier, model.clips, loadout, model.gait);
+  // The plate is worn by the heavy horseman alone; his other gear is shown (and what it replaces hidden)
+  // after each pose, which would otherwise keep it hidden.
+  soldier.traverse((object) => { if (object.name === "gear_plate") object.visible = Boolean(gear?.plate); });
+  if (gear) {
+    const bones = (names) => names.map((name) => soldier.getObjectByName(name)).filter(Boolean);
+    const show = bones(gear.show);
+    const hide = bones(gear.hide);
+    const animator = group.userData.animator;
+    const update = animator.update.bind(animator);
+    animator.update = (...args) => {
+      update(...args);
+      for (const bone of show) bone.scale.setScalar(1);
+      for (const bone of hide) bone.scale.setScalar(GEAR_HIDDEN);
+    };
+    // For the diagnostics: what this soldier shows now (each bone as posed, the plate as drawn).
+    const plate = [];
+    soldier.traverse((object) => { if (object.name === "gear_plate") plate.push(object); });
+    group.userData.gearShown = () => [
+      ...[...show, ...hide].filter((bone) => bone.scale.x > 0.5).map((bone) => bone.name),
+      ...(plate.some((mesh) => mesh.visible) ? ["plate"] : [])
+    ];
+  }
   return group;
 }
 
@@ -103,10 +136,11 @@ const MOUNTED_CLIPS = Object.freeze({
 
 // Which weapons each subtype's men carry, in turn (M2_UnitKinds.js).
 const SUBTYPE_LOADOUTS = Object.freeze({
-  shield: ["spear", "sword"],
-  pike: ["spear_free"],
-  shock: ["great", "sword_free"],
-  skirmisher: ["sword_free"],
+  shield: ["sword"],
+  pike: ["spear", "sword", "spear_free", "sword_free", "great"],
+  // (the axe in the hand of the sword alone, the glaive in that of the two-handed spear: gearFor())
+  shock: ["sword_free", "spear_free"],
+  skirmisher: ["sword"],
   crossbow: ["xbow"],
   longbow: ["xbow"],
   light_cav: ["cavs"],
@@ -494,10 +528,10 @@ export class M2RendererThree {
       // Crossbowmen carry the crossbow; horsemen ride with a lance or a sword in turn. In turn, foot soldiers
       // fight with spear and shield, sword and shield, a spear in both hands, the sword alone or a longsword
       // (the player as his equipment says: M2_HeroLoadout.js).
-      // A subtype (병종, M2_UnitKinds.js) carries its own weapons: shield-bearers spear or sword with the shield,
-      // pikemen the spear in both hands, shock foot the longsword or the sword alone, skirmishers the sword
-      // alone; light horse the sword, heavy horse the lance. (Longbowmen carry the crossbow until a bow is
-      // drawn for the soldiers' model.)
+      // A subtype (병종, M2_UnitKinds.js) carries its own weapons (the owner, 2026-11-01): pikemen as the
+      // kind's foot soldiers, shield-bearers sword, shield and javelins, shock foot the axe or the glaive,
+      // skirmishers sword and shield; light horse the sword, heavy horse the lance, in great helm and plate.
+      // (Longbowmen carry the crossbow until a bow is drawn for the soldiers' model.)
       const turn = unit.unitTypeId || unit.kindId;
       const counter = (this.#loadoutCounts[turn] = (this.#loadoutCounts[turn] || 0) + 1) - 1;
       const loadouts = SUBTYPE_LOADOUTS[unit.unitTypeId]
@@ -506,7 +540,8 @@ export class M2RendererThree {
         : unit.commanderAppearance ? unit.commanderAppearance
         : loadouts[counter % loadouts.length];
       const group = model
-        ? createModelSoldier(model, marker, this.#geometries, this.#materials.shadow, loadout)
+        ? createModelSoldier(model, marker, this.#geometries, this.#materials.shadow, loadout,
+          unit.isPlayer || unit.isCommander ? null : gearFor(unit.unitTypeId, loadout))
         : createHumanoid(unit.sideId === "ally" ? this.#materials.ally : this.#materials.enemy, marker, this.#geometries, this.#materials.shadow);
       const profile = combatProfiles.get(unit.combatProfileId);
       group.scale.setScalar(0.9 + ((profile?.stats?.vitality || 0) / 100) * 0.18);
@@ -661,7 +696,10 @@ export class M2RendererThree {
     const soldierAnimations = {};
     // And how many horses each gait (idle, walk, trot, gallop, death).
     const horseAnimations = {};
+    // And how many soldiers show each piece of subtype gear (M2_UnitKinds.js).
+    const soldierGear = {};
     for (const { group } of this.#units.values()) {
+      for (const piece of group.userData.gearShown?.() || []) soldierGear[piece] = (soldierGear[piece] || 0) + 1;
       const playing = group.userData.animator?.playing;
       if (playing) soldierAnimations[playing] = (soldierAnimations[playing] || 0) + 1;
       const gait = group.userData.animator?.horsePlaying;
@@ -670,6 +708,7 @@ export class M2RendererThree {
     return {
       soldierAnimations,
       horseAnimations,
+      soldierGear,
       drawCalls: info.calls,
       triangles: info.triangles,
       renderedUnits: this.#units.size,

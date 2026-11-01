@@ -1,7 +1,7 @@
 // The mixed battle of subtypes (병종, m2/M2_UnitKinds.js) in the browser. Each test title starts with its check id
 // from tests/checks.json.
 import { test, expect } from '@playwright/test';
-import { openBattle, snapshot, switchToTactical, noPageErrors } from './m2-helpers.mjs';
+import { openBattle, snapshot, diagnostics, switchToTactical, noPageErrors } from './m2-helpers.mjs';
 
 test('[m2.subtypes.mixed-page] m2_prototype.html?mixed opens a battle of subtypes, named in the formation lists, and fights it', async ({ page }) => {
   test.setTimeout(240_000);
@@ -27,5 +27,25 @@ test('[m2.subtypes.mixed-page] m2_prototype.html?mixed opens a battle of subtype
   // (80 men drawn in software in CI: slow frames, so a long wait; it checks that they fight, not how fast.)
   const start = s.units.reduce((sum, u) => sum + u.hp, 0);
   await expect.poll(async () => (await snapshot(page)).units.reduce((sum, u) => sum + u.hp, 0), { timeout: 150_000, intervals: [2000] }).toBeLessThan(start);
+  await noPageErrors(page, errors);
+});
+
+test('[m2.subtypes.gear] each subtype shows its own weapons: javelins with the shield-bearers, axe or glaive with shock foot, great helm and plate on heavy horse', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors = await openBattle(page, '/m2_prototype.html?mixed');
+  expect((await diagnostics(page)).soldierModel).toBe('blender');
+  const s = await snapshot(page);
+  // Soldiers of a subtype, not their commander nor the player (who wear their own equipment).
+  const count = (formationId) => s.units.filter((u) => u.formationId === formationId && !u.commander && !u.isPlayer).length;
+  const gear = (await diagnostics(page)).soldierGear;
+  expect(gear.prop_javelins).toBe(count('ally_line'));
+  expect(gear.prop_axe).toBeGreaterThan(0);
+  expect(gear.prop_glaive).toBeGreaterThan(0);
+  expect(gear.prop_axe + gear.prop_glaive).toBe(count('enemy_line'));
+  expect(gear.prop_greathelm).toBe(count('ally_column'));
+  expect(gear.plate).toBe(count('ally_column'));
+  // What the gear replaces stays hidden (the sword and its scabbard for the axe, the spear for the glaive,
+  // the nasal helm under the great helm).
+  for (const replaced of ['prop_sword', 'prop_sheath', 'prop_spear', 'prop_helm']) expect(gear[replaced] || 0).toBe(0);
   await noPageErrors(page, errors);
 });
