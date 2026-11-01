@@ -479,6 +479,9 @@
           "files": [
             "tests/unit/**"
           ]
+        },
+        {
+          "text": "tests/unit/m2-sim-helpers.mjs copies the system order of M2BattleRuntime's fixed tick, including the enemy AI step after player commands and before updateAttackGoals. Adding or reordering a system in the runtime tick without mirroring it there makes the unit simulations stop matching the real battle. The helper also records bolts, damage events and the outcome, which the AI and crossbow tests rely on."
         }
       ]
     },
@@ -673,6 +676,14 @@
         {
           "run": "node --test tests/unit/save.test.mjs"
         }
+      ]
+    },
+    {
+      "id": "enemy-ai-state-only",
+      "rule": "The enemy commander's decisions depend only on the battle state and the tick. Its orders are set directly on the formations and are not part of the player's command log.",
+      "why": "If it read anything else, such as wall-clock time or randomness, the same battle would play out differently on replay and the m2.ai.deterministic check would fail.",
+      "files": [
+        "m2/M2_EnemyAI.js"
       ]
     }
   ],
