@@ -135,6 +135,9 @@
           "files": [
             "m2/M2_RendererThree.js"
           ]
+        },
+        {
+          "text": "The player's hero has formationId null and slotTarget null, and he is not in any formation's memberUnitIds. Code that loops over all units and reads slotTarget or looks up a formation must skip him; the runtime's start-position loop and the test helper both needed a guard."
         }
       ]
     },
@@ -479,6 +482,9 @@
           "files": [
             "tests/unit/**"
           ]
+        },
+        {
+          "text": "tick() in tests/unit/m2-sim-helpers.mjs hand-copies the system order of M2BattleRuntime's #fixedTick. When the runtime gains or reorders a system, update the helper too, or tests silently skip the player's move, block and melee."
         }
       ]
     },
