@@ -18,6 +18,7 @@ export class M2Diagnostics {
   #renderedUnits = 0;
   #soldierModel = "none";
   #soldierGear = Object.freeze({});
+  #fadedSoldiers = Object.freeze({ drawn: 0, hidden: 0 });
   #view = Object.freeze({ right: { x: 1, z: 0 }, forward: { x: 0, z: 1 }, lookDown: 0, height: 0 });
   #soldierAnimations = {};
   #horseAnimations = {};
@@ -37,6 +38,8 @@ export class M2Diagnostics {
   #enemyAwake = false;
   #moraleSummary = Object.freeze({ ally: 0, enemy: 0 });
   #routingCounts = Object.freeze({ ally: 0, enemy: 0, total: 0 });
+  // Enemies the player's side sees now, and those drawn faded where last seen (M2_Vision.js).
+  #sight = Object.freeze({ enemySeen: 0, enemyFaded: 0 });
   #battleResultOutcome = null;
 
   markStatus(status) { this.#status = status; }
@@ -79,6 +82,7 @@ export class M2Diagnostics {
       enemy: Math.max(0, renderSnapshot.routingCounts?.enemy | 0),
       total: Math.max(0, renderSnapshot.routingCounts?.total | 0)
     });
+    this.#sight = Object.freeze({ enemySeen: Math.max(0, renderSnapshot.sight?.enemySeen | 0), enemyFaded: Math.max(0, renderSnapshot.sight?.enemyFaded | 0) });
     this.#battleResultOutcome = renderSnapshot.battleResultOutcome || null;
   }
 
@@ -93,6 +97,7 @@ export class M2Diagnostics {
     this.#soldierAnimations = Object.freeze({ ...(rendererInfo.soldierAnimations || {}) });
     this.#horseAnimations = Object.freeze({ ...(rendererInfo.horseAnimations || {}) });
     this.#soldierGear = Object.freeze({ ...(rendererInfo.soldierGear || {}) });
+    this.#fadedSoldiers = Object.freeze({ drawn: rendererInfo.faded?.drawn | 0, hidden: rendererInfo.faded?.hidden | 0 });
     if (rendererInfo.view) this.#view = Object.freeze({ ...rendererInfo.view, right: { ...rendererInfo.view.right }, forward: { ...rendererInfo.view.forward } });
   }
 
@@ -114,6 +119,7 @@ export class M2Diagnostics {
       soldierAnimations: this.#soldierAnimations,
       horseAnimations: this.#horseAnimations,
       soldierGear: this.#soldierGear,
+      fadedSoldiers: this.#fadedSoldiers,
       view: this.#view,
       animationOwner: "M2BattleRuntime",
       runtimeNetworkImport: false,
@@ -134,6 +140,7 @@ export class M2Diagnostics {
       enemyAwake: this.#enemyAwake,
       moraleSummary: this.#moraleSummary,
       routingCounts: this.#routingCounts,
+      sight: this.#sight,
       battleResultOutcome: this.#battleResultOutcome,
       lastError: this.#lastError
     });

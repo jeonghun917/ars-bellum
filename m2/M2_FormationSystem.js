@@ -2,6 +2,7 @@ import { M2_FORMATION_ATTACK_DEFINITION, M2_MORALE_DEFINITION } from "./M2_Defin
 import { M2_ORDERS } from "./M2_Orders.js";
 import { isM2UnitActive } from "./M2_BattleState.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
+import { m2KnownCentre, m2SeesFormation } from "./M2_Vision.js";
 
 function rotateLocal(localX, localZ, facing) {
   const rightX = Math.cos(facing);
@@ -152,7 +153,12 @@ export class M2FormationSystem {
       const target = battleState.getFormation(formation.order.targetFormationId);
       if (!target || target.sideId === formation.sideId) return;
       if (battleState.getActiveFormationMemberIds(target).length === 0) return;
-      const targetAnchor = target.anchor;
+      // Out of sight, they make for where their side last saw it fighting; none of it fighting then, they stay
+      // (M2_Vision.js).
+      const seen = m2SeesFormation(battleState, formation.sideId, target);
+      const targetAnchor = seen ? target.anchor : m2KnownCentre(battleState, formation.sideId, target);
+      if (!targetAnchor) return;
+      const view = seen ? target : { facing: target.facing, anchor: targetAnchor };
       const dx = targetAnchor.x - formation.anchor.x;
       const dz = targetAnchor.z - formation.anchor.z;
       const distance = Math.hypot(dx, dz);
@@ -168,7 +174,7 @@ export class M2FormationSystem {
       const stopRange = (spent ? undefined : kind.standOff) ?? M2_FORMATION_ATTACK_DEFINITION.attackStopRange;
       // A flank march (M2_Orders.js): first abeam of the target, out on the nearer side, then in on its rear.
       if (formation.tactic === "flank" && kind.standOff === undefined) {
-        this.#flank(battleState, formation, target, stopRange);
+        this.#flank(battleState, formation, view, stopRange);
         formation.revision += 1;
         return;
       }

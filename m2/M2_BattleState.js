@@ -38,6 +38,8 @@ export class M2BattleState {
   #finalResult = null;
   // Each side's battle plan (M2_Plans.js): { planId, startTick, stage }, or null.
   #plans = { ally: null, enemy: null };
+  // What each side sees, and where it last saw each enemy (M2_Vision.js); worked out each tick.
+  #vision = null;
   #tick = 0;
 
   constructor(snapshot, combatProfiles) {
@@ -200,6 +202,8 @@ export class M2BattleState {
   getResult() { return this.#finalResult; }
   getPlan(sideId) { return this.#plans[sideId] || null; }
   setPlan(sideId, plan) { this.#plans[sideId] = plan; }
+  getVision() { return this.#vision; }
+  setVision(vision) { this.#vision = vision; }
 
   getUnitIdsStable() { return [...this.#units.keys()].sort(); }
   getFormationIdsStable() { return [...this.#formations.keys()].sort(); }

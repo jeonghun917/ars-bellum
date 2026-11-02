@@ -28,6 +28,7 @@ import { M2PlanSystem, setPlan } from "../m2/M2_Plans.js";
 import { createRenderSnapshot } from "../m2/M2_RenderSnapshot.js";
 import { createCombatProfileCatalog } from "../m2/M2_CombatProfiles.js";
 import { buildScaleSnapshot, M2_SCALE_COMBAT_PROFILES } from "../m2/fixtures/m2_scale_fixture.js";
+import { m2UpdateVision } from "../m2/M2_Vision.js";
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, i, all) => (value.startsWith("--") ? [...pairs, [value.slice(2), all[i + 1]]] : pairs), []));
 const PER_SIDE = Number(args["per-side"] ?? 100);
@@ -36,7 +37,7 @@ const SECONDS = Number(args.seconds ?? 60);
 const OUT = args.out ?? "test-results/m2-scale-sim.json";
 const DT = M2_CONFIG.fixedTickMs / 1000;
 const SCENARIOS = ["clash", "plans", "rout"];
-const PHASES = ["orders", "formation", "movement", "grid", "collision", "combat_plan", "combat_resolve", "morale_result", "render_snapshot"];
+const PHASES = ["vision", "orders", "formation", "movement", "grid", "collision", "combat_plan", "combat_resolve", "morale_result", "render_snapshot"];
 
 function setup() {
   const catalog = createCombatProfileCatalog(M2_SCALE_COMBAT_PROFILES);
@@ -67,6 +68,8 @@ function tick(b, times) {
   let t = performance.now();
   const mark = (phase) => { const now = performance.now(); times[phase] = (times[phase] || 0) + (now - t); t = now; };
   const commands = b.queue.drain().commands;
+  m2UpdateVision(b.state);
+  mark("vision");
   for (const c of commands) if (c.type.startsWith("formation_")) b.formation.applyCommand(b.state, c);
   for (const c of commands) if (c.type === "army_set_plan") setPlan(b.state, c.sideId, c.planId, n);
   b.ai.step(b.state, n);

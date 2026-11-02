@@ -25,7 +25,9 @@ export const M2_UNIT_KINDS = Object.freeze({
     mass: 1,
     meleeRange: 1.6,
     meleeDamage: 9,
-    meleeCooldownTicks: 60
+    meleeCooldownTicks: 60,
+    // How far (m) he sees (M2_Vision.js): a man on foot in the press of a battle, about a line's depth and a half.
+    visionRange: 20
   }),
   // A crossbowman shoots the nearest enemy in range when his formation is ordered to attack, and keeps his
   // distance (standOff, m) instead of closing in. The cooldown is the shot and the reload as drawn (the
@@ -48,7 +50,9 @@ export const M2_UNIT_KINDS = Object.freeze({
     boltSpeed: 30,
     boltDamage: 24,
     boltMaxRange: 24,
-    reloadTicks: 88
+    reloadTicks: 88,
+    // A little beyond his shot: he watches the ground he shoots over.
+    visionRange: 24
   }),
   // A horseman moves at about a canter's pace and reaches further from the saddle. Striking after riding
   // faster than chargeSpeed (m/s) for chargeRunTicks in a row (a run-up of about 5 m) is a charge:
@@ -71,7 +75,9 @@ export const M2_UNIT_KINDS = Object.freeze({
     meleeDamage: 12,
     chargeSpeed: 3.5,
     chargeRunTicks: 20,
-    chargeScale: 2.5
+    chargeScale: 2.5,
+    // Higher in the saddle, he sees further.
+    visionRange: 28
   })
 });
 
@@ -82,7 +88,7 @@ export const M2_UNIT_KINDS = Object.freeze({
 // - shield (방패병): heavy shield and mail, heavy to push; his shield is up against bolts from the front.
 // - pike (장창병): a long pike that reaches a horseman before the horseman reaches him.
 // - shock (충격보병): in leather, heavy blows.
-// - skirmisher (척후병): in leather, weak; his wide sight (visionRange) is for the fog of war (a later step).
+// - skirmisher (척후병): in leather, weak; his wide sight (visionRange, M2_Vision.js) shows his side what lies further off.
 // - crossbow (석궁병): slow to reload, few bolts, bolts that go through armor.
 // - longbow (장궁병): quick to shoot and far, many arrows that armor and shields stop.
 // - light_cav (경기병): quick and quick to a charge, in leather.
