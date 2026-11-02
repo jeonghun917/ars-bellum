@@ -6,6 +6,7 @@
 // do not (the owner, 2026-11-01).
 import { isM2UnitActive, isM2UnitAlive } from "./M2_BattleState.js";
 import { M2_MORALE_DEFINITION } from "./M2_Definitions.js";
+import { m2Sees } from "./M2_Vision.js";
 
 const EDGE = M2_MORALE_DEFINITION.retreatEdgeZ;
 // A running man still on the field: one who has reached his side's edge has got away (the battle counts him
@@ -30,10 +31,12 @@ export function pursuedFormation(battleState, formation) {
   return running ? target : null;
 }
 
-// Whether attacker may strike (or shoot at) target: any enemy still fighting; a running one only if the
-// attacker's formation is pursuing his formation, or the attacker is the hero (the player chooses whom he cuts down).
+// Whether attacker may strike (or shoot at) target: an enemy his side sees (M2_Vision.js), still fighting; a
+// running one only if the attacker's formation is pursuing his formation, or the attacker is the hero (the
+// player chooses whom he cuts down).
 export function mayStrike(battleState, attacker, target) {
   if (!target || target.sideId === attacker.sideId) return false;
+  if (!m2Sees(battleState, attacker.sideId, target)) return false;
   if (isM2UnitActive(target)) return true;
   if (!isRunning(target)) return false;
   if (attacker.isPlayer) return true;
@@ -41,8 +44,8 @@ export function mayStrike(battleState, attacker, target) {
   return pursuedFormation(battleState, own)?.formationId === target.formationId;
 }
 
-// Where a pursuing soldier runs: at the nearest runner of the pursued formation (a crossbowman only until he
-// is within standOff of him, to shoot), but not up to the runners' edge of the field.
+// Where a pursuing soldier runs: at the nearest runner of the pursued formation his side sees (a crossbowman
+// only until he is within standOff of him, to shoot), but not up to the runners' edge of the field.
 export function pursuitTarget(battleState, unit, standOff = 0) {
   const formation = unit.formationId ? battleState.getFormation(unit.formationId) : null;
   const pursued = pursuedFormation(battleState, formation);
@@ -51,7 +54,7 @@ export function pursuitTarget(battleState, unit, standOff = 0) {
   let best = null;
   for (const id of pursued.memberUnitIds) {
     const enemy = battleState.getUnit(id);
-    if (!isRunning(enemy)) continue;
+    if (!isRunning(enemy) || !m2Sees(battleState, unit.sideId, enemy)) continue;
     const d = Math.hypot(enemy.position.x - unit.position.x, enemy.position.z - unit.position.z);
     if (!best || d < best.d || (d === best.d && id < best.id)) best = { d, id, x: enemy.position.x, z: enemy.position.z };
   }

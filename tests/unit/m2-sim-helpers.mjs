@@ -1,5 +1,6 @@
 // The 3D battle simulation without a screen, for the unit tests: the same systems in the same order as
 // M2BattleRuntime's fixed tick.
+import { m2UpdateVision } from '../../m2/M2_Vision.js';
 import assert from 'node:assert/strict';
 import { M2_CONFIG } from '../../m2/M2_Config.js';
 import { M2BattleState, isM2UnitActive, isM2UnitAlive } from '../../m2/M2_BattleState.js';
@@ -55,6 +56,7 @@ export function battle({ withAI = false, heroSheet = null, commanderSheets = nul
 export function tick(b) {
   const n = b.state.tick + 1;
   const commands = b.queue.drain().commands;
+  m2UpdateVision(b.state);
   for (const c of commands) if (c.type.startsWith('formation_')) b.formation.applyCommand(b.state, c);
   for (const c of commands) if (c.type === 'army_set_plan') setPlan(b.state, c.sideId, c.planId, n);
   b.ai?.step(b.state, n);

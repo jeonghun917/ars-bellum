@@ -1,3 +1,4 @@
+import { m2UpdateVision } from "./M2_Vision.js";
 import { M2_CONFIG, m2Receipt } from "./M2_Config.js";
 import { M2PlanSystem, setPlan } from "./M2_Plans.js";
 import { validateBattleLaunchSnapshot } from "./M2_BattleSnapshot.js";
@@ -164,6 +165,8 @@ export class M2BattleRuntime {
     if (drained.staleDropped > 0) this.#diagnostics.markStaleInputCommandsDropped(drained.staleDropped);
     const commands = drained.commands;
 
+    // What each side sees, from where everyone stands (M2_Vision.js): all that follows goes by it.
+    m2UpdateVision(this.#battleState);
     for (const command of commands) if (command.type.startsWith("formation_")) this.#formationSystem.applyCommand(this.#battleState, command);
     for (const command of commands) if (command.type === "army_set_plan") setPlan(this.#battleState, command.sideId, command.planId, processingTick);
     this.#enemyAI.step(this.#battleState, processingTick);

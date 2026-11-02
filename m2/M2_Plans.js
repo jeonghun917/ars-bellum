@@ -27,6 +27,7 @@
 import { isM2UnitActive } from "./M2_BattleState.js";
 import { pursuedFormation } from "./M2_Pursuit.js";
 import { ordersFor } from "./M2_Orders.js";
+import { m2KnownCentre } from "./M2_Vision.js";
 
 export const M2_PLANS = Object.freeze({
   frontal_push: Object.freeze({ id: "frontal_push", label: "정면 압박", needs: () => true }),
@@ -40,22 +41,15 @@ export const M2_PLANS = Object.freeze({
 const PLANS_PER_SLOT = 2;
 const LEARNED = Object.freeze(["anvil_hammer", "shoot_then_charge", "screen_archers", "defend_counter", "double_envelopment", "feigned_retreat"]);
 
-function centre(battleState, formation) {
-  const ids = battleState.getActiveFormationMemberIds(formation);
-  if (!ids.length) return null;
-  return {
-    x: ids.reduce((s, id) => s + battleState.getUnit(id).position.x, 0) / ids.length,
-    z: ids.reduce((s, id) => s + battleState.getUnit(id).position.z, 0) / ids.length
-  };
-}
 const gap = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
-// A side's formations still able to fight, with where they stand.
-function fieldOf(battleState, sideId) {
+// A side's formations still able to fight, with where they stand, as the side `viewer` knows it (M2_Vision.js):
+// its own where they are, the enemy's where they are seen or were last seen, and none it has never seen.
+function fieldOf(battleState, sideId, viewer = sideId) {
   const out = [];
   battleState.forEachFormationStable((formation) => {
     if (formation.sideId !== sideId || formation.order.type === "withdraw" || formation.order.type === "rally") return;
-    const at = centre(battleState, formation);
+    const at = m2KnownCentre(battleState, viewer, formation);
     if (at) out.push({ formation, at });
   });
   return out;
@@ -97,7 +91,7 @@ export class M2PlanSystem {
   #carryOut(battleState, sideId, plan, tick) {
     // (A formation pursuing a broken one keeps after it until it is done: M2_Pursuit.js.)
     const own = fieldOf(battleState, sideId).filter((entry) => entry.formation.underPlan && !pursuedFormation(battleState, entry.formation));
-    const enemies = fieldOf(battleState, sideId === "ally" ? "enemy" : "ally");
+    const enemies = fieldOf(battleState, sideId === "ally" ? "enemy" : "ally", sideId);
     if (!own.length || !enemies.length) return;
     const def = M2_PLANS[plan.planId];
     const foot = own.filter((e) => e.formation.kindId === "infantry");
