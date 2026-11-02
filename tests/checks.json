@@ -3592,6 +3592,66 @@
       "title": "each man is drawn in his subtype's armour and helmet, unless his formation says otherwise; an unknown one is not taken",
       "kind": "unit",
       "source": "tests/unit/m2-subtypes.test.mjs"
+    },
+    {
+      "id": "m2.vision.range",
+      "title": "a side sees an enemy within any of its men's sight, foot 20 m, skirmishers 45, horse 28; the dead see nothing",
+      "kind": "unit",
+      "source": "tests/unit/m2-vision.test.mjs"
+    },
+    {
+      "id": "m2.vision.last-seen",
+      "title": "each side knows where the other drew up; an enemy who moves out of sight is known only where he was last seen",
+      "kind": "unit",
+      "source": "tests/unit/m2-vision.test.mjs"
+    },
+    {
+      "id": "m2.vision.strike",
+      "title": "nobody shoots or strikes at an enemy his side does not see; another man's sight is enough",
+      "kind": "unit",
+      "source": "tests/unit/m2-vision.test.mjs"
+    },
+    {
+      "id": "m2.vision.goes-by-last-seen",
+      "title": "a formation sent against an enemy that has gone out of sight makes for where it was last seen",
+      "kind": "unit",
+      "source": "tests/unit/m2-vision.test.mjs"
+    },
+    {
+      "id": "m2.vision.enemy-commander",
+      "title": "the enemy commander goes by what his men see: an ally formation out of sight is where it was last seen",
+      "kind": "unit",
+      "source": "tests/unit/m2-vision.test.mjs"
+    },
+    {
+      "id": "m2.vision.screen",
+      "title": "the player sees an enemy out of his side's sight faded where it was last seen",
+      "kind": "unit",
+      "source": "tests/unit/m2-vision.test.mjs"
+    },
+    {
+      "id": "m2.vision.drawn-up",
+      "title": "an enemy out of sight from the start is still known where he drew up",
+      "kind": "unit",
+      "source": "tests/unit/m2-vision.test.mjs"
+    },
+    {
+      "id": "m2.vision.chase",
+      "title": "horsemen charge and pursue only the enemies their side sees",
+      "kind": "unit",
+      "source": "tests/unit/m2-vision.test.mjs"
+    },
+    {
+      "id": "m2.vision.enemy-braces",
+      "title": "enemy foot keep their spears planted against horse last seen close, gone out of sight",
+      "kind": "unit",
+      "source": "tests/unit/m2-vision.test.mjs"
+    },
+    {
+      "id": "m2.vision.faded",
+      "title": "an enemy out of sight is drawn faded where it was last seen, and solid again when the player's men come near",
+      "kind": "browser",
+      "source": "tests/browser/m2-vision.spec.mjs"
     }
   ]
 }

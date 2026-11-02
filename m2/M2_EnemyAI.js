@@ -4,30 +4,19 @@
 // - horsemen go for the ally crossbowmen while any stand, then the nearest formation;
 // - crossbowmen and foot soldiers go for the nearest formation (the crossbowmen shoot from their distance).
 // Orders are set directly on the formations, as the formation system does for the player's commands; they are
-// the enemy's own and are not part of the player's command log. Everything here depends only on the battle
-// state, so the same battle plays out the same way.
+// the enemy's own and are not part of the player's command log. He knows only what his men see (M2_Vision.js):
+// an ally formation out of sight is where it was last seen, one never seen he does not know of. Everything here
+// depends only on the battle state, so the same battle plays out the same way.
 import { isM2UnitAlive } from "./M2_BattleState.js";
 import { plansFor, setPlan } from "./M2_Plans.js";
 import { ordersFor } from "./M2_Orders.js";
 import { pursuedFormation } from "./M2_Pursuit.js";
+import { m2KnownCentre } from "./M2_Vision.js";
 
 const AI_SIDE = "enemy";
 const THINK_EVERY_TICKS = 20;
 // The plans the enemy commander would rather use, best first.
 const PLAN_PREFERENCE = Object.freeze(["anvil_hammer", "shoot_then_charge", "defend_counter", "screen_archers", "double_envelopment", "feigned_retreat"]);
-
-function centre(battleState, formation) {
-  const ids = battleState.getActiveFormationMemberIds(formation);
-  if (!ids.length) return null;
-  let x = 0;
-  let z = 0;
-  for (const id of ids) {
-    const unit = battleState.getUnit(id);
-    x += unit.position.x;
-    z += unit.position.z;
-  }
-  return { x: x / ids.length, z: z / ids.length };
-}
 
 export class M2EnemyAI {
   #awake = false;
@@ -61,7 +50,7 @@ export class M2EnemyAI {
     const allies = [];
     battleState.forEachFormationStable((formation) => {
       if (formation.sideId === AI_SIDE) return;
-      const at = centre(battleState, formation);
+      const at = m2KnownCentre(battleState, AI_SIDE, formation);
       if (at) allies.push({ formation, at });
     });
     if (!allies.length) return;
@@ -71,7 +60,7 @@ export class M2EnemyAI {
       if (formation.order.type === "withdraw" || formation.order.type === "rally") return;
       // Pursuing a broken formation, it keeps after the runners (M2_Pursuit.js) until none is left.
       if (pursuedFormation(battleState, formation)) return;
-      const at = centre(battleState, formation);
+      const at = m2KnownCentre(battleState, AI_SIDE, formation);
       if (!at) return;
       const byDistance = [...allies].sort((a, b) =>
         Math.hypot(a.at.x - at.x, a.at.z - at.z) - Math.hypot(b.at.x - at.x, b.at.z - at.z)
