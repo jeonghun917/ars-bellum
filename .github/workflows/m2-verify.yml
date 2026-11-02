@@ -5,10 +5,19 @@ on:
     paths: [m2_prototype.html,m2_prototype.css,m2/**,vendor/three/r184/**,m2_verify.mjs,.github/workflows/m2-verify.yml]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+# The static and deterministic 3D checks only (about a minute). The 3D browser checks it also ran are in
+# test.yml's npm test (the owner, 2026-11-02: Actions minutes are limited); the last push of a branch only, and
+# not on a draft.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions: {contents: read}
 jobs:
   verify-m2:
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,15 +61,6 @@ jobs:
           out={'testedHead':os.environ['M2_TESTED_HEAD'],'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'scope':'M2_1_03_STATIC_DETERMINISTIC','generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'result':'PASS' if ok else 'FAIL','rawResult':r}
           Path('m2_ci_verification_result.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out,indent=2));raise SystemExit(0 if ok else 1)
           PY
-      - name: Verify actual m2_prototype Chrome WebGL2
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm ci --no-audit --no-fund
-          npx playwright install --with-deps chromium
-          # The checks are real test files (tests/browser/m2-battle.spec.mjs); every check gets a result and a reason.
-          set +e; npx playwright test tests/browser/m2-battle.spec.mjs; set -e
-          node tests/support/m2-browser-result.mjs test-results/playwright.json m2_ci_browser_verification_result.json || true
       - name: Upload M2 verification result
         if: always()
         uses: actions/upload-artifact@v4
@@ -69,11 +69,3 @@ jobs:
           path: |
             m2_ci_m1_verification_result.json
             m2_ci_verification_result.json
-            m2_ci_browser_verification_result.json
-            test-results/playwright.json
-      - name: Enforce browser PASS gate
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          node -e "const r=JSON.parse(require('fs').readFileSync('m2_ci_browser_verification_result.json','utf8'));console.log(r.result,r.reason||'');process.exit(r.result==='PASS'?0:1)"
