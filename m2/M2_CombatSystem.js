@@ -7,6 +7,16 @@ import {
 import { isM2UnitActive } from "./M2_BattleState.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
 import { M2_ORDERS, orderOf } from "./M2_Orders.js";
+import { mayStrike, pursuedFormation } from "./M2_Pursuit.js";
+import { stopped } from "./M2_Defense.js";
+
+// A bolt or arrow hits a man still fighting; a running one only if it was shot in pursuit of his formation
+// (or by the hero: M2_Pursuit.js).
+function shotMayHit(projectile, target) {
+  if (isM2UnitActive(target)) return true;
+  if (!target || target.hp <= 0 || target.state !== "routing") return false;
+  return projectile.pursuing === "any" || (Boolean(projectile.pursuing) && projectile.pursuing === target.formationId);
+}
 
 const TAU = Math.PI * 2;
 
@@ -59,10 +69,10 @@ function segmentCircleHit(previous, current, center, radius) {
   return { t, distanceSq };
 }
 
-// shot: a bolt or arrow, which a shield-bearer (방패병, M2_UnitKinds.js) stops from in front as a block does,
-// his shield up or not.
-function damageAfterBlock(target, attackerPosition, baseDamage, { shot = false } = {}) {
-  const shielded = target.blocking || (shot && m2UnitKind(target).frontShield && target.state !== "routing");
+// The player, holding his block (or shield) up, takes a share of a blow from in front. Everyone else stops a
+// blow or none of it (M2_Defense.js).
+function damageAfterBlock(target, attackerPosition, baseDamage) {
+  const shielded = target.isPlayer && target.blocking;
   if (!shielded) return Math.max(0, Math.round(baseDamage));
   const incomingX = attackerPosition.x - target.position.x;
   const incomingZ = attackerPosition.z - target.position.z;
@@ -88,7 +98,7 @@ function collectMeleeCandidateFacts(battleState, spatialGrid, actor, aimHeading)
   const reach = reachOf(actor);
   for (const unitId of spatialGrid.queryNearby(actor.position.x, actor.position.z, reach)) {
     const target = battleState.getUnit(unitId);
-    if (!isM2UnitActive(target) || target.sideId === actor.sideId || target.unitId === actor.unitId) continue;
+    if (!mayStrike(battleState, actor, target) || target.unitId === actor.unitId) continue;
     const dx = target.position.x - actor.position.x;
     const dz = target.position.z - actor.position.z;
     const distance = Math.hypot(dx, dz);
@@ -104,7 +114,7 @@ function collectContactCandidateFacts(battleState, spatialGrid, attacker, range 
   const candidates = [];
   for (const unitId of spatialGrid.queryNearby(attacker.position.x, attacker.position.z, range)) {
     const target = battleState.getUnit(unitId);
-    if (!isM2UnitActive(target) || target.sideId === attacker.sideId || target.unitId === attacker.unitId) continue;
+    if (!mayStrike(battleState, attacker, target) || target.unitId === attacker.unitId) continue;
     const dx = target.position.x - attacker.position.x;
     const dz = target.position.z - attacker.position.z;
     const distance = Math.hypot(dx, dz);
@@ -130,7 +140,7 @@ function collectProjectileStepFacts(battleState, spatialGrid, projectile, deltaS
 
   for (const unitId of spatialGrid.queryNearby(midX, midZ, radius)) {
     const target = battleState.getUnit(unitId);
-    if (!isM2UnitActive(target) || target.sideId === projectile.sideId || target.unitId === projectile.ownerUnitId) continue;
+    if (!shotMayHit(projectile, target) || target.sideId === projectile.sideId || target.unitId === projectile.ownerUnitId) continue;
     const hit = segmentCircleHit(previousPosition, nextPosition, target.position, M2_PROJECTILE_DEFINITION.hitRadius);
     if (hit) candidates.push({ unitId: target.unitId, t: hit.t, distanceSq: hit.distanceSq });
   }
@@ -164,7 +174,8 @@ function potentialBowProjectile(battleState, command) {
     position: { x: actor.position.x, y: 1.25, z: actor.position.z },
     direction: { x: Math.sin(command.aimHeading), z: Math.cos(command.aimHeading) },
     speed: ranged.speed,
-    remainingRange: ranged.range
+    remainingRange: ranged.range,
+    pursuing: "any"
   };
 }
 
@@ -175,11 +186,13 @@ function potentialCrossbowShot(battleState, spatialGrid, shooter, processingTick
   const kind = m2UnitKind(shooter);
   const own = battleState.getFormation(shooter.formationId);
   const anyEnemy = own?.order.type === "attack_target";
-  const focus = orderOf(own)?.id === "focus_fire" && anyEnemy ? own.order.targetFormationId : null;
+  // Pursuing a broken formation (M2_Pursuit.js), he shoots at its runners, as under focused fire.
+  const pursued = pursuedFormation(battleState, own)?.formationId || null;
+  const focus = pursued || (orderOf(own)?.id === "focus_fire" && anyEnemy ? own.order.targetFormationId : null);
   let best = null;
   for (const unitId of spatialGrid.queryNearby(shooter.position.x, shooter.position.z, kind.range)) {
     const target = battleState.getUnit(unitId);
-    if (!isM2UnitActive(target) || target.sideId === shooter.sideId) continue;
+    if (!mayStrike(battleState, shooter, target)) continue;
     if (!anyEnemy && battleState.getFormation(target.formationId)?.order.type !== "attack_target") continue;
     // Focused fire: only the formation they are sent against (M2_Orders.js).
     if (focus && target.formationId !== focus) continue;
@@ -201,7 +214,8 @@ function potentialCrossbowShot(battleState, spatialGrid, shooter, processingTick
       position: { x: shooter.position.x, y: 1.25, z: shooter.position.z },
       direction: { x: Math.sin(aimHeading), z: Math.cos(aimHeading) },
       speed: kind.boltSpeed,
-      remainingRange: kind.boltMaxRange
+      remainingRange: kind.boltMaxRange,
+      pursuing: pursued
     }
   };
 }
@@ -248,6 +262,9 @@ function nearestEnemy(battleState, spatialGrid, unit, radius, test = () => true)
 // A shield wall keeps its shields up at a walk or slower (m/s); braced spearmen watch for horse this far (m).
 const SHIELD_WALL_BLOCK_SPEED = 1.7;
 const BRACE_WATCH = 12;
+// A man keeps his face to an enemy this near (m) while he moves no faster than a walk (m/s).
+const FACE_FOE_DISTANCE = 3;
+const FACE_FOE_SPEED = 1.8;
 
 export class M2CombatSystem {
   #projectileLaunchCount = 0;
@@ -256,6 +273,7 @@ export class M2CombatSystem {
   #attackEventCount = 0;
   #crossbowLaunchCount = 0;
   #chargeHitCount = 0;
+  #stoppedCount = 0;
 
   getObservation(battleState) {
     return Object.freeze({
@@ -265,7 +283,9 @@ export class M2CombatSystem {
       projectileOverflowCount: this.#projectileOverflowCount,
       attackEventCount: this.#attackEventCount,
       crossbowLaunchCount: this.#crossbowLaunchCount,
-      chargeHitCount: this.#chargeHitCount
+      chargeHitCount: this.#chargeHitCount,
+      // Blows and shots stopped by a shield or a parry (M2_Defense.js).
+      stoppedCount: this.#stoppedCount
     });
   }
 
@@ -285,6 +305,13 @@ export class M2CombatSystem {
       const formation = battleState.getFormation(unit.formationId);
       // In a shield wall the men keep their shields up, standing or walking (they block as a man blocking does).
       unit.blocking = formation?.formationTypeId === "shield_wall" && Math.hypot(unit.velocity.x, unit.velocity.z) <= SHIELD_WALL_BLOCK_SPEED;
+      // A man with an enemy at arm's length keeps his face to him, even while he steps back into his place
+      // (or is pushed about): he can stop only the blows he faces (M2_Defense.js). One running (charging,
+      // wheeling away, closing in) looks where he runs.
+      if (!unit.withdrawTo && Math.hypot(unit.velocity.x, unit.velocity.z) <= FACE_FOE_SPEED) {
+        const foe = nearestEnemy(battleState, spatialGrid, unit, FACE_FOE_DISTANCE);
+        if (foe) unit.heading = Math.atan2(foe.position.x - unit.position.x, foe.position.z - unit.position.z);
+      }
       const order = orderOf(formation);
       // Braced spearmen turn to face the nearest horseman coming at them.
       if (order?.id === "spear_brace") {
@@ -405,9 +432,14 @@ export class M2CombatSystem {
       const horse = m2UnitKind("cavalry");
       const charging = Boolean(actor.hero?.mounted) && actor.chargeRunTicks >= horse.chargeRunTicks;
       if (actor.hero?.mounted) actor.chargeRunTicks = 0;
-      if (!isM2UnitActive(target) || target.sideId === actor.sideId) continue;
+      if (!mayStrike(battleState, actor, target)) continue;
       const base = (actor.hero?.melee.damage ?? M2_MELEE_DEFINITION.baseDamage) * (charging ? horse.chargeScale : 1);
       if (charging) this.#chargeHitCount += 1;
+      // The man struck at may stop it (M2_Defense.js).
+      if (stopped(battleState, target, actor.position, `melee:${command.commandId}:${target.unitId}`, { charging })) {
+        this.#stoppedCount += 1;
+        continue;
+      }
       const damage = damageAfterBlock(target, actor.position, base);
       damageEvents.push({
         damageEventId: `melee:${command.commandId}:${target.unitId}`,
@@ -447,6 +479,8 @@ export class M2CombatSystem {
         speed: ranged.speed,
         remainingRange: ranged.range,
         damage: ranged.damage,
+        // The hero shoots whom he chooses, running or not (M2_Pursuit.js).
+        pursuing: "any",
         revision: 0
       };
       if (battleState.addProjectile(projectile)) {
@@ -484,6 +518,7 @@ export class M2CombatSystem {
         remainingRange: kind.boltMaxRange,
         damage: kind.boltDamage,
         armorPierce: kind.armorPierce || 0,
+        pursuing: shot.projectile.pursuing,
         revision: 0
       };
       if (battleState.addProjectile(projectile)) {
@@ -510,15 +545,19 @@ export class M2CombatSystem {
       if (!fights(formation)) continue;
       const targetId = byAttackerId.get(attacker.unitId)?.selectedTargetUnitId || null;
       const target = targetId ? battleState.getUnit(targetId) : null;
-      if (!isM2UnitActive(target) || target.sideId === attacker.sideId) continue;
+      if (!mayStrike(battleState, attacker, target)) continue;
 
       attacker.heading = Math.atan2(target.position.x - attacker.position.x, target.position.z - attacker.position.z);
       // A horseman who strikes at the end of a run-up charges: his horse's weight is behind the blow.
       const kind = m2UnitKind(attacker);
       const charging = kind.chargeSpeed > 0 && attacker.chargeRunTicks >= kind.chargeRunTicks;
       const baseDamage = attacker.commander ? attacker.commander.combat.melee.damage : meleeOf(attacker).meleeDamage;
-      damageEvents.push({
-        damageEventId: `auto_melee:${processingTick}:${attacker.unitId}:${target.unitId}`,
+      const eventId = `auto_melee:${processingTick}:${attacker.unitId}:${target.unitId}`;
+      // The man struck at may stop the blow (M2_Defense.js); it is spent all the same.
+      const blocked = stopped(battleState, target, attacker.position, eventId, { charging });
+      if (blocked) this.#stoppedCount += 1;
+      else damageEvents.push({
+        damageEventId: eventId,
         sourceUnitId: attacker.unitId,
         targetUnitId: target.unitId,
         damage: damageAfterBlock(target, attacker.position, baseDamage * (charging ? kind.chargeScale : 1))
@@ -551,12 +590,18 @@ export class M2CombatSystem {
       projectile.revision += 1;
 
       const target = step.selectedTargetUnitId ? battleState.getUnit(step.selectedTargetUnitId) : null;
-      if (target && isM2UnitActive(target) && target.sideId !== projectile.sideId && target.unitId !== projectile.ownerUnitId) {
+      if (target && shotMayHit(projectile, target) && target.sideId !== projectile.sideId && target.unitId !== projectile.ownerUnitId) {
+        // A shield from in front may stop it (M2_Defense.js); either way the bolt is spent.
+        if (stopped(battleState, target, step.previousPosition, `projectile:${projectile.projectileId}:${target.unitId}`, { shot: true })) {
+          this.#stoppedCount += 1;
+          battleState.removeProjectile(projectile.projectileId);
+          continue;
+        }
         damageEvents.push({
           damageEventId: `projectile:${projectile.projectileId}:${target.unitId}`,
           sourceUnitId: projectile.ownerUnitId,
           targetUnitId: target.unitId,
-          damage: damageAfterBlock(target, step.previousPosition, projectile.damage, { shot: true }),
+          damage: damageAfterBlock(target, step.previousPosition, projectile.damage),
           ...(projectile.armorPierce ? { armorPierce: projectile.armorPierce } : {})
         });
         battleState.removeProjectile(projectile.projectileId);

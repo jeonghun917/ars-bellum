@@ -46,6 +46,7 @@ const ALLOWED_TYPES = new Set([
   "formation_attack",
   "formation_set_type",
   "formation_set_tactic",
+  "formation_set_pursuit",
   "formation_rally",
   "formation_retreat",
   "player_move",
@@ -118,6 +119,12 @@ export class M2CommandQueue {
           return m2Receipt(false, { error: "m2_command_tactic_not_available", commandId: command.commandId });
         }
         normalized = { commandId: command.commandId, type: command.type, inputContextRevision, formationId: command.formationId, tacticId: command.tacticId };
+      } else if (command.type === "formation_set_pursuit") {
+        // Pursue an enemy it breaks, or let him go (M2_Pursuit.js).
+        if (typeof command.pursue !== "boolean") {
+          return m2Receipt(false, { error: "m2_command_invalid_pursuit", commandId: command.commandId });
+        }
+        normalized = { commandId: command.commandId, type: command.type, inputContextRevision, formationId: command.formationId, pursue: command.pursue };
       } else if (command.type === "formation_rally") {
         const routingLiving = source.memberUnitIds.some((unitId) => {
           const unit = battleState.getUnit(unitId);

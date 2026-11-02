@@ -29,13 +29,19 @@ test('[m2.morale.side-breaks] a beaten side breaks and runs before it is wiped o
   for (const orders of [[['ally_line', 'enemy_line']], [['ally_line', 'enemy_line'], ['ally_column', 'enemy_loose'], ['ally_loose', 'enemy_column']]]) {
     const b = battle({ withAI: true });
     for (const [f, t] of orders) attack(b, f, t);
+    // How many of each side were running at once, at most (the pursuers may cut some down after: M2_Pursuit.js).
+    const ran = { ally: 0, enemy: 0 };
     let i = 0;
-    for (; i < 20 * 600 && !b.outcome; i += 1) tick(b);
+    for (; i < 20 * 600 && !b.outcome; i += 1) {
+      tick(b);
+      for (const side of ['ally', 'enemy']) {
+        ran[side] = Math.max(ran[side], b.state.getUnitIdsStable().map((id) => b.state.getUnit(id)).filter((u) => u.sideId === side && isM2UnitAlive(u) && u.state === 'routing').length);
+      }
+    }
     const loser = b.outcome === 'ally_retreat' ? 'ally' : b.outcome === 'enemy_retreat' ? 'enemy' : null;
     assert.ok(loser, `${b.outcome} after ${i / 20} s`);
-    const standing = b.state.getUnitIdsStable().map((id) => b.state.getUnit(id)).filter((u) => u.sideId === loser && isM2UnitAlive(u)).length;
-    assert.ok(standing >= 4, `${standing} of 20 left to run`);
-    // Still about two minutes of fighting first.
-    assert.ok(i / 20 >= 80, `ended after ${i / 20} s`);
+    assert.ok(ran[loser] >= 4, `${ran[loser]} of 20 ran`);
+    // Still about a minute of fighting first (the owner's choice, 2026-11-01).
+    assert.ok(i / 20 >= 45, `ended after ${i / 20} s`);
   }
 });

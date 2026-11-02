@@ -145,19 +145,6 @@ const MOUNTED_CLIPS = Object.freeze({
   })
 });
 
-// Which weapons each subtype's men carry, in turn (M2_UnitKinds.js).
-const SUBTYPE_LOADOUTS = Object.freeze({
-  shield: ["sword"],
-  pike: ["spear", "sword", "spear_free", "sword_free", "great"],
-  // (the axe in the hand of the sword alone, the glaive in that of the two-handed spear: gearFor())
-  shock: ["sword_free", "spear_free"],
-  skirmisher: ["sword"],
-  crossbow: ["xbow"],
-  longbow: ["xbow"],
-  light_cav: ["cavs"],
-  heavy_cav: ["cav"]
-});
-
 // An attack (or reload) is played over the soldier's base clip once; when it ends it fades out again, or
 // the pose it ends in would stay mixed into everything he does after.
 const OVERLAY_FADE = 0.2;
@@ -457,7 +444,6 @@ export class M2RendererThree {
   #scene;
   #camera;
   #units = new Map();
-  #loadoutCounts = {};
   #projectiles = new Map();
   #formationMarkers = new Map();
   #geometries;
@@ -531,25 +517,18 @@ export class M2RendererThree {
     if (this.#disposed) throw new Error("m2_runtime_disposed");
     for (const entry of this.#units.values()) this.#scene.remove(entry.group);
     this.#units.clear();
-    this.#loadoutCounts = {};
     for (const unit of renderSnapshot.units) {
       // The player's ring is gold; a commander (부대장) wears a thinner ring in his side's colour.
       const marker = unit.isPlayer ? this.#materials.marker : unit.isCommander ? (unit.sideId === "ally" ? this.#materials.commanderAlly : this.#materials.commanderEnemy) : null;
       const model = soldierModels?.[unit.sideId === "ally" ? "ally" : "enemy"];
-      // Crossbowmen carry the crossbow; horsemen ride with a lance or a sword in turn. In turn, foot soldiers
-      // fight with spear and shield, sword and shield, a spear in both hands, the sword alone or a longsword
-      // (the player as his equipment says: M2_HeroLoadout.js).
-      // A subtype (병종, M2_UnitKinds.js) carries its own weapons (the owner, 2026-11-01): pikemen as the
-      // kind's foot soldiers, shield-bearers sword, shield and javelins, shock foot the axe or the glaive,
-      // skirmishers sword and shield; light horse the sword, heavy horse the lance, in great helm and plate.
-      // (Longbowmen carry the crossbow until a bow is drawn for the soldiers' model.)
-      const turn = unit.unitTypeId || unit.kindId;
-      const counter = (this.#loadoutCounts[turn] = (this.#loadoutCounts[turn] || 0) + 1) - 1;
-      const loadouts = SUBTYPE_LOADOUTS[unit.unitTypeId]
-        || (unit.kindId === "crossbow" ? ["xbow"] : unit.kindId === "cavalry" ? ["cav", "cavs"] : ["spear", "sword", "spear_free", "sword_free", "great"]);
+      // Each soldier is drawn with the weapons the battle gave him (M2_BattleState.js, M2_UnitKinds.js: in turn
+      // spear and shield, sword and shield, two-handed spear, sword alone or longsword on foot; the crossbow;
+      // lance or sword on horseback; a subtype's own: shield-bearers sword, shield and javelins, shock foot the
+      // axe or the glaive, heavy horse the lance in great helm and plate. Longbowmen carry the crossbow until a
+      // bow is drawn for the soldiers' model); the player and the commanders as their equipment says.
       const loadout = unit.isPlayer ? (unit.heroAppearance || "spear")
         : unit.commanderAppearance ? unit.commanderAppearance
-        : loadouts[counter % loadouts.length];
+        : unit.loadout || "spear";
       const group = model
         ? createModelSoldier(model, marker, this.#geometries, this.#materials.shadow, loadout,
           unit.isPlayer || unit.isCommander ? null : gearFor(unit, loadout))

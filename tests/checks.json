@@ -230,7 +230,7 @@
     },
     {
       "id": "m2.player.melee-hit",
-      "title": "a sword swing with an enemy in reach damages it",
+      "title": "a sword swing with an enemy in reach damages him, unless he stops it",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
     },
@@ -3151,7 +3151,7 @@
     },
     {
       "id": "m2.pace.longer-battle",
-      "title": "a battle now lasts minutes, not seconds",
+      "title": "a battle lasts about a minute, not seconds",
       "kind": "unit",
       "source": "tests/unit/m2-pace-bodies.test.mjs"
     },
@@ -3502,6 +3502,90 @@
       "title": "a formation's armour and helmet can be changed in the launch snapshot",
       "kind": "browser",
       "source": "tests/browser/m2-subtypes.spec.mjs"
+    },
+    {
+      "id": "m2.orders.pursuit",
+      "title": "the pursuit button shows whether the selected formation pursues, and turns it on and off",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.pursuit.default",
+      "title": "horse pursue, foot and crossbowmen do not, unless the snapshot or an order says otherwise",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.pursuit.cuts-down",
+      "title": "horse set to pursue ride after the broken line and cut its runners down; not set, they let them go",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.pursuit.edge",
+      "title": "pursuers ride no further than the runners' edge of the field",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.pursuit.archers",
+      "title": "crossbowmen set to pursue shoot at the runners; not set, they do not",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.pursuit.enemy",
+      "title": "the enemy's horse, pursuing, keep after a broken ally formation until its runners have got away",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.pursuit.hero",
+      "title": "the hero can cut down a running enemy",
+      "kind": "unit",
+      "source": "tests/unit/m2-pursuit.test.mjs"
+    },
+    {
+      "id": "m2.defense.facing",
+      "title": "a man stops blows at his front, half as often at his side, never from behind or running",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.what-he-carries",
+      "title": "a shield stops most, a weapon in both hands less, one in one hand least; a better guard more; a charge goes through more often",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.shots",
+      "title": "only a shield stops a bolt, a shield-bearer's big shield most of them, a shield wall more",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.stopped",
+      "title": "whether a blow is stopped follows the chance, and the same blow in the same battle always the same way",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.faces-foe",
+      "title": "a man with an enemy at arm's length keeps his face to him, even stepping back into his place",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.in-battle",
+      "title": "in the fight, a man facing his attacker stops most of his blows; one struck from behind none",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
+    },
+    {
+      "id": "m2.defense.blows-to-fall",
+      "title": "a soldier falls to about ten blows without armour, about seventeen in mail, more in plate",
+      "kind": "unit",
+      "source": "tests/unit/m2-defense.test.mjs"
     },
     {
       "id": "m2.subtypes.appearance",

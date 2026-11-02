@@ -165,7 +165,7 @@ test('[m2.bodies.rout-reaches-edge] a whole side ordered to retreat leaves the f
   assert.equal(b.outcome, 'ally_retreat', `after ${i / 20} s`);
 });
 
-test('[m2.pace.longer-battle] a battle now lasts minutes, not seconds', () => {
+test('[m2.pace.longer-battle] a battle lasts about a minute, not seconds', () => {
   const b = battle({ withAI: true });
   attack(b, 'ally_line', 'enemy_line');
   attack(b, 'ally_column', 'enemy_loose');
@@ -173,6 +173,7 @@ test('[m2.pace.longer-battle] a battle now lasts minutes, not seconds', () => {
   let i = 0;
   for (; i < 20 * 600 && !b.outcome; i += 1) tick(b);
   assert.ok(b.outcome, 'the battle ends');
-  // About two minutes when every formation is thrown in at once (the owner found 20 s far too short).
-  assert.ok(i / 20 >= 90, `ended after ${i / 20} s`);
+  // About a minute when every formation is thrown in at once (the owner found 20 s far too short, then chose
+  // blows that hurt and a fight of about a minute, 2026-11-01).
+  assert.ok(i / 20 >= 45, `ended after ${i / 20} s`);
 });

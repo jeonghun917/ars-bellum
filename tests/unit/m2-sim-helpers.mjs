@@ -25,7 +25,7 @@ const DT = M2_CONFIG.fixedTickMs / 1000;
 export function battle({ withAI = false, heroSheet = null, commanderSheets = null, unitTypes = null, formations = null } = {}) {
   const snapshot = { ...M2_TECHNICAL_SNAPSHOT, ...(heroSheet ? { heroSheet } : {}), ...(commanderSheets ? { commanderSheets } : {}) };
   if (unitTypes) snapshot.formations = snapshot.formations.map((f) => (unitTypes[f.formationId] ? { ...f, unitTypeId: unitTypes[f.formationId] } : f));
-  // formations ({ formationId: fields }): more fields for formations of the snapshot (armorId, helmId...).
+  // formations ({ formationId: fields }): more fields for formations of the snapshot (armorId, helmId, pursuit...).
   if (formations) snapshot.formations = snapshot.formations.map((f) => ({ ...f, ...(formations[f.formationId] || {}) }));
   const state = new M2BattleState(snapshot, createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES));
   const queue = new M2CommandQueue();

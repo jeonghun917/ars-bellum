@@ -169,7 +169,7 @@ test.describe('3D battle', () => {
     await swingCooldownSeen(page);
   });
 
-  test('[m2.player.melee-hit] a sword swing with an enemy in reach damages it', async ({ page }) => {
+  test('[m2.player.melee-hit] a sword swing with an enemy in reach damages him, unless he stops it', async ({ page }) => {
     // Put one enemy one metre in front of the player (reach 1.6 m, 120 degree arc) and keep every
     // formation holding still, so the enemy is still in reach when the swing happens even on a busy machine.
     await loadVariant(page, `
@@ -193,9 +193,25 @@ test.describe('3D battle', () => {
     const unit = (id) => page.evaluate((unitId) => window.ArsM2Battle.getSnapshot().units.find((u) => u.unitId === unitId), id);
     const [me, foe] = [await player(page), await unit(foeId)];
     expect(Math.hypot(foe.position.x - me.position.x, foe.position.z - me.position.z)).toBeLessThan(1.6);
-    await tap(page, '#m2Attack');
-    await page.evaluate(() => window.ArsM2Battle.setTimeScale(1));
-    await swingCooldownSeen(page);
+    // Facing the player, the foe stops most blows (M2_Defense.js): each swing either hurts him or is stopped,
+    // and they keep coming until one lands.
+    let swings = 0;
+    for (; swings < 12 && (await unit(foeId)).hp >= foe.hp; swings += 1) {
+      // Ready to swing again (the last swing's cooldown run out), then held still while the swing goes in.
+      await page.evaluate(() => window.ArsM2Battle.setTimeScale(1));
+      await page.waitForFunction(() => {
+        const s = window.ArsM2Battle.getSnapshot();
+        return s.units.find((u) => u.unitId === s.playerCharacterId).attackCooldownTicks === 0;
+      }, null, { polling: 'raf', timeout: 20_000 });
+      await page.evaluate(() => window.ArsM2Battle.setTimeScale(0));
+      const before = await diagnostics(page);
+      await tap(page, '#m2Attack');
+      await page.evaluate(() => window.ArsM2Battle.setTimeScale(1));
+      await swingCooldownSeen(page);
+      const after = await diagnostics(page);
+      const hurt = (await unit(foeId)).hp < foe.hp;
+      expect(hurt || after.stoppedCount > before.stoppedCount, `swing ${swings}`).toBe(true);
+    }
     expect((await unit(foeId)).hp).toBeLessThan(foe.hp);
   });
 
@@ -251,6 +267,24 @@ test.describe('3D battle', () => {
     await page.selectOption('#m2Tactic', '');
     await waitTicks(page, 1);
     expect((await formation(page, selected)).tactic).toBe(null);
+  });
+
+  test('[m2.orders.pursuit] the pursuit button shows whether the selected formation pursues, and turns it on and off', async ({ page }) => {
+    await switchToTactical(page);
+    // Foot do not pursue at first (M2_Pursuit.js).
+    expect(await page.inputValue('#m2FriendlyFormation')).toBe('ally_line');
+    await expect(page.locator('#m2Pursuit')).toHaveText('추격: 끔');
+    await tap(page, '#m2Pursuit');
+    await waitTicks(page, 1);
+    expect((await formation(page, 'ally_line')).pursuit).toBe(true);
+    await expect(page.locator('#m2Pursuit')).toHaveText('추격: 켬');
+    // Horse do, and the button says so when they are selected.
+    await page.selectOption('#m2FriendlyFormation', 'ally_column');
+    await expect(page.locator('#m2Pursuit')).toHaveText('추격: 켬');
+    await tap(page, '#m2Pursuit');
+    await waitTicks(page, 1);
+    expect((await formation(page, 'ally_column')).pursuit).toBe(false);
+    await expect(page.locator('#m2Pursuit')).toHaveText('추격: 끔');
   });
 
   test('[m2.orders.plan] the plan list offers the battle plans the army can use, and choosing one puts it to work', async ({ page }) => {
