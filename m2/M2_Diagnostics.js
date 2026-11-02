@@ -29,6 +29,8 @@ export class M2Diagnostics {
   #cameraMode = "third_person";
   // The player's weapon in hand and his shield (M2_InputController.js), and where the aiming circle stands.
   #hands = Object.freeze({ weapon: "melee", shieldUp: false });
+  // The formations the player has selected, and his battalions (M2_InputController.js, M2_UnitPanel.js).
+  #selection = Object.freeze({ formationIds: Object.freeze([]), groups: Object.freeze([]) });
   #aim = null;
   #inputContextRevision = 0;
   #activePointerCount = 0;
@@ -63,6 +65,7 @@ export class M2Diagnostics {
 
   setControlObservation(observation = {}) {
     if (["third_person", "tactical", "disposed"].includes(observation.cameraMode)) this.#cameraMode = observation.cameraMode;
+    if (Array.isArray(observation.selectedFormationIds)) this.#selection = Object.freeze({ formationIds: Object.freeze([...observation.selectedFormationIds]), groups: Object.freeze((observation.groups || []).map((g) => Object.freeze({ ...g, members: Object.freeze([...g.members]) }))) });
     if (["melee", "bow"].includes(observation.weapon)) this.#hands = Object.freeze({ weapon: observation.weapon, shieldUp: Boolean(observation.shieldUp) });
     if (Number.isSafeInteger(observation.inputContextRevision) && observation.inputContextRevision >= 0) this.#inputContextRevision = observation.inputContextRevision;
     if (Number.isSafeInteger(observation.activePointerCount) && observation.activePointerCount >= 0) this.#activePointerCount = observation.activePointerCount;
@@ -135,6 +138,7 @@ export class M2Diagnostics {
       persistenceAccess: false,
       cameraMode: this.#cameraMode,
       hands: this.#hands,
+      selection: this.#selection,
       aim: this.#aim,
       inputContextRevision: this.#inputContextRevision,
       activePointerCount: this.#activePointerCount,

@@ -211,7 +211,7 @@ export class M2BattleRuntime {
       }
     }
 
-    this.#renderSnapshot = createRenderSnapshot(this.#battleState, { tick: processingTick, selectedFormationId: this.#inputController?.selectedFormationId ?? null });
+    this.#renderSnapshot = createRenderSnapshot(this.#battleState, { tick: processingTick, selectedFormationIds: this.#inputController?.selectedFormationIds ?? [] });
     this.#diagnostics.setCombatObservation({ ...this.#combatSystem.getObservation(this.#battleState), ...this.#enemyAI.getObservation() });
     this.#diagnostics.setBattleObservation(this.#renderSnapshot);
     this.#diagnostics.markTick(processingTick);
@@ -254,7 +254,7 @@ export class M2BattleRuntime {
     if (cameraPose) this.#renderer.applyCameraPose(cameraPose);
     this.#renderer.setAim(this.#aiming && cameraPose ? cameraPose.heading : null);
     if (this.#cameraController || this.#inputController) {
-      this.#diagnostics.setControlObservation({ cameraMode: this.#cameraController?.mode || "third_person", inputContextRevision: this.#inputController?.inputContextRevision ?? 0, activePointerCount: this.#inputController?.activePointerCount ?? 0, inputListenerCount: this.#inputController?.inputListenerCount ?? 0, weapon: this.#inputController?.weapon, shieldUp: this.#inputController?.shieldUp });
+      this.#diagnostics.setControlObservation({ cameraMode: this.#cameraController?.mode || "third_person", inputContextRevision: this.#inputController?.inputContextRevision ?? 0, activePointerCount: this.#inputController?.activePointerCount ?? 0, inputListenerCount: this.#inputController?.inputListenerCount ?? 0, weapon: this.#inputController?.weapon, shieldUp: this.#inputController?.shieldUp, selectedFormationIds: this.#inputController?.selectedFormationIds, groups: this.#inputController?.groups });
     }
     this.#renderer.render(this.#renderSnapshot, interpolationAlpha, this.#elapsedSeconds + this.#accumulatorMs / 1000);
     this.#diagnostics.sampleFrame(frameDelta, this.#renderer.getInfo());

@@ -39,52 +39,56 @@
       <button id="m2Tactical" type="button">전술</button>
     </section>
 
-    <section id="m2TacticalPanel" class="m2-tactical-panel" aria-label="전술 명령">
-      <button id="m2PanelToggle" class="m2-panel-toggle" type="button" aria-expanded="true" aria-controls="m2PanelBody">
-        <span>명령 · 전황</span>
-        <span class="m2-panel-summary">아군 <b id="m2SummaryAlly">0</b> · 적군 <b id="m2SummaryEnemy">0</b></span>
-      </button>
-      <div id="m2PanelBody" class="m2-panel-body">
-        <label>작전
-          <select id="m2Plan"></select>
-        </label>
-        <label>아군
-          <select id="m2FriendlyFormation"></select>
-        </label>
-        <label>적군
-          <select id="m2EnemyFormation"></select>
-        </label>
-        <label>명령
-          <select id="m2Tactic"></select>
-        </label>
+    <!-- The player's formations (M2_UnitPanel.js): a round button, a row of battalions and formations, and the
+         menu of the selected ones. -->
+    <button id="m2UnitsToggle" class="m2-units-fab" type="button" aria-expanded="false">부대</button>
+    <nav id="m2UnitStrip" class="m2-unit-strip" aria-label="부대 목록" hidden></nav>
+    <section id="m2UnitMenu" class="m2-unit-menu" aria-label="부대 명령" hidden>
+      <div id="m2UnitTitle" class="m2-unit-title"></div>
+      <div id="m2UnitTabs" class="m2-unit-tabs" role="tablist">
+        <button type="button" role="tab" data-tab="control">조작</button>
+        <button type="button" role="tab" data-tab="tactic">전술</button>
+        <button type="button" role="tab" data-tab="shape">진영</button>
+        <button type="button" role="tab" data-tab="more">기타</button>
+      </div>
+      <div id="m2PaneControl" class="m2-unit-pane">
         <button id="m2AttackOrder" type="button">목표 공격</button>
-        <div class="m2-button-row">
-          <button id="m2Rally" type="button">재집결</button>
-          <button id="m2Retreat" type="button">후퇴</button>
-        </div>
+        <button id="m2HoldOrder" type="button">정지·대기</button>
+        <button id="m2Rally" type="button">재집결</button>
+        <button id="m2Retreat" type="button">후퇴</button>
         <button id="m2Pursuit" type="button" aria-pressed="false">추격: 끔</button>
+        <button id="m2Deselect" type="button">선택 해제</button>
+        <div id="m2EnemyPicker" class="m2-enemy-picker" aria-label="공격할 적" hidden></div>
+      </div>
+      <div id="m2PaneTactic" class="m2-unit-pane" hidden>
+        <div id="m2TacticChips" class="m2-chips"></div>
+      </div>
+      <div id="m2PaneShape" class="m2-unit-pane" hidden>
+        <button id="m2Line" type="button">횡대<kbd>1</kbd></button>
+        <button id="m2Column" type="button">종대<kbd>2</kbd></button>
+        <button id="m2Loose" type="button">산개<kbd>3</kbd></button>
+        <button id="m2ShieldWall" type="button">방패진<kbd>4</kbd></button>
+        <button id="m2Wedge" type="button">쐐기진<kbd>5</kbd></button>
+        <button id="m2Circle" type="button">원진<kbd>6</kbd></button>
+      </div>
+      <div id="m2PaneMore" class="m2-unit-pane" hidden>
+        <button id="m2Group" type="button">묶기 (대대)</button>
+        <button id="m2Ungroup" type="button">대대 풀기</button>
+        <div class="m2-pane-label">작전 (전군)</div>
+        <div id="m2PlanChips" class="m2-chips"></div>
+        <div class="m2-pane-label">속도</div>
+        <div class="m2-chips m2-speed-row">
+          <button id="m2Time0" type="button">정지</button>
+          <button id="m2Time025" type="button">¼</button>
+          <button id="m2Time05" type="button">½</button>
+          <button id="m2Time1" type="button">1×</button>
+        </div>
         <div class="m2-stats">
           <div>아군 사기 <strong id="m2MoraleAlly">0</strong></div>
           <div>적군 사기 <strong id="m2MoraleEnemy">0</strong></div>
           <div>아군 도주 <strong id="m2RoutingAlly">0</strong></div>
           <div>적군 도주 <strong id="m2RoutingEnemy">0</strong></div>
           <div class="m2-stats-wide">결과 <strong id="m2Result">—</strong></div>
-        </div>
-        <div class="m2-button-row">
-          <button id="m2Line" type="button">횡대<kbd>1</kbd></button>
-          <button id="m2Column" type="button">종대<kbd>2</kbd></button>
-          <button id="m2Loose" type="button">산개<kbd>3</kbd></button>
-        </div>
-        <div class="m2-button-row">
-          <button id="m2ShieldWall" type="button">방패진<kbd>4</kbd></button>
-          <button id="m2Wedge" type="button">쐐기진<kbd>5</kbd></button>
-          <button id="m2Circle" type="button">원진<kbd>6</kbd></button>
-        </div>
-        <div class="m2-button-row m2-speed-row" aria-label="속도">
-          <button id="m2Time0" type="button">정지</button>
-          <button id="m2Time025" type="button">¼</button>
-          <button id="m2Time05" type="button">½</button>
-          <button id="m2Time1" type="button">1×</button>
         </div>
       </div>
     </section>

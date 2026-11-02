@@ -319,6 +319,18 @@
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.panel.select",
+      "title": "the round button opens the row of formations; behind the player a tap selects that one alone, and its menu opens on the tab chosen",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.panel.battalion",
+      "title": "in the tactical view taps add formations to the selection; 묶기 makes them a battalion, which is selected with one tap and given orders together",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
       "id": "m2.time.pause",
       "title": "time scale 0 stops the simulation and 1 resumes it",
       "kind": "browser",
