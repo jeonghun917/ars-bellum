@@ -86,10 +86,13 @@
       ],
       "risks": [
         {
-          "text": "Workflows name files and scripts directly (verify.mjs, tests/run-all.mjs, 2D test files); renaming or deleting one turns CI red for a reason unrelated to the change.",
+          "text": "Workflows name files and scripts directly (verify.mjs, m2_verify.mjs, tests/run-all.mjs); renaming or deleting one turns CI red for a reason unrelated to the change.",
           "files": [
             ".github/**"
           ]
+        },
+        {
+          "text": "test.yml skips every step after the 'Only documents and maps changed?' step by `if: steps.scope.outputs.run == 'true'` on a pull request that changes only *.md, docs/, .dashboard/ or .readfirst/. A new step without that condition runs on doc-only pull requests too, and a changed pattern in the scope step changes which pull requests are checked at all. main is no longer checked on each merge, only once a day (cron) or by hand."
         }
       ]
     },
