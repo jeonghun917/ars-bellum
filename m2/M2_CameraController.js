@@ -2,33 +2,34 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-// How far each view may tilt and zoom. The tactical view starts high and far enough back to show both
-// 20-man armies; each view keeps its own tilt and zoom, so switching back returns to where it was.
+// How far each view may tilt, and how far it stands from what it looks at. There is no zoom (the owner,
+// 2026-11-02): the view behind the player stands as close as it used to be allowed (3.5 m), the tactical view
+// high and far enough back to show both armies. Each view keeps its own tilt, so switching back returns to it.
 const LIMITS = Object.freeze({
-  third_person: Object.freeze({ pitch: [-0.9, -0.12], distance: [3.5, 14] }),
-  tactical: Object.freeze({ pitch: [-1.3, -0.55], distance: [10, 44] })
+  third_person: Object.freeze({ pitch: [-0.9, -0.12], distance: 3.5 }),
+  tactical: Object.freeze({ pitch: [-1.3, -0.55], distance: 26 })
 });
 
 export class M2CameraController {
   #mode = "third_person";
   #heading = 0;
   #pitch = -0.38;
-  #distance = 8.5;
+  #distance = LIMITS.third_person.distance;
   #heightOffset = 1.55;
   #center = { x: 0, z: 0 };
-  #saved = { third_person: { pitch: -0.38, distance: 8.5 }, tactical: { pitch: -0.98, distance: 26 } };
+  #saved = { third_person: { pitch: -0.38 }, tactical: { pitch: -0.98 } };
   #disposed = false;
 
   get mode() { return this.#disposed ? "disposed" : this.#mode; }
 
   switchMode(mode, playerPosition = null) {
     if (this.#disposed || !["third_person", "tactical"].includes(mode)) return false;
-    this.#saved[this.#mode] = { pitch: this.#pitch, distance: this.#distance };
+    this.#saved[this.#mode] = { pitch: this.#pitch };
     this.#mode = mode;
     if (mode === "tactical" && playerPosition) this.#center = { x: playerPosition.x, z: playerPosition.z };
     const limits = LIMITS[mode];
     this.#pitch = clamp(this.#saved[mode].pitch, ...limits.pitch);
-    this.#distance = clamp(this.#saved[mode].distance, ...limits.distance);
+    this.#distance = limits.distance;
     return true;
   }
 
@@ -41,11 +42,6 @@ export class M2CameraController {
     this.#heading += Number(deltaHeading) || 0;
     this.#pitch += Number(deltaPitch) || 0;
     this.#pitch = clamp(this.#pitch, ...LIMITS[this.#mode].pitch);
-  }
-
-  zoom(delta) {
-    if (this.#disposed) return;
-    this.#distance = clamp(this.#distance + (Number(delta) || 0), ...LIMITS[this.#mode].distance);
   }
 
   pan(x, z) {
