@@ -28,6 +28,8 @@ function gearFor(unit, loadout) {
   return { show, hide, armor: ARMOR_MESHES[unit.armorId] || ARMOR_MESHES.mail };
 }
 const GEAR_HIDDEN = 1e-4;
+// How far (m) from the arrow's line a man may stand and still take it, for the aiming circle.
+const AIM_WIDTH = 0.45;
 
 function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, loadout, gear = null) {
   const group = new THREE.Group();
@@ -446,6 +448,10 @@ export class M2RendererThree {
   #units = new Map();
   #projectiles = new Map();
   #formationMarkers = new Map();
+  // The aiming circle: shown while the player holds his bow (the owner, 2026-11-02), aimed by the view.
+  #aimRing = null;
+  #aimHeading = null;
+  #aimPoint = null;
   #geometries;
   #materials;
   #resizeHandler;
@@ -488,6 +494,8 @@ export class M2RendererThree {
       // A crossbow bolt: a short dark shaft along its flight (drawn thicker than life, to be seen at all).
       bolt: new THREE.CylinderGeometry(0.025, 0.025, 0.45, 5).rotateX(Math.PI / 2),
       formation: new THREE.RingGeometry(0.72, 0.82, 24),
+      // Where the player's arrow will come down, while he holds the bow (setAim).
+      aim: new THREE.RingGeometry(0.42, 0.56, 28),
       shadow: new THREE.CircleGeometry(0.42, 16),
       ground: createGroundGeometry()
     });
@@ -501,8 +509,14 @@ export class M2RendererThree {
       commanderEnemy: new THREE.MeshBasicMaterial({ color: M2_CONFIG.enemyColor, side: THREE.DoubleSide }),
       projectileAlly: new THREE.MeshBasicMaterial({ color: M2_CONFIG.projectileAllyColor }),
       projectileEnemy: new THREE.MeshBasicMaterial({ color: M2_CONFIG.projectileEnemyColor }),
-      formation: new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.55 })
+      formation: new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.55 }),
+      aim: new THREE.MeshBasicMaterial({ color: 0xffd166, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthTest: false })
     });
+    this.#aimRing = new THREE.Mesh(this.#geometries.aim, this.#materials.aim);
+    this.#aimRing.rotation.x = -Math.PI / 2;
+    this.#aimRing.renderOrder = 10;
+    this.#aimRing.visible = false;
+    this.#scene.add(this.#aimRing);
 
     const ground = new THREE.Mesh(this.#geometries.ground, this.#materials.ground);
     ground.rotation.x = -Math.PI / 2;
@@ -547,6 +561,11 @@ export class M2RendererThree {
   setAnimationLoop(callback) {
     if (this.#disposed && callback) throw new Error("m2_runtime_disposed");
     this.#renderer.setAnimationLoop(callback);
+  }
+
+  // Shows the aiming circle along this heading (the way the player shoots: the view's), or hides it (null).
+  setAim(heading) {
+    this.#aimHeading = Number.isFinite(heading) ? heading : null;
   }
 
   applyCameraPose(pose) {
@@ -677,7 +696,37 @@ export class M2RendererThree {
     }
     this.#syncProjectiles(renderSnapshot, alpha);
     this.#syncFormationMarkers(renderSnapshot);
+    this.#syncAim(renderSnapshot, alpha);
     this.#renderer.render(this.#scene, this.#camera);
+  }
+
+  // Where an arrow loosed now would come down: on the first enemy across its flight (within a man's width of
+  // the line), else at the end of the bow's range (M2_CombatSystem.js resolveBowLaunch).
+  #syncAim(renderSnapshot, alpha) {
+    const player = renderSnapshot.units.find((unit) => unit.unitId === renderSnapshot.playerUnitId);
+    if (this.#aimHeading === null || !player?.bowRange || player.state === "dead" || player.state === "incapacitated") {
+      this.#aimRing.visible = false;
+      this.#aimPoint = null;
+      return;
+    }
+    const from = {
+      x: player.previousPosition.x + (player.position.x - player.previousPosition.x) * alpha,
+      z: player.previousPosition.z + (player.position.z - player.previousPosition.z) * alpha
+    };
+    const dir = { x: Math.sin(this.#aimHeading), z: Math.cos(this.#aimHeading) };
+    let reach = player.bowRange;
+    for (const unit of renderSnapshot.units) {
+      if (unit.sideId === player.sideId || unit.state === "dead" || unit.state === "incapacitated" || unit.seen === false) continue;
+      const along = (unit.position.x - from.x) * dir.x + (unit.position.z - from.z) * dir.z;
+      if (along <= 0 || along >= reach) continue;
+      const across = Math.abs((unit.position.x - from.x) * dir.z - (unit.position.z - from.z) * dir.x);
+      if (across <= AIM_WIDTH) reach = along;
+    }
+    this.#aimPoint = { x: from.x + dir.x * reach, z: from.z + dir.z * reach };
+    this.#aimRing.position.set(this.#aimPoint.x, 0.05, this.#aimPoint.z);
+    // Larger the further it lies, so it is still seen at the end of the bow's range.
+    this.#aimRing.scale.setScalar(Math.max(1, reach / 6));
+    this.#aimRing.visible = true;
   }
 
   #groundView() {
@@ -712,6 +761,7 @@ export class M2RendererThree {
       renderedProjectiles: this.#projectiles.size,
       // Which way the screen's right and up point on the ground, from the camera as drawn (unit vectors).
       view: this.#groundView(),
+      aim: this.#aimPoint ? { ...this.#aimPoint } : null,
       soldierModel: soldierModels ? "blender" : "box"
     };
   }

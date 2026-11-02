@@ -27,6 +27,9 @@ export class M2Diagnostics {
   #horseAnimations = {};
   #lastError = null;
   #cameraMode = "third_person";
+  // The player's weapon in hand and his shield (M2_InputController.js), and where the aiming circle stands.
+  #hands = Object.freeze({ weapon: "melee", shieldUp: false });
+  #aim = null;
   #inputContextRevision = 0;
   #activePointerCount = 0;
   #inputListenerCount = 0;
@@ -60,6 +63,7 @@ export class M2Diagnostics {
 
   setControlObservation(observation = {}) {
     if (["third_person", "tactical", "disposed"].includes(observation.cameraMode)) this.#cameraMode = observation.cameraMode;
+    if (["melee", "bow"].includes(observation.weapon)) this.#hands = Object.freeze({ weapon: observation.weapon, shieldUp: Boolean(observation.shieldUp) });
     if (Number.isSafeInteger(observation.inputContextRevision) && observation.inputContextRevision >= 0) this.#inputContextRevision = observation.inputContextRevision;
     if (Number.isSafeInteger(observation.activePointerCount) && observation.activePointerCount >= 0) this.#activePointerCount = observation.activePointerCount;
     if (Number.isSafeInteger(observation.inputListenerCount) && observation.inputListenerCount >= 0) this.#inputListenerCount = observation.inputListenerCount;
@@ -102,6 +106,7 @@ export class M2Diagnostics {
     this.#soldierAnimations = Object.freeze({ ...(rendererInfo.soldierAnimations || {}) });
     this.#horseAnimations = Object.freeze({ ...(rendererInfo.horseAnimations || {}) });
     this.#soldierGear = Object.freeze({ ...(rendererInfo.soldierGear || {}) });
+    this.#aim = rendererInfo.aim ? Object.freeze({ ...rendererInfo.aim }) : null;
     if (rendererInfo.view) this.#view = Object.freeze({ ...rendererInfo.view, right: { ...rendererInfo.view.right }, forward: { ...rendererInfo.view.forward } });
   }
 
@@ -129,6 +134,8 @@ export class M2Diagnostics {
       runtimeNetworkImport: false,
       persistenceAccess: false,
       cameraMode: this.#cameraMode,
+      hands: this.#hands,
+      aim: this.#aim,
       inputContextRevision: this.#inputContextRevision,
       activePointerCount: this.#activePointerCount,
       inputListenerCount: this.#inputListenerCount,

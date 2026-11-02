@@ -149,3 +149,4 @@ button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
   .m2-diagnostics { top: calc(48px + var(--safe-top)); max-height: 60vh; }
   .m2-hit-feed { top: calc(48px + var(--safe-top)); }
 }
+#m2Bow[data-weapon="bow"] { border-color: var(--gold); color: var(--gold); }

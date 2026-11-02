@@ -278,21 +278,53 @@ test.describe('3D battle', () => {
     await expect(page.locator('#m2HitFeed span')).toHaveCount(0, { timeout: 20_000 });
   });
 
-  test('[m2.player.block] block holds while pressed and ends on release', async ({ page }) => {
-    await pointer(page, '#m2Block', 'pointerdown');
-    await waitTicks(page, 1);
-    const blocking = (await player(page)).blocking;
-    await pointer(page, '#m2Block', 'pointerup');
-    await waitTicks(page, 1);
-    expect(blocking).toBe(true);
+  // The owner, 2026-11-02: a button that raises the shield and lowers it.
+  test('[m2.player.block] the shield button raises the shield and the next tap lowers it; turning the view keeps it up', async ({ page }) => {
+    await tap(page, '#m2Block');
+    await waitTicks(page, 2);
+    expect((await player(page)).blocking).toBe(true);
+    await expect(page.locator('#m2Block')).toHaveAttribute('aria-pressed', 'true');
+    // A drag of the view (which ends by starting a new input context) leaves it up.
+    const canvas = await page.locator('#m2Canvas').boundingBox();
+    for (const [type, x] of [['pointerdown', 400], ['pointermove', 480], ['pointerup', 480]]) {
+      await pointer(page, '#m2Canvas', type, { pointerId: 831, clientX: canvas.x + x, clientY: canvas.y + 300 });
+    }
+    await waitTicks(page, 3);
+    expect((await player(page)).blocking).toBe(true);
+    await tap(page, '#m2Block');
+    await waitTicks(page, 2);
     expect((await player(page)).blocking).toBe(false);
+    await expect(page.locator('#m2Block')).toHaveAttribute('aria-pressed', 'false');
   });
 
-  test('[m2.player.bow] the bow button launches an arrow', async ({ page }) => {
-    const before = (await diagnostics(page)).projectileLaunchCount;
+  // The owner, 2026-11-02: one button swaps weapon and bow at once; with the bow, a circle where the arrow lands.
+  test('[m2.player.bow] the weapon button puts the bow in hand at once: the attack button shoots, a circle shows where the arrow lands; tapped again, back to the weapon', async ({ page }) => {
+    expect((await diagnostics(page)).aim).toBeNull();
     await tap(page, '#m2Bow');
+    await expect.poll(async () => (await diagnostics(page)).hands.weapon).toBe('bow');
+    await expect.poll(async () => (await diagnostics(page)).aim).not.toBeNull();
+    // Nobody in the way: the circle lies the bow's range ahead along the view.
+    const [g, me] = [await diagnostics(page), await player(page)];
+    const range = me.hero.ranged.range;
+    const d = { x: g.aim.x - me.position.x, z: g.aim.z - me.position.z };
+    const far = Math.hypot(d.x, d.z);
+    expect(Math.abs(far - range), JSON.stringify({ aim: g.aim, me: me.position, range })).toBeLessThan(1);
+    expect((d.x * g.view.forward.x + d.z * g.view.forward.z) / far).toBeGreaterThan(0.95);
+    const before = g.projectileLaunchCount;
+    await tap(page, '#m2Attack');
     await waitTicks(page, 1);
     expect((await diagnostics(page)).projectileLaunchCount).toBeGreaterThan(before);
+    // Back to the weapon: no circle, and the attack button swings.
+    await tap(page, '#m2Bow');
+    await expect.poll(async () => (await diagnostics(page)).aim).toBeNull();
+    await page.waitForFunction(() => {
+      const s = window.ArsM2Battle.getSnapshot();
+      return s.units.find((u) => u.unitId === s.playerCharacterId).attackCooldownTicks === 0;
+    }, null, { polling: 'raf', timeout: 20_000 });
+    const shot = (await diagnostics(page)).projectileLaunchCount;
+    await tap(page, '#m2Attack');
+    await swingCooldownSeen(page);
+    expect((await diagnostics(page)).projectileLaunchCount).toBe(shot);
   });
 
   test('[m2.camera.tactical-switch] switching to the tactical view starts a new input context', async ({ page }) => {
@@ -536,6 +568,36 @@ test.describe('3D battle', () => {
     expect(g.moraleSummary.enemy).toBe(0);
     // The screen is redrawn every 200 ms, so wait for the redraw rather than a fixed time.
     await expect(page.locator('#m2MoraleEnemy')).toHaveText('0');
+  });
+
+  test('[m2.player.bow-aim-stops] the aiming circle stops on the first enemy across the arrow\'s flight', async ({ page }) => {
+    // One enemy 8 m straight ahead of the player along the view (the view starts looking north, heading 0).
+    await loadVariant(page, `
+      const me = snapshot.characters.find((c) => c.characterId === snapshot.playerCharacterId);
+      const commanders = new Set(snapshot.formations.map((f) => f.commanderUnitId));
+      const foe = snapshot.characters.find((c) => c.sideId === 'enemy' && !commanders.has(c.characterId));
+      foe.spawn = { ...foe.spawn, x: me.spawn.x, z: me.spawn.z + 8 };
+      for (const f of snapshot.formations) { f.order = 'hold'; delete f.target; }
+      // (In a formation of his own, standing where he was put.)
+      const own = snapshot.formations.find((f) => f.memberUnitIds.includes(foe.characterId));
+      own.memberUnitIds = own.memberUnitIds.filter((id) => id !== foe.characterId);
+      snapshot.formations.push({ ...own, formationId: 'test_lone_foe', memberUnitIds: [foe.characterId],
+        commanderUnitId: foe.characterId, anchor: { ...own.anchor, x: foe.spawn.x, z: foe.spawn.z } });
+      foe.formationId = 'test_lone_foe';
+      window.__foeId = foe.characterId;
+    `);
+    await page.evaluate(() => window.ArsM2Battle.setTimeScale(0));
+    const g0 = await diagnostics(page);
+    expect(g0.view.forward.z, JSON.stringify(g0.view)).toBeGreaterThan(0.99);
+    await tap(page, '#m2Bow');
+    await expect.poll(async () => (await diagnostics(page)).aim).not.toBeNull();
+    const foeId = await page.evaluate(() => window.__foeId);
+    const foe = await page.evaluate((id) => window.ArsM2Battle.getSnapshot().units.find((u) => u.unitId === id), foeId);
+    const me = await player(page);
+    const aim = (await diagnostics(page)).aim;
+    const along = aim.z - me.position.z;
+    expect(Math.abs(along - (foe.position.z - me.position.z)), JSON.stringify({ aim, me: me.position, foe: foe.position })).toBeLessThan(0.6);
+    expect(along).toBeLessThan(me.hero.ranged.range - 2);
   });
 
   test('[m2.page.no-errors] loading and playing the battle raises no page errors', async ({ page }) => {

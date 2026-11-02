@@ -32,6 +32,7 @@ export class M2BattleRuntime {
   #planSystem = new M2PlanSystem();
   #renderSnapshot = null;
   #cameraController = null;
+  #aiming = false;
   #inputController = null;
   #status = "created";
   #timeScale = M2_CONFIG.defaultTimeScale;
@@ -148,6 +149,8 @@ export class M2BattleRuntime {
   }
 
   screenPointToGround(clientX, clientY) { return this.#renderer.screenPointToGround(clientX, clientY); }
+  // While the player holds his bow, the aiming circle shows where an arrow loosed along the view would land.
+  setAiming(on) { this.#aiming = Boolean(on); }
   getSnapshot() { return this.#battleState ? this.#battleState.getSnapshot() : null; }
   getResult() { return this.#battleState?.getResult() || null; }
   getStatus() { return Object.freeze({ status: this.#status, timeScale: this.#timeScale, disposed: this.#disposed, pendingCommands: this.#commandQueue.pendingCount }); }
@@ -249,8 +252,9 @@ export class M2BattleRuntime {
     const interpolationAlpha = M2_CONFIG.fixedTickMs > 0 ? this.#accumulatorMs / M2_CONFIG.fixedTickMs : 0;
     const cameraPose = this.#cameraController?.getPose(this.#renderSnapshot, interpolationAlpha) || null;
     if (cameraPose) this.#renderer.applyCameraPose(cameraPose);
+    this.#renderer.setAim(this.#aiming && cameraPose ? cameraPose.heading : null);
     if (this.#cameraController || this.#inputController) {
-      this.#diagnostics.setControlObservation({ cameraMode: this.#cameraController?.mode || "third_person", inputContextRevision: this.#inputController?.inputContextRevision ?? 0, activePointerCount: this.#inputController?.activePointerCount ?? 0, inputListenerCount: this.#inputController?.inputListenerCount ?? 0 });
+      this.#diagnostics.setControlObservation({ cameraMode: this.#cameraController?.mode || "third_person", inputContextRevision: this.#inputController?.inputContextRevision ?? 0, activePointerCount: this.#inputController?.activePointerCount ?? 0, inputListenerCount: this.#inputController?.inputListenerCount ?? 0, weapon: this.#inputController?.weapon, shieldUp: this.#inputController?.shieldUp });
     }
     this.#renderer.render(this.#renderSnapshot, interpolationAlpha, this.#elapsedSeconds + this.#accumulatorMs / 1000);
     this.#diagnostics.sampleFrame(frameDelta, this.#renderer.getInfo());

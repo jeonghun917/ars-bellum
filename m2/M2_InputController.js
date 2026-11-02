@@ -32,6 +32,10 @@ export class M2InputController {
   #selectedEnemyFormationId = null;
   #disposed = false;
   #canvasGestureMoved = false;
+  // The player's weapon in hand ("melee" or "bow") and whether his shield is up: both switched with a tap
+  // (the owner, 2026-11-02: one button swaps weapon and bow at once; the shield is raised and lowered).
+  #weapon = "melee";
+  #shieldUp = false;
 
   constructor({ runtime, cameraController, diagnostics, elements }) {
     this.#runtime = runtime;
@@ -47,6 +51,38 @@ export class M2InputController {
   get activePointerCount() { return this.#activePointers.size; }
   get inputListenerCount() { return this.#listeners.length; }
   get selectedFormationId() { return this.#selectedFormationId; }
+  get weapon() { return this.#weapon; }
+  get shieldUp() { return this.#shieldUp; }
+
+  // The attack button and J: a swing of the weapon in hand, or an arrow from the bow.
+  #attack() {
+    const type = this.#weapon === "bow" ? "player_bow_fire" : "player_melee_attack";
+    this.#issue(type, { actorUnitId: this.#playerId(), aimHeading: this.#aimHeading() });
+  }
+
+  // The weapon button and L: weapon to bow and back, at once (a player without a bow keeps his weapon). With
+  // the bow in hand, a circle shows where the arrow will come down (M2_RendererThree.js setAim).
+  #switchWeapon() {
+    const player = (this.#runtime.getSnapshot()?.units || []).find((unit) => unit.isPlayer);
+    const hasBow = Boolean(player?.hero?.ranged);
+    this.#weapon = this.#weapon === "bow" || !hasBow ? "melee" : "bow";
+    this.#runtime.setAiming?.(this.#weapon === "bow");
+    this.#showHands();
+  }
+
+  // The shield button and K: up, and down again.
+  #toggleShield() {
+    this.#shieldUp = !this.#shieldUp;
+    this.#queueBlock(this.#shieldUp);
+    this.#showHands();
+  }
+
+  #showHands() {
+    const { bow, block } = this.#elements;
+    if (bow) { bow.dataset.weapon = this.#weapon; bow.firstChild.textContent = this.#weapon === "bow" ? "활" : "근접"; }
+    if (block) { block.setAttribute("aria-pressed", String(this.#shieldUp)); block.firstChild.textContent = "방패"; }
+    this.#observe();
+  }
 
   #nextCommandId() {
     this.#commandSequence += 1;
@@ -121,7 +157,8 @@ export class M2InputController {
     this.#virtualStick = { x: 0, z: 0 };
     if (enqueueReleases) {
       this.#queueMove({ x: 0, z: 0 });
-      this.#queueBlock(false);
+      // The shield stays as he set it (a toggle, not held): sent again in the new context.
+      this.#queueBlock(this.#shieldUp);
     }
     this.#observe();
   }
@@ -212,7 +249,7 @@ export class M2InputController {
   #install() {
     const canvas = this.#elements.canvas;
     this.#listen(window, "keydown", (event) => {
-      if (event.repeat && ["KeyJ","KeyL","Tab","Digit1","Digit2","Digit3","Digit4","Digit5","Digit6"].includes(event.code)) return;
+      if (event.repeat && ["KeyJ","KeyK","KeyL","Tab","Digit1","Digit2","Digit3","Digit4","Digit5","Digit6"].includes(event.code)) return;
       if (["KeyW","KeyA","KeyS","KeyD"].includes(event.code)) {
         this.#keys.add(event.code);
         const vector = keyVector(this.#keys);
@@ -220,11 +257,11 @@ export class M2InputController {
         else { const step = this.#onGround(vector); this.#camera.pan(step.x * 0.8, step.z * 0.8); }
         this.#observe();
       } else if (event.code === "KeyJ") {
-        this.#issue("player_melee_attack", { actorUnitId: this.#playerId(), aimHeading: this.#aimHeading() });
+        this.#attack();
       } else if (event.code === "KeyK") {
-        this.#queueBlock(true);
+        this.#toggleShield();
       } else if (event.code === "KeyL") {
-        this.#issue("player_bow_fire", { actorUnitId: this.#playerId(), aimHeading: this.#aimHeading() });
+        this.#switchWeapon();
       } else if (event.code === "Tab") {
         stopEvent(event);
         this.switchMode();
@@ -239,8 +276,6 @@ export class M2InputController {
         this.#keys.delete(event.code);
         const vector = keyVector(this.#keys);
         if (this.#camera.mode === "third_person") this.#queueMove(vector);
-      } else if (event.code === "KeyK") {
-        this.#queueBlock(false);
       }
       this.#observe();
     });
@@ -311,10 +346,10 @@ export class M2InputController {
     this.#listen(canvas, "lostpointercapture", () => this.resetInputContext({ enqueueReleases: true }));
 
     const control = (element, type, handler) => this.#listen(element, type, (event) => { stopEvent(event); handler(event); });
-    control(this.#elements.attack, "pointerdown", () => this.#issue("player_melee_attack", { actorUnitId: this.#playerId(), aimHeading: this.#aimHeading() }));
-    control(this.#elements.block, "pointerdown", () => this.#queueBlock(true));
-    for (const type of ["pointerup","pointercancel","lostpointercapture"]) control(this.#elements.block, type, () => this.#queueBlock(false));
-    control(this.#elements.bow, "pointerdown", () => this.#issue("player_bow_fire", { actorUnitId: this.#playerId(), aimHeading: this.#aimHeading() }));
+    control(this.#elements.attack, "pointerdown", () => this.#attack());
+    control(this.#elements.block, "pointerdown", () => this.#toggleShield());
+    control(this.#elements.bow, "pointerdown", () => this.#switchWeapon());
+    this.#showHands();
     control(this.#elements.tactical, "pointerdown", () => this.switchMode());
     control(this.#elements.attackOrder, "pointerdown", () => {
       if (this.#selectedFormationId && this.#selectedEnemyFormationId) {
