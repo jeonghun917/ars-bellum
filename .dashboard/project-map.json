@@ -800,7 +800,7 @@
     {
       "id": "bellum-battle3d-rules",
       "title": "3D 전투 규칙(병종·적 지휘)",
-      "owner": "m2/M2_UnitKinds.js가 병종(보병·석궁병·기병)과 그 수치를 정하고, 어느 대형이 어떤 병종인지 정한다(대형 이름으로; 세분 병종은 대형의 unitTypeId). 이동·대형·전투 시스템과 렌더러가 이 값을 읽는다. 바꾸면 tests/unit/m2-unit-kinds.test.mjs와 verify-m2를 돌린다. m2/M2_EnemyAI.js가 적 지휘(공격받으면 적 전체가 싸우러 나옴, 기병은 아군 석궁병부터)를 정한다. 바꾸면 tests/unit/m2-enemy-ai.test.mjs도 돌린다. m2/M2_CollisionSystem.js가 병사 몸(겹치지 않기, 무거운 쪽이 밀어냄)을 정하고, 이동 속도·행군·돌격 거리·타격 간격은 M2_UnitKinds.js에 있다. 바꾸면 tests/unit/m2-pace-bodies.test.mjs도 돌린다. m2/M2_HeroLoadout.js가 플레이어 영웅(부대 소속 없음)의 전투 능력을 그의 기술과 장비(전투 시작 데이터의 heroSheet)로 계산한다. 바꾸면 tests/unit/m2-hero.test.mjs도 돌린다. m2/M2_Commanders.js가 부대장(부대마다 별도 인물: 자기 장비·기술, 통솔은 사기, 지휘는 손실 부담, 전술은 작전 칸 수)을 정한다(전투 시작 데이터의 commanderSheets). 바꾸면 tests/unit/m2-commanders.test.mjs도 돌린다. m2/M2_Orders.js가 부대 명령(돌격·장창 대기·치고 빠지기·측면 우회, 사격 중지·집중 사격·일제 사격·견제 사격; 추가 효과 없음, 부대장 전술 칸 수만큼)을, M2_FormationSystem.js가 대형(횡대·종대·산개·방패진·쐐기진·원진)을 정한다. 바꾸면 tests/unit/m2-tactics.test.mjs도 돌린다. m2/M2_Plans.js가 작전(정면 압박·모루와 망치·견제 후 돌격·궁병 호위·버티다 역습·양익 포위·거짓 후퇴; 병종 조합과 부대장 전술로 쓸 수 있는 것)을 정하고 진행한다. 바꾸면 tests/unit/m2-plans.test.mjs도 돌린다. 병종 세분화(방패병·장창병·충격보병·척후병, 석궁병·장궁병, 경기병·중기병)도 M2_UnitKinds.js에 있다(전투 시작 데이터의 대형 unitTypeId; 몸과 장비만 다르고 추가 효과 없음). 바꾸면 tests/unit/m2-subtypes.test.mjs도 돌린다. m2/M2_Pursuit.js가 추격(추격 설정 부대가 무너진 적 부대의 도망병을 그들의 전장 끝까지 쫓아 베고 쏨; 기본은 기병만)을 정한다. 바꾸면 tests/unit/m2-pursuit.test.mjs도 돌린다. m2/M2_Defense.js가 막기(정면 공격은 방패·양손 무기·한손 무기 순으로 자주 막고, 옆은 절반, 뒤와 도망병은 못 막음; 화살은 방패만, 방패진은 더; 수비 능력치·무기 숙련도로 오름)를 정하고, 갑옷 값은 입은 것(사슬 15·가죽 7·판금 30)이며 병사 무기는 전투가 정한다(M2_UnitKinds.js M2_LOADOUTS). 체력·공격력은 갑옷 없이 약 10대·사슬 약 17대에 쓰러지게, 전투 약 1분(사용자 선택 2026-11-01). 바꾸면 tests/unit/m2-defense.test.mjs도 돌린다. m2/M2_Vision.js가 시야(전장의 안개: 병사마다 보는 거리, 보병 20m·석궁병 24m·기병 28m·척후병 45m, 지형 없이 거리만; 한 편이 본 것은 그 편 모두가 앎; 전투 시작 때 적의 배치는 앎; 안 보이는 적은 마지막 본 자리로만 알고, 적 지휘관·작전·공격 목표·돌격·추격·치기와 쏘기가 모두 그것만 씀; 화면은 안 보이는 적을 마지막 본 자리에 흐리게 그림. 사용자 선택 2026-11-02)를 정한다. 시야는 매 틱 처음에 계산하므로, 틱을 따로 돌리는 곳(M2_BattleRuntime.js, tests/unit/m2-sim-helpers.mjs, tools/m2_scale_bench.mjs, m2_verify.mjs)에 모두 넣는다. 바꾸면 tests/unit/m2-vision.test.mjs와 tests/browser/m2-vision.spec.mjs도 돌린다",
+      "owner": "m2/M2_UnitKinds.js가 병종(보병·석궁병·기병)과 그 수치를 정하고, 어느 대형이 어떤 병종인지 정한다(대형 이름으로; 세분 병종은 대형의 unitTypeId). 이동·대형·전투 시스템과 렌더러가 이 값을 읽는다. 바꾸면 tests/unit/m2-unit-kinds.test.mjs와 verify-m2를 돌린다. m2/M2_EnemyAI.js가 적 지휘(공격받으면 적 전체가 싸우러 나옴, 기병은 아군 석궁병부터)를 정한다. 바꾸면 tests/unit/m2-enemy-ai.test.mjs도 돌린다. m2/M2_CollisionSystem.js가 병사 몸(겹치지 않기, 무거운 쪽이 밀어냄)을 정하고, 이동 속도·행군·돌격 거리·타격 간격은 M2_UnitKinds.js에 있다. 바꾸면 tests/unit/m2-pace-bodies.test.mjs도 돌린다. m2/M2_HeroLoadout.js가 플레이어 영웅(부대 소속 없음)의 전투 능력을 그의 기술과 장비(전투 시작 데이터의 heroSheet)로 계산한다. 바꾸면 tests/unit/m2-hero.test.mjs도 돌린다. m2/M2_Commanders.js가 부대장(부대마다 별도 인물: 자기 장비·기술, 통솔은 사기, 지휘는 손실 부담, 전술은 작전 칸 수)을 정한다(전투 시작 데이터의 commanderSheets). 바꾸면 tests/unit/m2-commanders.test.mjs도 돌린다. m2/M2_Orders.js가 부대 명령(돌격·장창 대기·치고 빠지기·측면 우회, 사격 중지·집중 사격·일제 사격·견제 사격; 추가 효과 없음, 부대장 전술 칸 수만큼)을, M2_FormationSystem.js가 대형(횡대·종대·산개·방패진·쐐기진·원진)을 정한다. 바꾸면 tests/unit/m2-tactics.test.mjs도 돌린다. m2/M2_Plans.js가 작전(정면 압박·모루와 망치·견제 후 돌격·궁병 호위·버티다 역습·양익 포위·거짓 후퇴; 병종 조합과 부대장 전술로 쓸 수 있는 것)을 정하고 진행한다. 바꾸면 tests/unit/m2-plans.test.mjs도 돌린다. 병종 세분화(방패병·장창병·충격보병·척후병, 석궁병·장궁병, 경기병·중기병)도 M2_UnitKinds.js에 있다(전투 시작 데이터의 대형 unitTypeId; 몸과 장비만 다르고 추가 효과 없음). 바꾸면 tests/unit/m2-subtypes.test.mjs도 돌린다. m2/M2_Pursuit.js가 추격(추격 설정 부대가 무너진 적 부대의 도망병을 그들의 전장 끝까지 쫓아 베고 쏨; 기본은 기병만)을 정한다. 바꾸면 tests/unit/m2-pursuit.test.mjs도 돌린다. m2/M2_Defense.js가 막기(정면 공격은 방패·양손 무기·한손 무기 순으로 자주 막고, 옆은 절반, 뒤와 도망병은 못 막음; 화살은 방패만, 방패진은 더; 수비 능력치·무기 숙련도로 오름)를 정하고, 갑옷 값은 입은 것(사슬 15·가죽 7·판금 30)이며 병사 무기는 전투가 정한다(M2_UnitKinds.js M2_LOADOUTS). 체력·공격력은 갑옷 없이 약 10대·사슬 약 17대에 쓰러지게, 전투 약 1분(사용자 선택 2026-11-01). 바꾸면 tests/unit/m2-defense.test.mjs도 돌린다.",
       "files": [
         "m2/M2_UnitKinds.js",
         "m2/M2_EnemyAI.js",
@@ -810,8 +810,7 @@
         "m2/M2_Orders.js",
         "m2/M2_Plans.js",
         "m2/M2_Pursuit.js",
-        "m2/M2_Defense.js",
-        "m2/M2_Vision.js"
+        "m2/M2_Defense.js"
       ],
       "validators": [
         {
@@ -857,10 +856,6 @@
         {
           "path": "tests/unit/m2-defense.test.mjs",
           "kind": "TEST"
-        },
-        {
-          "path": "tests/unit/m2-vision.test.mjs",
-          "kind": "TEST"
         }
       ],
       "storage": {
@@ -874,6 +869,37 @@
           "trigger": "전투 스냅샷의 대형 이름이나 구성을 바꿀 때",
           "preWriteRule": "M2_UnitKinds.js의 대형-병종 표를 함께 고치고, 스냅샷에 병종 칸이 생기면 그쪽으로 옮긴다",
           "grade": "HIGH_IMPACT_CONDITIONAL_ON_TRIGGER"
+        }
+      ]
+    },
+    {
+      "id": "bellum-battle3d-sight",
+      "title": "3D 전투 시야(전장의 안개)",
+      "owner": "m2/M2_Vision.js가 시야(전장의 안개: 병사마다 보는 거리, 보병 20m·석궁병 24m·기병 28m·척후병 45m, 지형 없이 거리만; 한 편이 본 것은 그 편 모두가 앎; 전투 시작 때 적의 배치는 앎; 안 보이는 적은 마지막 본 자리로만 알고, 적 지휘관·작전·공격 목표·돌격·추격·치기와 쏘기가 모두 그것만 씀; 화면은 안 보이는 적을 마지막 본 자리에 흐리게 그림. 사용자 선택 2026-11-02)를 정한다. 시야는 매 틱 처음에 계산하므로, 틱을 따로 돌리는 곳(M2_BattleRuntime.js, tests/unit/m2-sim-helpers.mjs, tools/m2_scale_bench.mjs, m2_verify.mjs)에 모두 넣는다. 바꾸면 tests/unit/m2-vision.test.mjs와 tests/browser/m2-vision.spec.mjs도 돌린다",
+      "files": [
+        "m2/M2_Vision.js"
+      ],
+      "validators": [
+        {
+          "path": "tests/unit/m2-vision.test.mjs",
+          "kind": "TEST"
+        },
+        {
+          "path": "tests/browser/m2-vision.spec.mjs",
+          "kind": "TEST"
+        }
+      ],
+      "storage": {
+        "reads": [],
+        "writes": []
+      },
+      "risks": [
+        {
+          "id": "sight-01",
+          "risk": "시야는 매 틱 처음에 계산하므로, 틱을 따로 도는 곳 하나라도 빠지면 그곳의 전투가 오래된 시야로 움직인다(치기·쏘기·목표가 틀어짐)",
+          "trigger": "틱 순서를 바꾸거나 틱을 도는 새 도구·시험을 만들 때",
+          "preWriteRule": "M2_BattleRuntime.js, tests/unit/m2-sim-helpers.mjs, tools/m2_scale_bench.mjs, m2_verify.mjs 모두에 m2UpdateVision을 같은 자리에 넣고 m2-vision 시험을 돌린다",
+          "grade": "PRE_WRITE_GATE_IF_ON_CHANGED_PATH"
         }
       ]
     },
