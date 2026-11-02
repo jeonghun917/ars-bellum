@@ -1,16 +1,18 @@
 import { isM2UnitActive, isM2UnitAlive } from "./M2_BattleState.js";
 import { m2UnitKind } from "./M2_UnitKinds.js";
 import { pursuitTarget } from "./M2_Pursuit.js";
+import { m2Sees } from "./M2_Vision.js";
 
-// Under a charge order (M2_Orders.js) against a formation, the nearest of its men still fighting.
-function chargeTarget(battleState, unit) {
+// Under a charge order (M2_Orders.js) against a formation, the nearest of its men still fighting that his side
+// sees (M2_Vision.js).
+export function chargeTarget(battleState, unit) {
   const formation = unit.formationId ? battleState.getFormation(unit.formationId) : null;
   if (formation?.tactic !== "charge" || formation.order.type !== "attack_target") return null;
   const target = battleState.getFormation(formation.order.targetFormationId);
   let best = null;
   for (const id of target?.memberUnitIds || []) {
     const enemy = battleState.getUnit(id);
-    if (!isM2UnitActive(enemy)) continue;
+    if (!isM2UnitActive(enemy) || !m2Sees(battleState, unit.sideId, enemy)) continue;
     const d = Math.hypot(enemy.position.x - unit.position.x, enemy.position.z - unit.position.z);
     if (!best || d < best.d) best = { d, x: enemy.position.x, z: enemy.position.z };
   }

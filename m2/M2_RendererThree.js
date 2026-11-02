@@ -30,6 +30,9 @@ function gearFor(unit, loadout) {
 const GEAR_HIDDEN = 1e-4;
 // How far (m) from the arrow's line a man may stand and still take it, for the aiming circle.
 const AIM_WIDTH = 0.45;
+// How solid an enemy out of sight is drawn where he was last seen (M2_Vision.js).
+const FADED_OPACITY = 0.3;
+const FADED_GREY = new THREE.Color(0x9aa3ad);
 
 function createModelSoldier(model, markerMaterial, geometries, shadowMaterial, loadout, gear = null) {
   const group = new THREE.Group();
@@ -452,6 +455,8 @@ export class M2RendererThree {
   #aimRing = null;
   #aimHeading = null;
   #aimPoint = null;
+  // Each material's faded copy, for enemies out of sight (#fade).
+  #fadedMaterials = new Map();
   #geometries;
   #materials;
   #resizeHandler;
@@ -663,6 +668,19 @@ export class M2RendererThree {
       const actor = this.#units.get(unit.unitId);
       if (!actor) continue;
       const group = actor.group;
+      // An enemy the player's side does not see (M2_Vision.js): faded, still, where he was last seen.
+      if (unit.seen === false) {
+        this.#fade(group, true);
+        group.visible = Boolean(unit.lastSeen);
+        if (unit.lastSeen) {
+          group.position.set(unit.lastSeen.x, 0, unit.lastSeen.z);
+          group.rotation.y = unit.lastSeen.heading;
+        }
+        actor.placed = false;
+        continue;
+      }
+      this.#fade(group, false);
+      group.visible = true;
       const lastX = group.position.x;
       const lastZ = group.position.z;
       group.position.set(
@@ -729,6 +747,39 @@ export class M2RendererThree {
     this.#aimRing.visible = true;
   }
 
+  // Draws a soldier (and his horse) faded, or as he is. The faded look of each material is made once and shared.
+  #fade(group, faded) {
+    if (Boolean(group.userData.faded) === faded) return;
+    group.userData.faded = faded;
+    group.traverse((object) => {
+      if (!object.isMesh) return;
+      if (faded) {
+        object.userData.solidMaterial = object.material;
+        object.userData.castShadow = object.castShadow;
+        object.material = Array.isArray(object.material) ? object.material.map((m) => this.#faded(m)) : this.#faded(object.material);
+        // (A figure that is not there casts no shadow.)
+        object.castShadow = false;
+      } else if (object.userData.solidMaterial) {
+        object.material = object.userData.solidMaterial;
+        object.castShadow = object.userData.castShadow;
+        delete object.userData.solidMaterial;
+      }
+    });
+  }
+
+  #faded(material) {
+    let ghost = this.#fadedMaterials.get(material);
+    if (!ghost) {
+      ghost = material.clone();
+      ghost.transparent = true;
+      ghost.opacity = FADED_OPACITY;
+      // Greyed, and only the surface nearest the eye drawn (a body's parts do not pile up into a solid one).
+      if (ghost.color) ghost.color.lerp(FADED_GREY, 0.5);
+      this.#fadedMaterials.set(material, ghost);
+    }
+    return ghost;
+  }
+
   #groundView() {
     const flat = (v) => { const n = Math.hypot(v.x, v.z) || 1; return { x: v.x / n, z: v.z / n }; };
     const right = new THREE.Vector3().setFromMatrixColumn(this.#camera.matrixWorld, 0);
@@ -744,7 +795,10 @@ export class M2RendererThree {
     const horseAnimations = {};
     // And how many soldiers show each piece of subtype gear (M2_UnitKinds.js).
     const soldierGear = {};
+    // And how many are drawn faded (enemies out of sight, M2_Vision.js), and of those how many are shown.
+    const faded = { drawn: 0, hidden: 0 };
     for (const { group } of this.#units.values()) {
+      if (group.userData.faded) faded[group.visible ? "drawn" : "hidden"] += 1;
       for (const piece of group.userData.gearShown?.() || []) soldierGear[piece] = (soldierGear[piece] || 0) + 1;
       const playing = group.userData.animator?.playing;
       if (playing) soldierAnimations[playing] = (soldierAnimations[playing] || 0) + 1;
@@ -755,6 +809,7 @@ export class M2RendererThree {
       soldierAnimations,
       horseAnimations,
       soldierGear,
+      faded,
       drawCalls: info.calls,
       triangles: info.triangles,
       renderedUnits: this.#units.size,
@@ -783,6 +838,8 @@ export class M2RendererThree {
     window.removeEventListener("resize", this.#resizeHandler);
     for (const geometry of Object.values(this.#geometries)) geometry.dispose();
     for (const material of Object.values(this.#materials)) material.dispose();
+    for (const material of this.#fadedMaterials.values()) material.dispose();
+    this.#fadedMaterials.clear();
     this.#skyTexture?.dispose();
     this.#renderer.dispose();
     this.#units.clear();
