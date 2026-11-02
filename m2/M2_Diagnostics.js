@@ -18,6 +18,7 @@ export class M2Diagnostics {
   #renderedUnits = 0;
   #soldierModel = "none";
   #soldierGear = Object.freeze({});
+  #view = Object.freeze({ right: { x: 1, z: 0 }, forward: { x: 0, z: 1 }, lookDown: 0, height: 0 });
   #soldierAnimations = {};
   #horseAnimations = {};
   #lastError = null;
@@ -92,6 +93,7 @@ export class M2Diagnostics {
     this.#soldierAnimations = Object.freeze({ ...(rendererInfo.soldierAnimations || {}) });
     this.#horseAnimations = Object.freeze({ ...(rendererInfo.horseAnimations || {}) });
     this.#soldierGear = Object.freeze({ ...(rendererInfo.soldierGear || {}) });
+    if (rendererInfo.view) this.#view = Object.freeze({ ...rendererInfo.view, right: { ...rendererInfo.view.right }, forward: { ...rendererInfo.view.forward } });
   }
 
   getSnapshot() {
@@ -112,6 +114,7 @@ export class M2Diagnostics {
       soldierAnimations: this.#soldierAnimations,
       horseAnimations: this.#horseAnimations,
       soldierGear: this.#soldierGear,
+      view: this.#view,
       animationOwner: "M2BattleRuntime",
       runtimeNetworkImport: false,
       persistenceAccess: false,

@@ -154,6 +154,59 @@ test.describe('3D battle', () => {
     expect(g.inputListenerCount).toBeGreaterThan(0);
   });
 
+  // The owner, 2026-11-02: the stick walked him by the map's north, not by the view.
+  test('[m2.camera.stick-follows-view] the stick walks the player the way the view looks: up the screen ahead, right to the screen\'s right', async ({ page }) => {
+    const canvas = await page.locator('#m2Canvas').boundingBox();
+    // Turn the view about a quarter round with a drag.
+    for (const [type, x] of [['pointerdown', 300], ['pointermove', 560], ['pointerup', 560]]) {
+      await pointer(page, '#m2Canvas', type, { pointerId: 811, clientX: canvas.x + x, clientY: canvas.y + 300 });
+    }
+    await waitTicks(page, 2);
+    const view = (await diagnostics(page)).view;
+    expect(Math.abs(view.forward.z), JSON.stringify(view)).toBeLessThan(0.9);
+    const stick = await page.locator('#m2VirtualStick').boundingBox();
+    const middle = { x: stick.x + stick.width / 2, y: stick.y + stick.height / 2 };
+    // Holds the stick toward (dx, dy) (screen, -1..1) for a few ticks: the way he walked, as a unit vector.
+    const walk = async (dx, dy, pointerId) => {
+      const before = (await player(page)).position;
+      await pointer(page, '#m2VirtualStick', 'pointerdown', { pointerId, clientX: middle.x, clientY: middle.y });
+      await pointer(page, '#m2VirtualStick', 'pointermove', { pointerId, clientX: middle.x + dx * stick.width / 2, clientY: middle.y + dy * stick.height / 2 });
+      await waitTicks(page, 8);
+      await pointer(page, '#m2VirtualStick', 'pointerup', { pointerId });
+      const after = (await player(page)).position;
+      const d = Math.hypot(after.x - before.x, after.z - before.z);
+      expect(d).toBeGreaterThan(0.05);
+      return { x: (after.x - before.x) / d, z: (after.z - before.z) / d };
+    };
+    const ahead = await walk(0, -1, 812);
+    expect(ahead.x * view.forward.x + ahead.z * view.forward.z, JSON.stringify({ ahead, view })).toBeGreaterThan(0.9);
+    const right = await walk(1, 0, 813);
+    expect(right.x * view.right.x + right.z * view.right.z, JSON.stringify({ right, view })).toBeGreaterThan(0.9);
+  });
+
+  test('[m2.camera.drag-tilt-no-zoom] a drag up the screen lowers the view; two fingers do not zoom', async ({ page }) => {
+    const canvas = await page.locator('#m2Canvas').boundingBox();
+    await waitTicks(page, 1);
+    const start = (await diagnostics(page)).view;
+    for (const [type, y] of [['pointerdown', 400], ['pointermove', 320], ['pointerup', 320]]) {
+      await pointer(page, '#m2Canvas', type, { pointerId: 821, clientX: canvas.x + 600, clientY: canvas.y + y });
+    }
+    await waitTicks(page, 2);
+    const lowered = (await diagnostics(page)).view;
+    expect(lowered.height, JSON.stringify({ start, lowered })).toBeLessThan(start.height - 0.05);
+    expect(lowered.lookDown).toBeLessThan(start.lookDown);
+    // Two fingers spread apart (one held, the other drawn away and down): nothing changes.
+    await pointer(page, '#m2Canvas', 'pointerdown', { pointerId: 822, clientX: canvas.x + 500, clientY: canvas.y + 300 });
+    await pointer(page, '#m2Canvas', 'pointerdown', { pointerId: 823, clientX: canvas.x + 700, clientY: canvas.y + 300 });
+    await pointer(page, '#m2Canvas', 'pointermove', { pointerId: 823, clientX: canvas.x + 900, clientY: canvas.y + 380 });
+    await pointer(page, '#m2Canvas', 'pointerup', { pointerId: 822 });
+    await pointer(page, '#m2Canvas', 'pointerup', { pointerId: 823 });
+    await waitTicks(page, 2);
+    const after = (await diagnostics(page)).view;
+    expect(Math.abs(after.height - lowered.height), JSON.stringify({ lowered, after })).toBeLessThan(0.02);
+    expect(after.forward.x * lowered.forward.x + after.forward.z * lowered.forward.z).toBeGreaterThan(0.999);
+  });
+
   test('[m2.player.move-key] holding W moves the player', async ({ page }) => {
     const before = (await player(page)).position;
     await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true })));
