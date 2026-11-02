@@ -187,6 +187,7 @@ export class M2BattleRuntime {
 
     const prePhase7LivingIds = this.#battleState.getUnitIdsStable().filter((unitId) => isM2UnitAlive(this.#battleState.getUnit(unitId)));
     this.#combatSystem.applyDamageEvents(this.#battleState, damageEvents);
+    this.#diagnostics.addPlayerFeed(processingTick, this.#combatSystem.getPlayerFeed());
     const newlyLostThisTick = prePhase7LivingIds.filter((unitId) => !isM2UnitAlive(this.#battleState.getUnit(unitId))).map((unitId) => {
       const unit = this.#battleState.getUnit(unitId);
       return { unitId: unit.unitId, sideId: unit.sideId, formationId: unit.formationId, position: { x: unit.position.x, z: unit.position.z } };

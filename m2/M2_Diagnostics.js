@@ -5,6 +5,8 @@ function round(value, digits = 2) {
   return Math.round(value * factor) / factor;
 }
 
+const PLAYER_FEED_KEPT = 8;
+
 export class M2Diagnostics {
   #frames = [];
   #status = "created";
@@ -18,6 +20,8 @@ export class M2Diagnostics {
   #renderedUnits = 0;
   #soldierModel = "none";
   #soldierGear = Object.freeze({});
+  // The player's latest blows and shots and those at him (M2_CombatSystem.js getPlayerFeed), newest last.
+  #playerFeed = [];
   #view = Object.freeze({ right: { x: 1, z: 0 }, forward: { x: 0, z: 1 }, lookDown: 0, height: 0 });
   #soldierAnimations = {};
   #horseAnimations = {};
@@ -48,6 +52,11 @@ export class M2Diagnostics {
   markDroppedTicks(count) { this.#droppedTicks += Math.max(0, count | 0); }
   markStaleInputCommandsDropped(count) { this.#staleInputCommandsDropped += Math.max(0, count | 0); }
   setActiveCharacters(count) { this.#activeCharacters = Math.max(0, count | 0); }
+
+  addPlayerFeed(tick, entries = []) {
+    for (const entry of entries) this.#playerFeed.push(Object.freeze({ tick, ...entry }));
+    if (this.#playerFeed.length > PLAYER_FEED_KEPT) this.#playerFeed.splice(0, this.#playerFeed.length - PLAYER_FEED_KEPT);
+  }
 
   setControlObservation(observation = {}) {
     if (["third_person", "tactical", "disposed"].includes(observation.cameraMode)) this.#cameraMode = observation.cameraMode;
@@ -114,6 +123,7 @@ export class M2Diagnostics {
       soldierAnimations: this.#soldierAnimations,
       horseAnimations: this.#horseAnimations,
       soldierGear: this.#soldierGear,
+      playerFeed: Object.freeze([...this.#playerFeed]),
       view: this.#view,
       animationOwner: "M2BattleRuntime",
       runtimeNetworkImport: false,

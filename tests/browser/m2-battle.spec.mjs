@@ -222,7 +222,7 @@ test.describe('3D battle', () => {
     await swingCooldownSeen(page);
   });
 
-  test('[m2.player.melee-hit] a sword swing with an enemy in reach damages him, unless he stops it', async ({ page }) => {
+  test('[m2.player.melee-hit] a sword swing with an enemy in reach damages him, unless he stops it; the note at the top says which, and how much', async ({ page }) => {
     // Put one enemy one metre in front of the player (reach 1.6 m, 120 degree arc) and keep every
     // formation holding still, so the enemy is still in reach when the swing happens even on a busy machine.
     await loadVariant(page, `
@@ -262,10 +262,20 @@ test.describe('3D battle', () => {
       await page.evaluate(() => window.ArsM2Battle.setTimeScale(1));
       await swingCooldownSeen(page);
       const after = await diagnostics(page);
-      const hurt = (await unit(foeId)).hp < foe.hp;
+      const left = (await unit(foeId)).hp;
+      const hurt = left < foe.hp;
       expect(hurt || after.stoppedCount > before.stoppedCount, `swing ${swings}`).toBe(true);
+      // The owner, 2026-11-02: he could not tell whether his blows landed. A note at the top says it.
+      await expect(page.locator('#m2HitFeed span').first()).toHaveText(hurt ? `명중 ${Math.round(foe.hp - left)}` : '적이 막음');
     }
     expect((await unit(foeId)).hp).toBeLessThan(foe.hp);
+  });
+
+  test('[m2.player.hit-feed-miss] a swing that reaches nobody shows a short note at the top, gone after a moment', async ({ page }) => {
+    await tap(page, '#m2Attack');
+    await swingCooldownSeen(page);
+    await expect(page.locator('#m2HitFeed span').first()).toHaveText('헛침');
+    await expect(page.locator('#m2HitFeed span')).toHaveCount(0, { timeout: 20_000 });
   });
 
   test('[m2.player.block] block holds while pressed and ends on release', async ({ page }) => {

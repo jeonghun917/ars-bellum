@@ -21,6 +21,7 @@ import { loadSoldierModels } from "./M2_SoldierModels.js";
 const elements = {
   canvas: document.getElementById("m2Canvas"),
   status: document.getElementById("m2Status"),
+  hitFeed: document.getElementById("m2HitFeed"),
   diagnostics: document.getElementById("m2Diagnostics"),
   start: document.getElementById("m2Start"),
   pause: document.getElementById("m2Pause"),
@@ -85,7 +86,30 @@ function setCommandControlsDisabled(disabled) {
   }
 }
 
+// How long (ticks) a note of the player's blow stays at the top of the screen, and how many show at once.
+const FEED_TICKS = 30;
+const FEED_SHOWN = 3;
+// What a note of the player's blow says (M2_CombatSystem.js getPlayerFeed; the owner, 2026-11-02: he could not
+// tell whether his blows landed).
+function feedText(entry) {
+  const damage = Math.round(entry.damage || 0);
+  if (entry.kind === "hit") return `명중 ${damage}${entry.felled ? " · 쓰러뜨림" : ""}`;
+  if (entry.kind === "struck") return `피격 ${damage}`;
+  if (entry.kind === "stopped") return "적이 막음";
+  if (entry.kind === "blocked") return damage > 0 ? `막아냄 · 피격 ${damage}` : "막아냄";
+  return "헛침";
+}
+
+function showPlayerFeed(observation) {
+  if (!elements.hitFeed) return;
+  const now = observation.logicalTick || 0;
+  const recent = (observation.playerFeed || []).filter((entry) => now - entry.tick >= 0 && now - entry.tick <= FEED_TICKS).slice(-FEED_SHOWN).reverse();
+  const html = recent.map((entry) => `<span class="${entry.kind}">${feedText(entry)}</span>`).join("");
+  if (elements.hitFeed.innerHTML !== html) elements.hitFeed.innerHTML = html;
+}
+
 function updateHud() {
+  if (diagnostics) showPlayerFeed(diagnostics.getSnapshot());
   if (!diagnostics || !elements.diagnostics) return;
   const runtimeSnapshot = runtime?.getSnapshot();
   const result = runtime?.getResult() || null;
