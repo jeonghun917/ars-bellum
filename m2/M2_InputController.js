@@ -31,7 +31,6 @@ export class M2InputController {
   #selectedFormationId = null;
   #selectedEnemyFormationId = null;
   #disposed = false;
-  #lastPinchDistance = null;
   #canvasGestureMoved = false;
 
   constructor({ runtime, cameraController, diagnostics, elements }) {
@@ -87,10 +86,25 @@ export class M2InputController {
     });
   }
 
+  // A stick or keys direction (x right, z up the screen) on the ground, as the camera faces: up the screen is
+  // the way the camera looks, right is the screen's right (the owner, 2026-11-02: the stick went by the map's
+  // north instead of the view).
+  #onGround(vector) {
+    const heading = this.#camera.getSnapshot().heading;
+    const forward = { x: Math.sin(heading), z: Math.cos(heading) };
+    const right = { x: -Math.cos(heading), z: Math.sin(heading) };
+    return { x: vector.x * right.x + vector.z * forward.x, z: vector.x * right.z + vector.z * forward.z };
+  }
+
   #queueMove(move) {
     const actorUnitId = this.#playerId();
     if (!actorUnitId) return;
-    this.#issue("player_move", { actorUnitId, move });
+    this.#issue("player_move", { actorUnitId, move: this.#onGround(move) });
+  }
+
+  // The direction the stick or the keys hold now (the stick first).
+  #heldDirection() {
+    return this.#virtualStick.x || this.#virtualStick.z ? this.#virtualStick : keyVector(this.#keys);
   }
 
   #queueBlock(active) {
@@ -105,7 +119,6 @@ export class M2InputController {
     this.#activePointers.clear();
     this.#keys.clear();
     this.#virtualStick = { x: 0, z: 0 };
-    this.#lastPinchDistance = null;
     if (enqueueReleases) {
       this.#queueMove({ x: 0, z: 0 });
       this.#queueBlock(false);
@@ -204,7 +217,7 @@ export class M2InputController {
         this.#keys.add(event.code);
         const vector = keyVector(this.#keys);
         if (this.#camera.mode === "third_person") this.#queueMove(vector);
-        else this.#camera.pan(vector.x * 0.8, vector.z * 0.8);
+        else { const step = this.#onGround(vector); this.#camera.pan(step.x * 0.8, step.z * 0.8); }
         this.#observe();
       } else if (event.code === "KeyJ") {
         this.#issue("player_melee_attack", { actorUnitId: this.#playerId(), aimHeading: this.#aimHeading() });
@@ -249,8 +262,7 @@ export class M2InputController {
         pointerType: event.pointerType, button: event.button
       });
       this.#canvasGestureMoved = false;
-      this.#lastPinchDistance = null;
-      this.#observe();
+        this.#observe();
     });
 
     this.#listen(canvas, "pointermove", (event) => {
@@ -263,13 +275,14 @@ export class M2InputController {
       entry.x = event.clientX;
       entry.y = event.clientY;
 
-      const pointers = [...this.#activePointers.values()];
-      if (pointers.length >= 2) {
-        const distance = Math.hypot(pointers[0].x - pointers[1].x, pointers[0].y - pointers[1].y);
-        if (this.#lastPinchDistance !== null) this.#camera.zoom((this.#lastPinchDistance - distance) * 0.03);
-        this.#lastPinchDistance = distance;
-      } else {
-        this.#camera.rotate(-dx * 0.006, dy * 0.004);
+      // A drag turns the view: sideways round, and up the screen tilts it down (the owner, 2026-11-02). There is
+      // no zoom (M2_CameraController.js): two fingers on the field (the stick's aside) do nothing.
+      if ([...this.#activePointers.values()].filter((p) => !p.stick).length > 1) return;
+      this.#camera.rotate(-dx * 0.006, -dy * 0.004);
+      // Turning the view turns the way a held stick walks him.
+      if (this.#camera.mode === "third_person") {
+        const held = this.#heldDirection();
+        if (held.x || held.z) this.#queueMove(held);
       }
       this.#observe();
     });
@@ -279,8 +292,7 @@ export class M2InputController {
       if (!entry) return;
       stopEvent(event);
       this.#activePointers.delete(event.pointerId);
-      this.#lastPinchDistance = null;
-      if (
+        if (
         !cancelled &&
         this.#camera.mode === "tactical" &&
         !this.#canvasGestureMoved &&
@@ -382,7 +394,7 @@ export class M2InputController {
     const magnitude = Math.hypot(x, z);
     this.#virtualStick = magnitude > 1 ? { x: x / magnitude, z: z / magnitude } : { x, z };
     if (this.#camera.mode === "third_person") this.#queueMove(this.#virtualStick);
-    else this.#camera.pan(this.#virtualStick.x * 0.5, this.#virtualStick.z * 0.5);
+    else { const step = this.#onGround(this.#virtualStick); this.#camera.pan(step.x * 0.5, step.z * 0.5); }
     this.#observe();
   }
 

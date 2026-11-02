@@ -11,7 +11,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The whole suite (about 600 checks, most of a run the 3D browser checks drawn in software) took 18 of
+    # 20 minutes by 2026-11-02 and was cut off at 20; room to grow.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

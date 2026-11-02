@@ -217,6 +217,18 @@
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.camera.stick-follows-view",
+      "title": "the stick walks the player the way the view looks: up the screen ahead, right to the screen's right",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.camera.drag-tilt-no-zoom",
+      "title": "a drag up the screen lowers the view; two fingers do not zoom",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
       "id": "m2.player.move-key",
       "title": "holding W moves the player",
       "kind": "browser",

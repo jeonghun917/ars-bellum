@@ -731,6 +731,13 @@ export class M2RendererThree {
     return ghost;
   }
 
+  #groundView() {
+    const flat = (v) => { const n = Math.hypot(v.x, v.z) || 1; return { x: v.x / n, z: v.z / n }; };
+    const right = new THREE.Vector3().setFromMatrixColumn(this.#camera.matrixWorld, 0);
+    const ahead = this.#camera.getWorldDirection(new THREE.Vector3());
+    return { right: flat(right), forward: flat(ahead), lookDown: -ahead.y, height: this.#camera.position.y };
+  }
+
   getInfo() {
     const info = this.#renderer.info.render;
     // How many Blender soldiers are playing each animation (idle, walk, run, ...).
@@ -758,6 +765,8 @@ export class M2RendererThree {
       triangles: info.triangles,
       renderedUnits: this.#units.size,
       renderedProjectiles: this.#projectiles.size,
+      // Which way the screen's right and up point on the ground, from the camera as drawn (unit vectors).
+      view: this.#groundView(),
       soldierModel: soldierModels ? "blender" : "box"
     };
   }

@@ -19,6 +19,7 @@ export class M2Diagnostics {
   #soldierModel = "none";
   #soldierGear = Object.freeze({});
   #fadedSoldiers = Object.freeze({ drawn: 0, hidden: 0 });
+  #view = Object.freeze({ right: { x: 1, z: 0 }, forward: { x: 0, z: 1 }, lookDown: 0, height: 0 });
   #soldierAnimations = {};
   #horseAnimations = {};
   #lastError = null;
@@ -97,6 +98,7 @@ export class M2Diagnostics {
     this.#horseAnimations = Object.freeze({ ...(rendererInfo.horseAnimations || {}) });
     this.#soldierGear = Object.freeze({ ...(rendererInfo.soldierGear || {}) });
     this.#fadedSoldiers = Object.freeze({ drawn: rendererInfo.faded?.drawn | 0, hidden: rendererInfo.faded?.hidden | 0 });
+    if (rendererInfo.view) this.#view = Object.freeze({ ...rendererInfo.view, right: { ...rendererInfo.view.right }, forward: { ...rendererInfo.view.forward } });
   }
 
   getSnapshot() {
@@ -118,6 +120,7 @@ export class M2Diagnostics {
       horseAnimations: this.#horseAnimations,
       soldierGear: this.#soldierGear,
       fadedSoldiers: this.#fadedSoldiers,
+      view: this.#view,
       animationOwner: "M2BattleRuntime",
       runtimeNetworkImport: false,
       persistenceAccess: false,
