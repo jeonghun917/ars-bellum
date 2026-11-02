@@ -71,14 +71,14 @@ function segmentCircleHit(previous, current, center, radius) {
 
 // The player, holding his block (or shield) up, takes a share of a blow from in front. Everyone else stops a
 // blow or none of it (M2_Defense.js).
+// Whether the player, blocking, takes a blow from there on his shield (or weapon): from in front.
+function guards(target, attackerPosition) {
+  if (!target.isPlayer || !target.blocking) return false;
+  return inFacingArc(target.heading, attackerPosition.x - target.position.x, attackerPosition.z - target.position.z, M2_BLOCK_DEFINITION.frontArcDegrees);
+}
+
 function damageAfterBlock(target, attackerPosition, baseDamage) {
-  const shielded = target.isPlayer && target.blocking;
-  if (!shielded) return Math.max(0, Math.round(baseDamage));
-  const incomingX = attackerPosition.x - target.position.x;
-  const incomingZ = attackerPosition.z - target.position.z;
-  if (!inFacingArc(target.heading, incomingX, incomingZ, M2_BLOCK_DEFINITION.frontArcDegrees)) {
-    return Math.max(0, Math.round(baseDamage));
-  }
+  if (!guards(target, attackerPosition)) return Math.max(0, Math.round(baseDamage));
   // The hero blocks as well as his shield (or weapon) allows (M2_HeroLoadout.js).
   return Math.max(0, Math.round(baseDamage * (target.hero?.blockMultiplier ?? M2_BLOCK_DEFINITION.damageMultiplier)));
 }
@@ -274,6 +274,8 @@ export class M2CombatSystem {
   #crossbowLaunchCount = 0;
   #chargeHitCount = 0;
   #stoppedCount = 0;
+  // What befell the player's own blows and shots this tick, and the blows and shots at him (getPlayerFeed()).
+  #playerFeed = [];
 
   getObservation(battleState) {
     return Object.freeze({
@@ -293,6 +295,7 @@ export class M2CombatSystem {
   // 1) decrement active cooldowns exactly once, then
   // 2) collect all spatial/contact facts into a battle-tick-local plain plan.
   prepareTick(battleState, spatialGrid, commands, deltaSeconds, processingTick = battleState.tick + 1) {
+    this.#playerFeed = [];
     battleState.forEachUnitStable((unit) => {
       if (!isM2UnitActive(unit)) return;
       unit.attackCooldownTicks = Math.max(0, unit.attackCooldownTicks - 1);
@@ -432,12 +435,16 @@ export class M2CombatSystem {
       const horse = m2UnitKind("cavalry");
       const charging = Boolean(actor.hero?.mounted) && actor.chargeRunTicks >= horse.chargeRunTicks;
       if (actor.hero?.mounted) actor.chargeRunTicks = 0;
-      if (!mayStrike(battleState, actor, target)) continue;
+      if (!mayStrike(battleState, actor, target)) {
+        this.#playerFeed.push({ kind: "miss" });
+        continue;
+      }
       const base = (actor.hero?.melee.damage ?? M2_MELEE_DEFINITION.baseDamage) * (charging ? horse.chargeScale : 1);
       if (charging) this.#chargeHitCount += 1;
       // The man struck at may stop it (M2_Defense.js).
       if (stopped(battleState, target, actor.position, `melee:${command.commandId}:${target.unitId}`, { charging })) {
         this.#stoppedCount += 1;
+        this.#playerFeed.push({ kind: "stopped", unitId: target.unitId });
         continue;
       }
       const damage = damageAfterBlock(target, actor.position, base);
@@ -560,7 +567,8 @@ export class M2CombatSystem {
         damageEventId: eventId,
         sourceUnitId: attacker.unitId,
         targetUnitId: target.unitId,
-        damage: damageAfterBlock(target, attacker.position, baseDamage * (charging ? kind.chargeScale : 1))
+        damage: damageAfterBlock(target, attacker.position, baseDamage * (charging ? kind.chargeScale : 1)),
+        ...(guards(target, attacker.position) ? { guarded: true } : {})
       });
       if (charging) this.#chargeHitCount += 1;
       if (kind.chargeSpeed > 0) attacker.chargeRunTicks = 0;
@@ -594,6 +602,8 @@ export class M2CombatSystem {
         // A shield from in front may stop it (M2_Defense.js); either way the bolt is spent.
         if (stopped(battleState, target, step.previousPosition, `projectile:${projectile.projectileId}:${target.unitId}`, { shot: true })) {
           this.#stoppedCount += 1;
+          const owner = battleState.getUnit(projectile.ownerUnitId);
+          if (owner?.isPlayer) this.#playerFeed.push({ kind: "stopped", unitId: target.unitId });
           battleState.removeProjectile(projectile.projectileId);
           continue;
         }
@@ -602,6 +612,7 @@ export class M2CombatSystem {
           sourceUnitId: projectile.ownerUnitId,
           targetUnitId: target.unitId,
           damage: damageAfterBlock(target, step.previousPosition, projectile.damage),
+          ...(guards(target, step.previousPosition) ? { guarded: true } : {}),
           ...(projectile.armorPierce ? { armorPierce: projectile.armorPierce } : {})
         });
         battleState.removeProjectile(projectile.projectileId);
@@ -621,9 +632,20 @@ export class M2CombatSystem {
         receipts.push({ damageEventId: event.damageEventId, applied: false, damage: 0, friendlyFireRejected: true });
         continue;
       }
-      receipts.push({ damageEventId: event.damageEventId, ...battleState.applyDamageEvent(event) });
+      const receipt = battleState.applyDamageEvent(event);
+      receipts.push({ damageEventId: event.damageEventId, ...receipt });
+      if (receipt.applied && source?.isPlayer) this.#playerFeed.push({ kind: "hit", unitId: target.unitId, damage: receipt.damage, felled: target.hp <= 0 });
+      if (target.isPlayer && event.guarded) this.#playerFeed.push({ kind: "blocked", unitId: event.sourceUnitId, damage: receipt.damage || 0 });
+      else if (receipt.applied && target.isPlayer) this.#playerFeed.push({ kind: "struck", unitId: event.sourceUnitId, damage: receipt.damage });
     }
     return receipts;
+  }
+
+  // This tick's blows and shots of the player and at him: { kind, unitId, damage, felled }. kind: "hit" (his,
+  // damage done; felled when the man went down), "stopped" (his, stopped by the man), "miss" (his swing reached
+  // nobody), "struck" (at him, damage taken), "blocked" (at him, taken on his block: damage, what got through).
+  getPlayerFeed() {
+    return this.#playerFeed.map((entry) => ({ ...entry }));
   }
 }
 

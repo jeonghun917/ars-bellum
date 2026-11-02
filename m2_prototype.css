@@ -34,6 +34,14 @@ kbd { margin-left: 6px; padding: 0 4px; border: 1px solid var(--line); border-ra
 .m2-status { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); font-size: 12px; white-space: nowrap; }
 
 .m2-controls, .m2-combat-controls, .m2-tactical-panel { position: absolute; z-index: 5; display: flex; gap: 7px; }
+.m2-hit-feed {
+  position: absolute; z-index: 6; left: 50%; top: calc(70px + var(--safe-top)); transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 3px; pointer-events: none;
+}
+.m2-hit-feed span { padding: 2px 10px; border-radius: 999px; background: rgba(12, 16, 22, .62); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.m2-hit-feed .hit { color: #ffd166; }
+.m2-hit-feed .struck { color: #ff7b72; }
+.m2-hit-feed .stopped, .m2-hit-feed .miss, .m2-hit-feed .blocked { color: #c9d1d9; }
 .m2-runtime-controls { left: calc(var(--edge) + var(--safe-left)); bottom: calc(var(--edge) + var(--safe-bottom)); flex-wrap: wrap; }
 .m2-combat-controls { right: calc(var(--edge) + var(--safe-right)); bottom: calc(var(--edge) + var(--safe-bottom)); }
 
@@ -139,4 +147,6 @@ button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
   .m2-combat-controls button { min-height: 50px; }
   .m2-virtual-stick { left: calc(14px + var(--safe-left)); bottom: calc(12px + var(--safe-bottom)); width: 116px; height: 116px; }
   .m2-diagnostics { top: calc(48px + var(--safe-top)); max-height: 60vh; }
+  .m2-hit-feed { top: calc(48px + var(--safe-top)); }
 }
+#m2Bow[data-weapon="bow"] { border-color: var(--gold); color: var(--gold); }

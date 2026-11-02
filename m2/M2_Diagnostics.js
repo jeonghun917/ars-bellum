@@ -5,6 +5,8 @@ function round(value, digits = 2) {
   return Math.round(value * factor) / factor;
 }
 
+const PLAYER_FEED_KEPT = 8;
+
 export class M2Diagnostics {
   #frames = [];
   #status = "created";
@@ -18,12 +20,17 @@ export class M2Diagnostics {
   #renderedUnits = 0;
   #soldierModel = "none";
   #soldierGear = Object.freeze({});
+  // The player's latest blows and shots and those at him (M2_CombatSystem.js getPlayerFeed), newest last.
+  #playerFeed = [];
   #fadedSoldiers = Object.freeze({ drawn: 0, hidden: 0 });
   #view = Object.freeze({ right: { x: 1, z: 0 }, forward: { x: 0, z: 1 }, lookDown: 0, height: 0 });
   #soldierAnimations = {};
   #horseAnimations = {};
   #lastError = null;
   #cameraMode = "third_person";
+  // The player's weapon in hand and his shield (M2_InputController.js), and where the aiming circle stands.
+  #hands = Object.freeze({ weapon: "melee", shieldUp: false });
+  #aim = null;
   #inputContextRevision = 0;
   #activePointerCount = 0;
   #inputListenerCount = 0;
@@ -52,8 +59,14 @@ export class M2Diagnostics {
   markStaleInputCommandsDropped(count) { this.#staleInputCommandsDropped += Math.max(0, count | 0); }
   setActiveCharacters(count) { this.#activeCharacters = Math.max(0, count | 0); }
 
+  addPlayerFeed(tick, entries = []) {
+    for (const entry of entries) this.#playerFeed.push(Object.freeze({ tick, ...entry }));
+    if (this.#playerFeed.length > PLAYER_FEED_KEPT) this.#playerFeed.splice(0, this.#playerFeed.length - PLAYER_FEED_KEPT);
+  }
+
   setControlObservation(observation = {}) {
     if (["third_person", "tactical", "disposed"].includes(observation.cameraMode)) this.#cameraMode = observation.cameraMode;
+    if (["melee", "bow"].includes(observation.weapon)) this.#hands = Object.freeze({ weapon: observation.weapon, shieldUp: Boolean(observation.shieldUp) });
     if (Number.isSafeInteger(observation.inputContextRevision) && observation.inputContextRevision >= 0) this.#inputContextRevision = observation.inputContextRevision;
     if (Number.isSafeInteger(observation.activePointerCount) && observation.activePointerCount >= 0) this.#activePointerCount = observation.activePointerCount;
     if (Number.isSafeInteger(observation.inputListenerCount) && observation.inputListenerCount >= 0) this.#inputListenerCount = observation.inputListenerCount;
@@ -97,6 +110,7 @@ export class M2Diagnostics {
     this.#soldierAnimations = Object.freeze({ ...(rendererInfo.soldierAnimations || {}) });
     this.#horseAnimations = Object.freeze({ ...(rendererInfo.horseAnimations || {}) });
     this.#soldierGear = Object.freeze({ ...(rendererInfo.soldierGear || {}) });
+    this.#aim = rendererInfo.aim ? Object.freeze({ ...rendererInfo.aim }) : null;
     this.#fadedSoldiers = Object.freeze({ drawn: rendererInfo.faded?.drawn | 0, hidden: rendererInfo.faded?.hidden | 0 });
     if (rendererInfo.view) this.#view = Object.freeze({ ...rendererInfo.view, right: { ...rendererInfo.view.right }, forward: { ...rendererInfo.view.forward } });
   }
@@ -119,12 +133,15 @@ export class M2Diagnostics {
       soldierAnimations: this.#soldierAnimations,
       horseAnimations: this.#horseAnimations,
       soldierGear: this.#soldierGear,
+      playerFeed: Object.freeze([...this.#playerFeed]),
       fadedSoldiers: this.#fadedSoldiers,
       view: this.#view,
       animationOwner: "M2BattleRuntime",
       runtimeNetworkImport: false,
       persistenceAccess: false,
       cameraMode: this.#cameraMode,
+      hands: this.#hands,
+      aim: this.#aim,
       inputContextRevision: this.#inputContextRevision,
       activePointerCount: this.#activePointerCount,
       inputListenerCount: this.#inputListenerCount,

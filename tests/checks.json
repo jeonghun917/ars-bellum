@@ -242,19 +242,43 @@
     },
     {
       "id": "m2.player.melee-hit",
-      "title": "a sword swing with an enemy in reach damages him, unless he stops it",
+      "title": "a sword swing with an enemy in reach damages him, unless he stops it; the note at the top says which, and how much",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.player.hit-feed-miss",
+      "title": "a swing that reaches nobody shows a short note at the top, gone after a moment",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.feed.player-blows",
+      "title": "each swing of the player is noted: a hit with the damage done, stopped, or at nobody",
+      "kind": "unit",
+      "source": "tests/unit/m2-hit-feed.test.mjs"
+    },
+    {
+      "id": "m2.feed.blows-at-him",
+      "title": "a blow at the player is noted with the damage he took",
+      "kind": "unit",
+      "source": "tests/unit/m2-hit-feed.test.mjs"
+    },
+    {
+      "id": "m2.feed.blocked",
+      "title": "a blow the player takes on his block is noted as blocked, with what got through",
+      "kind": "unit",
+      "source": "tests/unit/m2-hit-feed.test.mjs"
+    },
+    {
       "id": "m2.player.block",
-      "title": "block holds while pressed and ends on release",
+      "title": "the shield button raises the shield and the next tap lowers it; turning the view keeps it up",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
       "id": "m2.player.bow",
-      "title": "the bow button launches an arrow",
+      "title": "the weapon button puts the bow in hand at once: the attack button shoots, a circle shows where the arrow lands; tapped again, back to the weapon",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
     },
@@ -375,6 +399,12 @@
     {
       "id": "m2.result.no-enemies-victory",
       "title": "a battle with no enemies is an ally victory with enemy morale 0",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
+      "id": "m2.player.bow-aim-stops",
+      "title": "the aiming circle stops on the first enemy across the arrow's flight",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
     },
