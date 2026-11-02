@@ -74,14 +74,14 @@
     },
     {
       "id": "github",
-      "title": "CI workflows: test (npm test), verify (verify.mjs + 2D battle tests), m2-verify (3D checks)",
+      "title": "CI workflows: test (npm test: every check, browser included; pull requests and once a day), m2-verify (3D static checks)",
       "files": [
         ".github/**"
       ],
       "checks": [
         {
-          "run": "node verify.mjs",
-          "why": "same static step as verify.yml"
+          "run": "npm test",
+          "why": "what test.yml runs"
         }
       ],
       "risks": [

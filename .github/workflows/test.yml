@@ -1,29 +1,76 @@
 name: Test ARS BELLUM (all checks)
 
+# GitHub Actions minutes are limited (the owner, 2026-11-02: 90% of the free minutes used, no paid minutes), so:
+# - a pull request is checked on each push, the last push only (an older run of the same branch is cancelled);
+#   a draft is not checked until it is marked ready;
+# - a pull request that changes only documents and maps (*.md, docs/, .dashboard/, .readfirst/) skips the run
+#   (the job still reports, so a required check would not wait for ever);
+# - main is not checked again on each merge (what is merged was checked on its pull request): once a day, and
+#   by hand (workflow_dispatch);
+# - the browser Playwright downloads is kept between runs.
 on:
-  push:
-    branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    - cron: '17 18 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   test:
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     # The whole suite (about 600 checks, most of a run the 3D browser checks drawn in software) took 18 of
     # 20 minutes by 2026-11-02 and was cut off at 20; room to grow.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Only documents and maps changed?
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
+          printf '%s\n' "$changed"
+          code="$(printf '%s\n' "$changed" | grep -Ev '(\.md$|^docs/|^\.dashboard/|^\.readfirst/)' || true)"
+          if [ -z "$code" ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "Only documents and maps changed: no run."; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/setup-node@v4
+        if: steps.scope.outputs.run == 'true'
         with:
           node-version: '22'
+          cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
+        if: steps.scope.outputs.run == 'true'
+      - name: Playwright version
+        if: steps.scope.outputs.run == 'true'
+        id: pw
+        run: echo "version=$(node -p "require('./node_modules/playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cached Playwright browser
+        if: steps.scope.outputs.run == 'true'
+        id: pwcache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Playwright browser
+        if: steps.scope.outputs.run == 'true' && steps.pwcache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install the browser's system libraries only (browser from cache)
+        if: steps.scope.outputs.run == 'true' && steps.pwcache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - run: npm test
+        if: steps.scope.outputs.run == 'true'
       - name: Upload results
-        if: always()
+        if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.sha }}
