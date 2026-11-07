@@ -600,6 +600,13 @@ test.describe('3D battle', () => {
     expect(along).toBeLessThan(me.hero.ranged.range - 2);
   });
 
+  // The owner, 2026-11-07: the background. Drawn around the field, a handful of draw calls.
+  test('[m2.scenery.drawn] woods, a farmstead, hills and mountains are drawn around the field', async ({ page }) => {
+    const scenery = (await diagnostics(page)).scenery;
+    expect(scenery, 'scenery reported').not.toBeNull();
+    for (const kind of ['trees', 'bushes', 'rocks', 'tufts', 'houses', 'haystacks', 'fence', 'mountains']) expect(scenery[kind], kind).toBeGreaterThan(0);
+  });
+
   test('[m2.page.no-errors] loading and playing the battle raises no page errors', async ({ page }) => {
     await tap(page, '#m2Attack');
     await tap(page, '#m2Bow');
