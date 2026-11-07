@@ -1,7 +1,7 @@
 import * as THREE from "../vendor/three/r184/three.module.min.js";
 import { M2_CONFIG } from "./M2_Config.js";
 import { clone as cloneSkinned } from "../vendor/three/r184/addons/utils/SkeletonUtils.js";
-import { buildScenery } from "./M2_Scenery.js";
+import { SCENERY_COLORS, buildScenery } from "./M2_Scenery.js";
 
 // Soldier models made in Blender (see M2_SoldierModels.js), one per side. Set before the runtime starts;
 // without them the renderer draws the simple box soldiers below.
@@ -440,15 +440,16 @@ export class M2RendererThree {
     this.#renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.#scene = new THREE.Scene();
-    this.#scene.background = new THREE.Color(M2_CONFIG.backgroundColor);
-    // Haze from 70 m, thick at 230: the far woods and hills fade; the mountains beyond are drawn in it.
-    this.#scene.fog = new THREE.Fog(M2_CONFIG.backgroundColor, 70, 230);
+    // A clear day over open meadows (the owner's pictures, M2_Scenery.js): pale sky-blue haze from 90 m, thick by
+    // 260, so the far tree lines turn blue and the hills beyond stand in it.
+    this.#scene.background = new THREE.Color(SCENERY_COLORS.haze);
+    this.#scene.fog = new THREE.Fog(SCENERY_COLORS.haze, 90, 260);
     this.#camera = new THREE.PerspectiveCamera(M2_CONFIG.camera.fov, 1, M2_CONFIG.camera.near, M2_CONFIG.camera.far);
     this.#camera.position.set(M2_CONFIG.camera.x, M2_CONFIG.camera.y, M2_CONFIG.camera.z);
     this.#camera.lookAt(0, 0.9, 0);
 
-    const hemisphere = new THREE.HemisphereLight(0xcfe2f0, 0x4a5236, 1.9);
-    const sun = new THREE.DirectionalLight(0xffe6bf, 2.4);
+    const hemisphere = new THREE.HemisphereLight(0xd6ecff, 0x6b8a3a, 2.1);
+    const sun = new THREE.DirectionalLight(0xfff4dc, 2.6);
     sun.position.set(14, 18, 8);
     this.#scene.add(hemisphere, sun);
     this.#scenery = buildScenery(this.#scene, { sunDirection: sun.position.clone().normalize() });
@@ -673,7 +674,7 @@ export class M2RendererThree {
     this.#syncProjectiles(renderSnapshot, alpha);
     this.#syncFormationMarkers(renderSnapshot);
     this.#syncAim(renderSnapshot, alpha);
-    this.#scenery?.follow(this.#camera);
+    this.#scenery?.follow(this.#camera, now);
     this.#renderer.render(this.#scene, this.#camera);
   }
 
