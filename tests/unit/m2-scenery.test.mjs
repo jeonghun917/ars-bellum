@@ -11,11 +11,10 @@ test('[m2.scenery.field-clear] the play area holds every army drawn up and its r
   for (const c of buildScaleSnapshot({ perSide: 100 }).characters) assert.ok(inPlayArea(c.spawn.x, c.spawn.z), `${c.characterId} ${c.spawn.x},${c.spawn.z}`);
   assert.ok(PLAY.z > M2_MORALE_DEFINITION.retreatEdgeZ + 5);
   const layout = sceneryLayout();
-  // Trees stand only well clear of the field; the woods on the horizon; the fence behind the player's side.
+  // Trees stand only well clear of the field; the woods on the horizon.
   for (const t of layout.trees) assert.equal(inPlayArea(t.x, t.z, 20), false, `tree at ${t.x},${t.z}`);
   for (const w of layout.woods) assert.ok(Math.hypot(w.x, w.z) > 100, `woods at ${w.x},${w.z}`);
-  for (const f of layout.fence) assert.equal(inPlayArea(f.x, f.z, 10), false, `fence post at ${f.x},${f.z}`);
-  assert.ok(layout.grass.length > 0);
+  assert.ok(layout.grass.count > 0);
 });
 
 test('[m2.scenery.flat-ground] the ground is flat where the battle is fought and around it, and rises only a little far off', () => {

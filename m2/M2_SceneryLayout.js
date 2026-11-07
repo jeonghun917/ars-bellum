@@ -1,11 +1,11 @@
 // Where the battlefield's surroundings stand (the owner, 2026-11-07: the background, after his pictures of
-// meadows; the last one sets the look: a dense meadow of long grass going to seed under an overcast sky, a dark
-// line of round-topped woods along a flat horizon, a post-and-wire fence). Only what is drawn: nothing here
+// meadows: a lush meadow of long grass flowing in the wind under a blue sky, woods along the horizon, no
+// fence). Only what is drawn: nothing here
 // touches the battle, which is fought on flat ground (y = 0). Pure numbers, no drawing (M2_Scenery.js draws them),
 // the same every load.
 // - The play area (PLAY: where formations draw up, fight, and run to the retreat edges at z = ±18) stays flat;
 //   only grass grows there.
-// - Around it the meadow runs out flat to the woods on the horizon; a fence crosses it behind the player's side.
+// - Around it the meadow runs out flat to the woods on the horizon.
 
 // Half-sizes (m) of the play area, kept clear.
 export const PLAY = Object.freeze({ x: 40, z: 28 });
@@ -13,8 +13,9 @@ export const PLAY = Object.freeze({ x: 40, z: 28 });
 export const FLAT = Object.freeze({ x: 58, z: 44 });
 // How far the drawn ground reaches.
 export const GROUND_SIZE = 360;
-// The square of long grass that the drawing keeps round the camera (M2_Scenery.js).
-export const GRASS_TILE = 40;
+// The square of long grass that the drawing keeps round the camera (M2_Scenery.js), and its blades.
+export const GRASS_TILE = 44;
+export const GRASS_BLADES = 85000;
 
 // A small seeded random generator (mulberry32): the same numbers every time for a seed.
 function random(seed) {
@@ -42,12 +43,11 @@ export function inPlayArea(x, z, margin = 0) {
   return Math.abs(x) < PLAY.x + margin && Math.abs(z) < PLAY.z + margin;
 }
 
-// Everything placed: { woods, trees, fence, grass }.
+// Everything placed: { woods, trees, grass }.
 // - woods: stretches of woodland along the horizon, each { x, z, width, height, facing } (a painted band facing
 //   the field's middle).
 // - trees: big single trees and clumps nearer the field, each { x, z, y, scale, kind } (kind: which painted tree).
-// - fence: post positions { x, z } along a line behind the player's side.
-// - grass: the tufts of the grass square, { x, z } within GRASS_TILE.
+// - grass: { count, seed }: how many blades the grass square holds, and the seed that scatters them.
 export function sceneryLayout(seed = 20261107) {
   const rnd = random(seed);
   const pick = (lo, hi) => lo + (hi - lo) * rnd();
@@ -65,11 +65,6 @@ export function sceneryLayout(seed = 20261107) {
   for (let i = 0; i < 6; i += 1) trees.push({ x: -96 + pick(-8, 8), z: -40 + i * 7 + pick(-2, 2), scale: pick(1.0, 1.4), kind: i % 3 });
   for (const [x, z] of [[72, -52], [-70, 58], [92, 36]]) trees.push({ x, z, scale: pick(0.9, 1.2), kind: Math.floor(pick(0, 3)) });
   for (const t of trees) t.y = groundHeight(t.x, t.z);
-  // A post-and-wire fence across the meadow behind the player's side, posts every 4 m.
-  const fence = [];
-  for (let x = -110; x <= 110; x += 4) fence.push({ x, z: 52 + 2 * Math.sin(x * 0.03) + pick(-0.2, 0.2), lean: pick(-0.05, 0.05) });
-  // The grass square: tufts scattered over it (the drawing turns and sizes each from where it stands).
-  const grass = [];
-  for (let i = 0; i < 16000; i += 1) grass.push({ x: pick(-GRASS_TILE / 2, GRASS_TILE / 2), z: pick(-GRASS_TILE / 2, GRASS_TILE / 2) });
-  return Object.freeze({ woods, trees, fence, grass });
+  const grass = Object.freeze({ count: GRASS_BLADES, seed: Math.floor(pick(1, 2147483646)) });
+  return Object.freeze({ woods, trees, grass });
 }

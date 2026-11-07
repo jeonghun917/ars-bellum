@@ -601,10 +601,10 @@ test.describe('3D battle', () => {
   });
 
   // The owner, 2026-11-07: the background. Drawn around the field, a handful of draw calls.
-  test('[m2.scenery.drawn] the meadow\'s grass, woods, trees and fence are drawn around the field', async ({ page }) => {
+  test('[m2.scenery.drawn] the meadow\'s grass, woods and trees are drawn around the field', async ({ page }) => {
     const scenery = (await diagnostics(page)).scenery;
     expect(scenery, 'scenery reported').not.toBeNull();
-    for (const kind of ['grass', 'woods', 'trees', 'fence']) expect(scenery[kind], kind).toBeGreaterThan(0);
+    for (const kind of ['grass', 'woods', 'trees']) expect(scenery[kind], kind).toBeGreaterThan(0);
   });
 
   test('[m2.page.no-errors] loading and playing the battle raises no page errors', async ({ page }) => {

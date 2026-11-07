@@ -410,7 +410,7 @@
     },
     {
       "id": "m2.scenery.drawn",
-      "title": "the meadow's grass, woods, trees and fence are drawn around the field",
+      "title": "the meadow's grass, woods and trees are drawn around the field",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
     },
