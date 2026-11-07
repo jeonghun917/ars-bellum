@@ -410,7 +410,7 @@
     },
     {
       "id": "m2.scenery.drawn",
-      "title": "the meadow's trees, hills and grass are drawn around the field",
+      "title": "the meadow's grass, woods, trees and fence are drawn around the field",
       "kind": "browser",
       "source": "tests/browser/m2-battle.spec.mjs"
     },
@@ -3709,7 +3709,7 @@
     },
     {
       "id": "m2.scenery.flat-ground",
-      "title": "the ground is flat where the battle is fought and around it, and swells only beyond",
+      "title": "the ground is flat where the battle is fought and around it, and rises only a little far off",
       "kind": "unit",
       "source": "tests/unit/m2-scenery.test.mjs"
     },

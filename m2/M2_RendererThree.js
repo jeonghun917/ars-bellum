@@ -440,16 +440,17 @@ export class M2RendererThree {
     this.#renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.#scene = new THREE.Scene();
-    // A clear day over open meadows (the owner's pictures, M2_Scenery.js): pale sky-blue haze from 90 m, thick by
-    // 260, so the far tree lines turn blue and the hills beyond stand in it.
+    // An overcast day over a meadow (the owner's pictures, M2_Scenery.js): a light grey haze from 100 m, so the
+    // woods on the horizon stand dark but softened.
     this.#scene.background = new THREE.Color(SCENERY_COLORS.haze);
-    this.#scene.fog = new THREE.Fog(SCENERY_COLORS.haze, 90, 260);
+    this.#scene.fog = new THREE.Fog(SCENERY_COLORS.haze, 100, 330);
     this.#camera = new THREE.PerspectiveCamera(M2_CONFIG.camera.fov, 1, M2_CONFIG.camera.near, M2_CONFIG.camera.far);
     this.#camera.position.set(M2_CONFIG.camera.x, M2_CONFIG.camera.y, M2_CONFIG.camera.z);
     this.#camera.lookAt(0, 0.9, 0);
 
-    const hemisphere = new THREE.HemisphereLight(0xd6ecff, 0x6b8a3a, 2.1);
-    const sun = new THREE.DirectionalLight(0xfff4dc, 2.6);
+    // (Soft overcast light: mostly from the whole sky, little from the sun behind the clouds.)
+    const hemisphere = new THREE.HemisphereLight(0xeef0ee, 0x6d6a48, 2.6);
+    const sun = new THREE.DirectionalLight(0xfffaf0, 1.3);
     sun.position.set(14, 18, 8);
     this.#scene.add(hemisphere, sun);
     this.#scenery = buildScenery(this.#scene, { sunDirection: sun.position.clone().normalize() });
