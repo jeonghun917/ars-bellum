@@ -33,7 +33,7 @@ kbd { margin-left: 6px; padding: 0 4px; border: 1px solid var(--line); border-ra
 .m2-kicker { color: var(--gold); font-size: 11px; font-weight: 800; letter-spacing: .12em; }
 .m2-status { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); font-size: 12px; white-space: nowrap; }
 
-.m2-controls, .m2-combat-controls, .m2-tactical-panel { position: absolute; z-index: 5; display: flex; gap: 7px; }
+.m2-controls, .m2-combat-controls { position: absolute; z-index: 5; display: flex; gap: 7px; }
 .m2-hit-feed {
   position: absolute; z-index: 6; left: 50%; top: calc(70px + var(--safe-top)); transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; gap: 3px; pointer-events: none;
@@ -45,36 +45,62 @@ kbd { margin-left: 6px; padding: 0 4px; border: 1px solid var(--line); border-ra
 .m2-runtime-controls { left: calc(var(--edge) + var(--safe-left)); bottom: calc(var(--edge) + var(--safe-bottom)); flex-wrap: wrap; }
 .m2-combat-controls { right: calc(var(--edge) + var(--safe-right)); bottom: calc(var(--edge) + var(--safe-bottom)); }
 
-.m2-tactical-panel {
-  left: calc(var(--edge) + var(--safe-left)); top: calc(86px + var(--safe-top)); width: 236px; padding: 8px;
-  flex-direction: column; border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  max-height: calc(100% - 190px - var(--safe-top) - var(--safe-bottom)); overflow: auto;
+/* The player's formations (M2_UnitPanel.js): a round button, a row along the top, the selection's menu. */
+.m2-units-fab {
+  position: absolute; z-index: 6; left: calc(var(--edge) + var(--safe-left)); top: calc(70px + var(--safe-top));
+  width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--gold); background: var(--panel);
+  color: var(--gold); font-size: 12px; font-weight: 700; cursor: pointer;
 }
-.m2-panel-toggle {
-  display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%;
-  padding: 6px 4px; border: 0; background: none; font-size: 12px; font-weight: 700; color: var(--gold); cursor: pointer;
+.m2-units-fab[aria-expanded="true"] { background: rgba(215,184,91,.22); }
+.m2-unit-strip {
+  position: absolute; z-index: 6; left: calc(var(--edge) + 56px + var(--safe-left)); top: calc(70px + var(--safe-top));
+  right: calc(var(--edge) + var(--safe-right)); display: flex; flex-wrap: nowrap; gap: 8px; align-items: center;
+  overflow-x: auto; padding-bottom: 14px;
 }
-.m2-panel-toggle::after { content: "▾"; color: #b8c3c9; }
-.m2-panel-summary { display: none; color: #dfe6ea; font-weight: 500; }
-.m2-tactical-panel.is-collapsed { width: auto; }
-.m2-tactical-panel.is-collapsed .m2-panel-toggle::after { content: "▸"; }
-.m2-tactical-panel.is-collapsed .m2-panel-summary { display: inline; }
-.m2-tactical-panel.is-collapsed .m2-panel-body { display: none; }
-.m2-panel-body { display: flex; flex-direction: column; gap: 7px; }
-.m2-tactical-panel label { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 6px; font-size: 12px; }
-.m2-tactical-panel select { width: 100%; min-height: 36px; background: rgba(20,29,36,.95); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
-.m2-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; padding: 4px 2px; font-size: 12px; color: #c9d2d7; }
+.m2-unit-strip[hidden], .m2-unit-menu[hidden], .m2-unit-pane[hidden], .m2-enemy-picker[hidden] { display: none; }
+.m2-group-box {
+  flex: none; height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); font-size: 11px; white-space: nowrap; cursor: pointer;
+}
+.m2-unit-dot {
+  position: relative; flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center;
+  border: 2px solid #4a90d9; background: var(--panel); color: #e6edf3; cursor: pointer; padding: 0;
+}
+.m2-unit-dot small {
+  position: absolute; top: 44px; left: 50%; transform: translateX(-50%); font-size: 9px; color: #c9d1d9; white-space: nowrap;
+}
+.m2-unit-dot[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 8px rgba(215,184,91,.6); }
+.m2-unit-dot.is-enemy { border-color: #c0504d; }
+.m2-unit-dot.is-down { opacity: .4; }
+.m2-unit-menu {
+  position: absolute; z-index: 5; left: calc(var(--edge) + var(--safe-left)); top: calc(134px + var(--safe-top));
+  width: min(270px, calc(100vw - 20px)); padding: 8px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  /* (Above the stick at the bottom left; what does not fit scrolls.) */
+  max-height: calc(100% - 134px - 170px - var(--safe-top) - var(--safe-bottom)); min-height: 120px; overflow: auto;
+}
+.m2-unit-title { font-size: 11px; color: #c9d1d9; margin: 0 2px 6px; }
+.m2-unit-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.m2-unit-tabs button { flex: 1; min-height: 32px; border: 0; border-radius: 7px; background: rgba(255,255,255,.06); font-size: 12px; cursor: pointer; }
+.m2-unit-tabs button[aria-selected="true"] { background: rgba(215,184,91,.22); color: var(--gold); font-weight: 700; }
+.m2-unit-pane { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.m2-unit-pane > button, .m2-chips button {
+  min-height: 38px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: rgba(20,29,36,.88); font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.m2-chips, .m2-enemy-picker { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.m2-enemy-picker { padding: 4px 0 16px; }
+.m2-pane-label { grid-column: 1 / -1; font-size: 11px; color: #c9d1d9; margin-top: 4px; }
+.m2-stats { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; padding: 4px 2px; font-size: 12px; color: #c9d2d7; }
 .m2-stats strong { color: #fff; font-variant-numeric: tabular-nums; }
 .m2-stats-wide { grid-column: 1 / -1; }
 .m2-button-row { display: flex; gap: 5px; }
 .m2-button-row button { flex: 1; min-width: 0; }
 
-.m2-controls button, .m2-combat-controls button, .m2-panel-body button {
+.m2-controls button, .m2-combat-controls button {
   min-width: 64px; min-height: 40px; padding: 8px 11px; border: 1px solid var(--line);
   border-radius: 9px; background: rgba(20,29,36,.88); cursor: pointer; white-space: nowrap;
 }
-.m2-panel-body button { min-width: 0; }
 .m2-combat-controls button { min-width: 76px; min-height: 48px; font-weight: 700; }
 button:hover { background: rgba(39,52,61,.96); }
 button:active { background: rgba(215,184,91,.28); }
@@ -126,7 +152,6 @@ button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
   .m2-legend, .m2-dev-only { display: none; }
   .m2-runtime-controls { top: calc(56px + var(--safe-top)); bottom: auto; right: calc(var(--edge) + var(--safe-right)); left: auto; gap: 5px; }
   .m2-runtime-controls button { min-width: 0; min-height: 36px; padding: 6px 10px; font-size: 12px; }
-  .m2-tactical-panel { top: calc(104px + var(--safe-top)); left: calc(var(--edge) + var(--safe-left)); width: min(250px, calc(100vw - 20px)); }
   .m2-combat-controls { display: grid; grid-template-columns: repeat(2, minmax(78px, 1fr)); gap: 8px; }
   .m2-combat-controls button { min-height: 56px; font-size: 15px; }
   .m2-virtual-stick { left: calc(14px + var(--safe-left)); bottom: calc(14px + var(--safe-bottom)); width: 132px; height: 132px; }
@@ -142,11 +167,13 @@ button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
   .m2-status { padding: 5px 10px; font-size: 11px; }
   .m2-runtime-controls { top: calc(8px + var(--safe-top)); bottom: auto; left: 50%; right: auto; transform: translateX(-50%); gap: 5px; }
   .m2-runtime-controls button { min-width: 0; min-height: 32px; padding: 5px 10px; font-size: 12px; }
-  .m2-tactical-panel { top: calc(48px + var(--safe-top)); max-height: calc(100% - 60px - var(--safe-top) - var(--safe-bottom)); }
   .m2-combat-controls { display: grid; grid-template-columns: repeat(2, minmax(76px, 1fr)); gap: 8px; }
   .m2-combat-controls button { min-height: 50px; }
   .m2-virtual-stick { left: calc(14px + var(--safe-left)); bottom: calc(12px + var(--safe-bottom)); width: 116px; height: 116px; }
   .m2-diagnostics { top: calc(48px + var(--safe-top)); max-height: 60vh; }
-  .m2-hit-feed { top: calc(48px + var(--safe-top)); }
+  .m2-hit-feed { top: calc(112px + var(--safe-top)); }
+  .m2-units-fab { top: calc(48px + var(--safe-top)); width: 42px; height: 42px; }
+  .m2-unit-strip { top: calc(48px + var(--safe-top)); left: calc(var(--edge) + 52px + var(--safe-left)); }
+  .m2-unit-menu { top: calc(108px + var(--safe-top)); max-height: calc(100% - 108px - 140px - var(--safe-top) - var(--safe-bottom)); }
 }
 #m2Bow[data-weapon="bow"] { border-color: var(--gold); color: var(--gold); }

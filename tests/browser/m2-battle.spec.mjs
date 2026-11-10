@@ -335,7 +335,7 @@ test.describe('3D battle', () => {
 
   test('[m2.orders.move-by-click] in tactical view a click on the field orders the selected formation to move', async ({ page }) => {
     await switchToTactical(page);
-    const selected = await page.inputValue('#m2FriendlyFormation');
+    const selected = (await diagnostics(page)).selection.formationIds[0];
     const box = await page.locator('#m2Canvas').boundingBox();
     await tap(page, '#m2Canvas', { pointerId: 701, pointerType: 'mouse', clientX: box.x + box.width * 0.7, clientY: box.y + box.height * 0.55 });
     await waitTicks(page, 1);
@@ -344,22 +344,32 @@ test.describe('3D battle', () => {
 
   test('[m2.orders.attack] the attack order targets the enemy', async ({ page }) => {
     await switchToTactical(page);
-    const selected = await page.inputValue('#m2FriendlyFormation');
+    const selected = (await diagnostics(page)).selection.formationIds[0];
+    // 목표 공격 opens the row of enemy formations; tapping one sends the selected formation at it.
+    await tap(page, '#m2UnitsToggle');
     await tap(page, '#m2AttackOrder');
+    await expect(page.locator('#m2EnemyPicker')).toBeVisible();
+    const enemy = await page.locator('#m2EnemyPicker [data-formation]').first().getAttribute('data-formation');
+    await tap(page, `#m2EnemyPicker [data-formation="${enemy}"]`);
     await waitTicks(page, 1);
-    expect((await formation(page, selected)).order.type).toBe('attack_target');
+    const f = await formation(page, selected);
+    expect(f.order.type).toBe('attack_target');
+    expect(f.order.targetFormationId).toBe(enemy);
+    await expect(page.locator('#m2EnemyPicker')).toBeHidden();
   });
 
   test('[m2.orders.tactic] the order list offers the selected formation\'s orders, and choosing one gives it', async ({ page }) => {
     await switchToTactical(page);
-    const selected = await page.inputValue('#m2FriendlyFormation');
+    const selected = (await diagnostics(page)).selection.formationIds[0];
     expect(selected).toBe('ally_line');
     // Charge any formation can be given; an ordinary commander (tactics 30) adds one: braced spears.
-    expect(await page.locator('#m2Tactic option').allTextContents()).toEqual(['없음', '돌격', '장창 대기']);
-    await page.selectOption('#m2Tactic', 'spear_brace');
+    await tap(page, '#m2UnitsToggle');
+    await tap(page, '#m2UnitTabs [data-tab="tactic"]');
+    expect(await page.locator('#m2TacticChips button').allTextContents()).toEqual(['없음', '돌격', '장창 대기']);
+    await tap(page, '#m2TacticChips [data-value="spear_brace"]');
     await waitTicks(page, 1);
     expect((await formation(page, selected)).tactic).toBe('spear_brace');
-    await page.selectOption('#m2Tactic', '');
+    await tap(page, '#m2TacticChips [data-value=""]');
     await waitTicks(page, 1);
     expect((await formation(page, selected)).tactic).toBe(null);
   });
@@ -367,14 +377,17 @@ test.describe('3D battle', () => {
   test('[m2.orders.pursuit] the pursuit button shows whether the selected formation pursues, and turns it on and off', async ({ page }) => {
     await switchToTactical(page);
     // Foot do not pursue at first (M2_Pursuit.js).
-    expect(await page.inputValue('#m2FriendlyFormation')).toBe('ally_line');
+    expect((await diagnostics(page)).selection.formationIds).toEqual(['ally_line']);
+    await tap(page, '#m2UnitsToggle');
     await expect(page.locator('#m2Pursuit')).toHaveText('추격: 끔');
     await tap(page, '#m2Pursuit');
     await waitTicks(page, 1);
     expect((await formation(page, 'ally_line')).pursuit).toBe(true);
     await expect(page.locator('#m2Pursuit')).toHaveText('추격: 켬');
     // Horse do, and the button says so when they are selected.
-    await page.selectOption('#m2FriendlyFormation', 'ally_column');
+    // (In the tactical view a tap adds to the selection: clear it first.)
+    await tap(page, '#m2Deselect');
+    await tap(page, '#m2UnitStrip [data-formation="ally_column"]');
     await expect(page.locator('#m2Pursuit')).toHaveText('추격: 켬');
     await tap(page, '#m2Pursuit');
     await waitTicks(page, 1);
@@ -385,8 +398,10 @@ test.describe('3D battle', () => {
   test('[m2.orders.plan] the plan list offers the battle plans the army can use, and choosing one puts it to work', async ({ page }) => {
     await switchToTactical(page);
     // Ordinary commanders (tactics 30): frontal push and two plans, for foot, horse and crossbows.
-    expect(await page.locator('#m2Plan option').allTextContents()).toEqual(['없음', '정면 압박', '모루와 망치', '견제 후 돌격']);
-    await page.selectOption('#m2Plan', 'anvil_hammer');
+    await tap(page, '#m2UnitsToggle');
+    await tap(page, '#m2UnitTabs [data-tab="more"]');
+    expect(await page.locator('#m2PlanChips button').allTextContents()).toEqual(['없음', '정면 압박', '모루와 망치', '견제 후 돌격']);
+    await tap(page, '#m2PlanChips [data-value="anvil_hammer"]');
     await waitTicks(page, 2);
     const s = await snapshot(page);
     expect(s.plans.ally.planId).toBe('anvil_hammer');
@@ -395,13 +410,74 @@ test.describe('3D battle', () => {
 
   test('[m2.orders.formation-shape] line, column and loose buttons change the formation shape', async ({ page }) => {
     await switchToTactical(page);
-    const selected = await page.inputValue('#m2FriendlyFormation');
+    const selected = (await diagnostics(page)).selection.formationIds[0];
     for (const [button, shape] of [['#m2Line', 'line'], ['#m2Column', 'column'], ['#m2Loose', 'loose'],
       ['#m2ShieldWall', 'shield_wall'], ['#m2Wedge', 'wedge'], ['#m2Circle', 'circle']]) {
       await tap(page, button);
       await waitTicks(page, 1);
       expect((await formation(page, selected)).formationTypeId, button).toBe(shape);
     }
+  });
+
+  // The owner, 2026-11-02: a round button, a row of formations (pictures of what they carry) and battalions,
+  // and a menu of 조작 · 전술 · 진영 · 기타 for what is selected.
+  test('[m2.panel.select] the round button opens the row of formations; behind the player a tap selects that one alone, and its menu opens on the tab chosen', async ({ page }) => {
+    await expect(page.locator('#m2UnitStrip')).toBeHidden();
+    await tap(page, '#m2UnitsToggle');
+    await expect(page.locator('#m2UnitStrip')).toBeVisible();
+    const ids = await page.locator('#m2UnitStrip [data-formation]').evaluateAll((els) => els.map((e) => e.dataset.formation));
+    const ally = (await snapshot(page)).formations.filter((f) => f.sideId === 'ally').map((f) => f.formationId);
+    expect([...ids].sort()).toEqual([...ally].sort());
+    // Each circle a picture and a name.
+    expect(await page.locator('#m2UnitStrip [data-formation] svg').count()).toBe(ids.length);
+    await tap(page, `#m2UnitStrip [data-formation="${ids[1]}"]`);
+    await tap(page, `#m2UnitStrip [data-formation="${ids[2]}"]`);
+    await expect.poll(async () => (await diagnostics(page)).selection.formationIds).toEqual([ids[2]]);
+    await expect(page.locator(`#m2UnitStrip [data-formation="${ids[2]}"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#m2UnitMenu')).toBeVisible();
+    for (const [tab, pane] of [['shape', '#m2PaneShape'], ['tactic', '#m2PaneTactic'], ['more', '#m2PaneMore'], ['control', '#m2PaneControl']]) {
+      await tap(page, `#m2UnitTabs [data-tab="${tab}"]`);
+      await expect(page.locator(pane)).toBeVisible();
+    }
+    await tap(page, '#m2Deselect');
+    await expect.poll(async () => (await diagnostics(page)).selection.formationIds).toEqual([]);
+    await expect(page.locator('#m2UnitMenu')).toBeHidden();
+    await tap(page, '#m2UnitsToggle');
+    await expect(page.locator('#m2UnitStrip')).toBeHidden();
+  });
+
+  test('[m2.panel.battalion] in the tactical view taps add formations to the selection; 묶기 makes them a battalion, which is selected with one tap and given orders together', async ({ page }) => {
+    await switchToTactical(page);
+    await tap(page, '#m2UnitsToggle');
+    await tap(page, '#m2Deselect');
+    await tap(page, '#m2UnitStrip [data-formation="ally_line"]');
+    await tap(page, '#m2UnitStrip [data-formation="ally_loose"]');
+    await expect.poll(async () => (await diagnostics(page)).selection.formationIds).toEqual(['ally_line', 'ally_loose']);
+    await tap(page, '#m2UnitTabs [data-tab="more"]');
+    await tap(page, '#m2Group');
+    await expect(page.locator('#m2UnitStrip [data-group]')).toHaveText(/^1대대/);
+    await expect.poll(async () => (await diagnostics(page)).selection.groups).toEqual([{ groupId: 'group_1', name: '1대대', members: ['ally_line', 'ally_loose'] }]);
+    // A tap on another circle takes the selection elsewhere; a tap on the battalion selects both again.
+    await tap(page, '#m2Deselect');
+    await tap(page, '#m2UnitStrip [data-group="group_1"]');
+    await expect.poll(async () => (await diagnostics(page)).selection.formationIds).toEqual(['ally_line', 'ally_loose']);
+    // Both take the shape given.
+    await tap(page, '#m2UnitTabs [data-tab="shape"]');
+    await tap(page, '#m2Column');
+    await waitTicks(page, 1);
+    expect([(await formation(page, 'ally_line')).formationTypeId, (await formation(page, 'ally_loose')).formationTypeId]).toEqual(['column', 'column']);
+    // A tap on the field moves both, each keeping its place beside the other.
+    const [a0, b0] = [(await formation(page, 'ally_line')).anchor, (await formation(page, 'ally_loose')).anchor];
+    const box = await page.locator('#m2Canvas').boundingBox();
+    await tap(page, '#m2Canvas', { pointerId: 702, pointerType: 'mouse', clientX: box.x + box.width * 0.6, clientY: box.y + box.height * 0.5 });
+    await waitTicks(page, 1);
+    const [a, b] = [await formation(page, 'ally_line'), await formation(page, 'ally_loose')];
+    expect([a.order.type, b.order.type]).toEqual(['move', 'move']);
+    expect(Math.hypot((a.anchor.x - b.anchor.x) - (a0.x - b0.x), (a.anchor.z - b.anchor.z) - (a0.z - b0.z))).toBeLessThan(0.01);
+    // 대대 풀기.
+    await tap(page, '#m2UnitTabs [data-tab="more"]');
+    await tap(page, '#m2Ungroup');
+    await expect(page.locator('#m2UnitStrip [data-group]')).toHaveCount(0);
   });
 
   test('[m2.time.pause] time scale 0 stops the simulation and 1 resumes it', async ({ page }) => {
@@ -464,7 +540,7 @@ test.describe('3D battle', () => {
 
   test('[m2.orders.retreat-routs] the retreat order makes the formation withdraw and its units run away', async ({ page }) => {
     await switchToTactical(page);
-    const selected = await page.inputValue('#m2FriendlyFormation');
+    const selected = (await diagnostics(page)).selection.formationIds[0];
     await tap(page, '#m2Retreat');
     await waitTicks(page, 1);
     const f = await formation(page, selected);

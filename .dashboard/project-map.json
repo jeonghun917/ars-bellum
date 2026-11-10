@@ -1201,6 +1201,7 @@
       "m2/M2_Diagnostics.js",
       "m2/M2_FormationSystem.js",
       "m2/M2_InputController.js",
+      "m2/M2_UnitPanel.js",
       "m2/M2_MoraleSystem.js",
       "m2/M2_MovementSystem.js",
       "m2/M2_RenderSnapshot.js",
