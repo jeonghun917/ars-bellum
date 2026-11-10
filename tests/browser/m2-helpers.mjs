@@ -3,8 +3,11 @@
 import { expect } from '@playwright/test';
 
 // Opens the prototype (at path: ?mixed, ?scale=N), fails on any page error, and waits until the battle API is
-// up and ticking.
-export async function openBattle(page, path = '/m2_prototype.html') {
+// up and ticking. The meadow's grass is left out (scenery=lite) unless fullScenery: drawn by the software
+// renderer the tests use it halves the frame rate and pushed the suite past its time limit (PR #59), and only
+// the scenery's own tests are about it.
+export async function openBattle(page, path = '/m2_prototype.html', { fullScenery = false } = {}) {
+  if (!fullScenery) path += (path.includes('?') ? '&' : '?') + 'scenery=lite';
   const errors = [];
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });

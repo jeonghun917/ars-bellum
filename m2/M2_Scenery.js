@@ -204,7 +204,9 @@ const at = (matrix, x, y, z, turn, sx, sy, sz) => matrix.compose(
   new THREE.Vector3(sx, sy ?? sx, sz ?? sx)
 );
 
-export function buildScenery(scene) {
+// lite (the page's ?scenery=lite, for the browser tests, tests/browser/m2-helpers.mjs): everything but the
+// grass, which costs the software renderer of the tests half its frame rate.
+export function buildScenery(scene, { lite = new URLSearchParams(globalThis.location?.search || "").get("scenery") === "lite" } = {}) {
   const layout = sceneryLayout();
   const objects = [];
   const add = (mesh) => { objects.push(mesh); scene.add(mesh); return mesh; };
@@ -214,7 +216,7 @@ export function buildScenery(scene) {
 
   add(groundMesh(wind, viewAt));
   const sky = add(skyDome());
-  for (const mesh of grassMeshes(layout, wind, viewAt)) add(mesh);
+  if (!lite) for (const mesh of grassMeshes(layout, wind, viewAt)) add(mesh);
   // The woods: each stretch of woodland in the layout is filled with photographed trees (tools/scenery/
   // build_tree_cards.py: one tree from three sides) in three staggered rows, each tree a card facing the field;
   // the big trees nearer the field are the same cards, larger.
@@ -242,7 +244,7 @@ export function buildScenery(scene) {
     add(instances(`scenery_trees_${kind}`, new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0), material, standing[kind],
       (t, m) => at(m, t.x, t.y - 0.3, t.z, t.facing + (rnd() - 0.5) * 0.3, t.size * (rnd() < 0.5 ? -1 : 1), t.size, 1)));
   }
-  const counts = { woods: layout.woods.length, trees: layout.trees.length, grass: layout.grass.count };
+  const counts = { woods: layout.woods.length, trees: layout.trees.length, grass: lite ? 0 : layout.grass.count };
   return {
     counts,
     layout,
