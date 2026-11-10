@@ -25,6 +25,9 @@
           "files": [
             "assets/models/**"
           ]
+        },
+        {
+          "text": "The glb models carry every subtype's weapons, helmets and armour meshes, the extra pieces hidden by the renderer (scale near 0) after each pose, not removed. Their node names are what M2_RendererThree.js looks up; rename one in build_men.py and that gear silently stops showing."
         }
       ]
     },
@@ -41,6 +44,9 @@
           "files": [
             ".dashboard/**"
           ]
+        },
+        {
+          "text": "A group's description (owner) in .dashboard/project-map.json must stay within 2000 characters. The 3D rules group reached 2064 and the readfirst list stopped redrawing. When a description grows too long, move part of it into a new group, as was done with bellum-battle3d-sight."
         }
       ]
     },
@@ -140,7 +146,57 @@
           "text": "m2UnitKindForFormation strips a trailing _<number> from the formation id before looking up its kind (\"ally_loose_2\" is crossbow like \"ally_loose\"). Large-battle formation ids must keep a base id from the kind table plus _N; a new formation name that ends in digits silently gets the base name's kind, or infantry if the base is unknown."
         },
         {
-          "text": "buildScaleSnapshot lays out a fixed field for 20 to 100 a side; the lines are placed so everyone stands inside the 18 m retreat edge. More than 100 a side would start men past the edges, so m2_prototype.html?scale=N ignores values outside 20 to 100 and opens the normal 20-a-side fixture."
+          "text": "buildScaleSnapshot lays out a fixed field for 20 to 100 a side; the lines are placed so everyone stands inside the 18 m retreat edge. More than 100 a side would start men past the edges, so m2_prototype.html?scale=N ignores values outside 20 to 100 and opens the normal 20-a-side fixture (with ?mixed, a 40-a-side mixed battle instead)."
+        },
+        {
+          "text": "Soldier gear is found in the glb by node name (prop_javelins, prop_axe, prop_glaive, prop_greathelm, prop_leathercap, gear_armor_mail/leather/plate) in gearFor() and createModelSoldier() of M2_RendererThree.js, and shown by rescaling bones after every pose. A renamed or missing node is skipped silently: the gear just does not show, and the soldierGear diagnostics counts drop. Each soldier's weapon is now given by the battle (unit.loadout, set in M2_BattleState.js from m2LoadoutsFor in M2_UnitKinds.js; the renderer only reads it), and a loadout listed there must also be one the animator knows; it also decides how he defends (M2_Defense.js)."
+        },
+        {
+          "text": "m2UnitKind(\"crossbow\") with a string returns the kind's numbers (no 석궁병 bolt count or armor-piercing bolts); the subtype's numbers come only when you pass the unit or formation object that carries unitTypeId. Passing formation.kindId where the formation or unit was meant silently drops the subtype. A formation's unitTypeId is taken only if its kind equals the kind of its formation id (see the _N rule above); otherwise it is ignored."
+        },
+        {
+          "text": "An enemy is struck only where the code asks mayStrike (melee, crossbow targeting) or shotMayHit (projectiles) from M2_Pursuit.js: mayStrike now also refuses an enemy the attacker's side does not see (M2_Vision.js), and a running soldier is struck only if the attacker's formation is pursuing his formation (or the attacker is the hero). applyDamage accepts any living target, so a new attack path that skips those checks would hit enemies out of sight and cut down runners that no pursuing formation is chasing."
+        },
+        {
+          "text": "Whether a blow is stopped is rolled from the battle seed and the damage event's own id (stopped() in M2_Defense.js): a new attack must give each blow a unique, stable id, or blows sharing an id are all stopped or all land. The player never stops blows this way (he blocks with the shield button, a toggle that stays up until tapped again, and guards()/damageAfterBlock take a share of blows from in front)."
+        },
+        {
+          "text": "Item attack numbers exist in three places that were raised together (3 times, for the roughly one-minute battle): EQUIPMENT_ITEMS in src/domains/inventory/checks.js, DEFAULT_COMMANDER_SHEETS in M2_Commanders.js and DEFAULT_HERO_SHEET/FISTS in M2_HeroLoadout.js. Changing one alone makes the hero, commanders or equipped items hit out of scale with the soldiers' own damage."
+        },
+        {
+          "text": "The stick and W·A·S·D give a direction relative to the screen (x right, z up the screen). M2_InputController.js turns it into a ground direction with #onGround from the camera heading before player_move or the tactical pan. A new move path that sends the raw stick or key vector would again walk by the map's north. The heading formula (forward = sin/cos, right = -cos/sin) must match the drawn camera; the diagnostics `view` (from the real camera in M2_RendererThree.js #groundView) is what m2.camera.stick-follows-view compares against. A drag that turns the view while a stick is held re-issues the move, so the walking direction turns with the view. There is no zoom: the camera distance is fixed (3.5 m behind the player, 26 m tactical) and camera.zoom is gone. Two fingers on the field do nothing, and the stick's finger is not counted."
+        },
+        {
+          "text": "Sight (m2UpdateVision in M2_Vision.js) is worked out at the start of every tick, and everything after it (enemy commander, plans, attack goals, charge and pursuit targets, mayStrike) reads it. It runs in every place that loops the tick itself: M2BattleRuntime, tests/unit/m2-sim-helpers.mjs, tools/m2_scale_bench.mjs and m2_verify.mjs. A new tick loop that skips it does not fail: the vision is computed once on first use and then never updates, so enemies stay known only where they stood at the start. Code that picks an enemy's position must go through m2Sees, m2KnownCentre or m2LastSeen, not read the enemy's real position."
+        },
+        {
+          "text": "The note at the top of the screen (getPlayerFeed in M2_CombatSystem.js) is rebuilt every tick in prepareTick, and M2BattleRuntime copies it into diagnostics right after applyDamageEvents; a tick loop that does not do the same shows no notes. A damage event aimed at the player must carry `guarded` (set from guards(), the same front check damageAfterBlock uses) or a blocked blow is noted as \"피격\" instead of \"막아냄\". Notes of the player's hits come only from events whose source is the player."
+        },
+        {
+          "text": "The yellow aiming circle (#syncAim in M2_RendererThree.js) repeats the bow's flight rule (first living, seen enemy within AIM_WIDTH of the line, else the bow's range from the snapshot's bowRange) instead of asking the combat code. If resolveBowLaunch or the arrow's hit width changes, the circle silently points at the wrong place. The weapon and shield state live in M2InputController (weapon, shieldUp) and reach the renderer only through runtime.setAiming and the diagnostics `hands`/`aim`."
+        },
+        {
+          "text": "M2_UnitPanel.js redraws only when its cache key changes (draw() builds it from open, tab, picking, selection, battalions, each formation's tactic/tactics/pursuit, the standing formations and the plan). Anything new the row or menu shows that is not in that key stays stale until something else changes. The pursuit button is also read back by M2_InputController (aria-pressed) to decide the next on/off, so the panel's draw and the controller's own update of it must agree."
+        },
+        {
+          "text": "The selection (several formations only in the tactical view, one in the third-person view), the battalions (대대) and the selected battalion live only in M2InputController, not in the battle state. A battalion is just a list of formation ids; every order is issued to each selected formation separately, and a move keeps their offsets only because #moveSelected shifts each target. Code that expects a battalion order or a group in the snapshot finds nothing: the snapshot has selectedFormationIds (the old selectedFormationId is gone) and the diagnostics `selection` shows the groups."
+        },
+        {
+          "text": "Selecting formations differs by view: in the tactical view each tap on a unit circle adds to or removes from the selection (several formations, or a battalion, get an order together), while in the third-person view a tap selects only that one. A test or change that taps a circle in the tactical view and expects only that formation selected must clear the selection first (#m2Deselect). The old #m2FriendlyFormation, #m2EnemyFormation, #m2Tactic and #m2Plan selects are gone: read the selection from diagnostics `selection` (formationIds, groups) and the order lists from #m2TacticChips and #m2PlanChips."
+        },
+        {
+          "text": "`photo` in M2_Scenery.js loads the grass cards, sky and tree cards by URL from assets/scenery/ (grass_card_*.webp, sky_partly_cloudy.jpg, tree_card_*.webp). A missing or renamed file raises no error: the texture just never loads, so the grass and trees (alphaTest) vanish or the sky dome turns black while the battle goes on. These webp files are made by tools/scenery/*.py; rebuild them there, do not edit by hand.",
+          "files": [
+            "m2/M2_Scenery.js",
+            "assets/scenery/**"
+          ]
+        },
+        {
+          "text": "`buildScenery` leaves the grass out when the page has ?scenery=lite, and `openBattle` in tests/browser/m2-helpers.mjs adds that to every browser test's URL unless called with fullScenery: true (the software renderer halves its frame rate with the grass). A test about the grass, or timing that depends on drawing it, must open with fullScenery; diagnostics `scenery.grass` is 0 in lite mode.",
+          "files": [
+            "m2/M2_Scenery.js",
+            "tests/browser/m2-helpers.mjs"
+          ]
         }
       ]
     },
@@ -507,7 +563,7 @@
       ],
       "risks": [
         {
-          "text": "build_men.py refuses to write a glb when check_soldier.py finds clipping, floating, gaps or joint-limit problems, and slim_glb.py overwrites only if all animations match within 1e-6; do not bypass these.",
+          "text": "build_men.py refuses to write a glb when check_soldier.py finds clipping, floating, gaps or joint-limit problems, and slim_glb.py overwrites only if all animations match within 1e-6; do not bypass these. The one exception is the recorded \"known\" overlap of helmets with the hand (overhead cut) or shield (block), logged apart and not counted; a new helmet that overlaps more than the nasal helm (by 1.5x) or where it does not overlap still fails.",
           "files": [
             "tools/blender/**"
           ]
@@ -683,6 +739,15 @@
         {
           "run": "node --test tests/unit/save.test.mjs"
         }
+      ]
+    },
+    {
+      "id": "scenery-never-touches-battle",
+      "rule": "The battlefield's surroundings (M2_Scenery.js, M2_SceneryLayout.js) are only drawn: the play area (PLAY) stays flat at y = 0 and holds only grass, with trees and woods well outside it.",
+      "why": "The battle is fought on flat ground and nothing that could hide a man may stand where it is fought; a taller or closer scenery would change what the player sees of the fight, and a ground height there would put soldiers off the ground.",
+      "files": [
+        "m2/M2_SceneryLayout.js",
+        "m2/M2_Scenery.js"
       ]
     }
   ],
