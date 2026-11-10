@@ -13,9 +13,9 @@ export const PLAY = Object.freeze({ x: 40, z: 28 });
 export const FLAT = Object.freeze({ x: 58, z: 44 });
 // How far the drawn ground reaches.
 export const GROUND_SIZE = 360;
-// The square of long grass that the drawing keeps round the camera (M2_Scenery.js), and its blades.
+// The square of long grass that the drawing keeps round the camera (M2_Scenery.js), and its cards of grass.
 export const GRASS_TILE = 44;
-export const GRASS_BLADES = 110000;
+export const GRASS_BLADES = 15000;
 
 // A small seeded random generator (mulberry32): the same numbers every time for a seed.
 function random(seed) {
@@ -47,7 +47,7 @@ export function inPlayArea(x, z, margin = 0) {
 // - woods: stretches of woodland along the horizon, each { x, z, width, height, facing } (a painted band facing
 //   the field's middle).
 // - trees: big single trees and clumps nearer the field, each { x, z, y, scale, kind } (kind: which painted tree).
-// - grass: { count, seed }: how many blades the grass square holds, and the seed that scatters them.
+// - grass: { count, seed }: how many cards of grass the grass square holds, and the seed that scatters them.
 export function sceneryLayout(seed = 20261107) {
   const rnd = random(seed);
   const pick = (lo, hi) => lo + (hi - lo) * rnd();

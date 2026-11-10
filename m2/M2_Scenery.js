@@ -1,17 +1,16 @@
-// Draws the battlefield's surroundings (the owner, 2026-11-07, after his pictures: a lush green meadow of long
-// grass that flows in the wind, a blue sky with soft clouds, woods along the horizon; no fence) from
-// M2_SceneryLayout.js. The grass is single blades, many tens of thousands, drawn in one call: each blade is
-// bent by one wind field that rolls across the meadow, and lightens where the wind lays it over, so waves of
-// light run through the grass; the ground beyond the blades carries the same waves. Nothing in it touches the
-// battle.
+// Draws the battlefield's surroundings (the owner, 2026-11-10: the drawn grass looked stiff and computer-made;
+// use existing assets) from M2_SceneryLayout.js. The meadow is photographed grass: real blades and tufts from
+// Poly Haven's CC0 scans, cut out and stood on cards (tools/scenery/build_grass_cards.py, assets/scenery/), tens
+// of thousands of cards round the view in three draw calls, swaying with one wind field that rolls across the
+// meadow and lightens the grass where a gust lays it over, under drifting patches of sun and cloud shade. The
+// sky is a photographed sky (Poly Haven, CC0). Woods along the horizon. Nothing in it touches the battle.
 import * as THREE from "three";
 import { GRASS_TILE, GROUND_SIZE, groundHeight, sceneryLayout } from "./M2_SceneryLayout.js";
 
 // The colours (sRGB hex).
 export const SCENERY_COLORS = Object.freeze({
-  bladeRoot: 0x3f5d24, bladeMid: 0x7ea445, bladeTip: 0xcadc86, bladeDry: 0xdcd894, flower: 0xf2d81c,
-  ground: 0x4a6a2c, groundFar: 0x627f36,
-  skyTop: "#4f8ad0", horizon: "#cfe2ef", haze: 0xc9dce8
+  ground: 0x6f7a44, groundFar: 0x7a8650,
+  haze: 0xaab4c2
 });
 const C = SCENERY_COLORS;
 // Where the wind blows to (x, z), and the wind field shared by the blades and the ground (GLSL).
@@ -32,13 +31,6 @@ const WIND_GLSL = `
     // Long ridges across the wind (as in the owner's picture of grass in waves), rolling downwind.
     vec2 q = vec2(down * 0.11 - t * 0.7, across * 0.035);
     return clamp(0.7 * windNoise(q) + 0.3 * windNoise(q * 2.3 + 13.0), 0.0, 1.0);
-  }
-  // Patches of rapeseed in flower (the owner's picture): 0 none, 1 a full yellow field; more of them away
-  // from where the battle is fought.
-  float flowerField(vec2 p) {
-    float n = windNoise(p * 0.028 + 9.0) * 0.8 + windNoise(p * 0.09 + 2.0) * 0.2;
-    float afar = smoothstep(25.0, 70.0, length(p));
-    return smoothstep(0.6 - 0.1 * afar, 0.7 - 0.1 * afar, n);
   }
   // Sunlight through broken cloud: 0 in a cloud's shadow, 1 in sun; big patches drifting slowly.
   float sunlit(vec2 p, float t) {
@@ -64,116 +56,99 @@ function canvasTexture(width, height, paint, { repeat = false } = {}) {
   return texture;
 }
 
-// One blade: a strip from the root (y 0) to a point (y 1), four segments, x across it from -0.5 to 0.5. Its
-// normals point up, so a blade is lit like the meadow it stands in (no hard facets).
-function bladeGeometry(count) {
+// Where the scenery's pictures are (next to the page, assets/scenery/).
+const ASSET = (name) => new URL(`../assets/scenery/${name}`, import.meta.url).href;
+function photo(name, { repeat = false } = {}) {
+  const texture = new THREE.TextureLoader().load(ASSET(name));
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  if (repeat) texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+}
+
+// Three cards crossing at 60°, standing on the ground, normals up (lit like the meadow they stand in).
+function grassCardGeometry(count) {
   const positions = [];
+  const uvs = [];
   const normals = [];
-  const index = [];
-  const levels = [0, 0.38, 0.72];
-  for (const y of levels) {
-    positions.push(-0.5, y, 0, 0.5, y, 0);
-    normals.push(0, 1, 0, 0, 1, 0);
+  for (let i = 0; i < 3; i += 1) {
+    const a = (i / 3) * Math.PI;
+    const dx = Math.cos(a) / 2;
+    const dz = Math.sin(a) / 2;
+    const quad = [[-dx, 0, -dz, 0, 0], [dx, 0, dz, 1, 0], [dx, 1, dz, 1, 1], [-dx, 0, -dz, 0, 0], [dx, 1, dz, 1, 1], [-dx, 1, -dz, 0, 1]];
+    for (const [x, y, z, u, v] of quad) { positions.push(x, y, z); uvs.push(u, v); normals.push(0, 1, 0); }
   }
-  positions.push(0, 1, 0);
-  normals.push(0, 1, 0);
-  for (let i = 0; i < levels.length - 1; i += 1) {
-    const a = i * 2;
-    index.push(a, a + 1, a + 3, a, a + 3, a + 2);
-  }
-  index.push(4, 5, 6);
   const geometry = new THREE.InstancedBufferGeometry();
-  geometry.setIndex(index);
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
   geometry.instanceCount = count;
   return geometry;
 }
 
-// The blades round the view: GRASS_TILE metres square, wrapping round the camera (so it is always in the middle
-// of the meadow), lower towards the square's edge where the ground's colour takes over. Each blade: where it
-// grows, its height, its own lean and tint; the wind bends it downwind and lightens its tip as it lies over.
-function grassMesh(layout, wind, viewAt) {
+// The grass round the view: GRASS_TILE metres square of cards, wrapping round the camera (so it is always in
+// the middle of the meadow), lower towards the square's edge where the ground's colour takes over. Each card is
+// turned, sized and tinted by its own numbers; the wind bends its top downwind and lightens it in a gust.
+function grassMeshes(layout, wind, viewAt) {
   const { count, seed } = layout.grass;
-  const roots = new Float32Array(count * 4);
   const rnd = variation(seed);
-  for (let i = 0; i < count; i += 1) roots.set([(rnd() - 0.5) * GRASS_TILE, (rnd() - 0.5) * GRASS_TILE, rnd(), rnd()], i * 4);
-  const geometry = bladeGeometry(count);
-  geometry.setAttribute("root", new THREE.InstancedBufferAttribute(roots, 4));
-  const colour = (hex) => new THREE.Color(hex);
-  const uniforms = {
-    windTime: wind, viewAt,
-    bladeRoot: { value: colour(C.bladeRoot) }, bladeMid: { value: colour(C.bladeMid) },
-    bladeTip: { value: colour(C.bladeTip) }, bladeDry: { value: colour(C.bladeDry) }, flower: { value: colour(C.flower) }
-  };
-  const material = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
   const half = (GRASS_TILE / 2).toFixed(1);
-  material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>
-        attribute vec4 root;
-        varying float vAlong;
-        varying float vGust;
-        varying float vTint;
-        varying float vSun;
-        varying float vBloom;
-        ${WIND_GLSL}`)
-      .replace("#include <begin_vertex>", `
-        vec2 wrapped = mod(root.xy - viewAt + ${half}, ${GRASS_TILE.toFixed(1)}) - ${half};
-        vec2 standsAt = wrapped + viewAt;
-        float away = length(wrapped);
-        float edge = 1.0 - smoothstep(${(GRASS_TILE * 0.3).toFixed(1)}, ${(GRASS_TILE * 0.5).toFixed(1)}, away);
-        float along = position.y;
-        float bloom = flowerField(standsAt) * step(0.35, root.w);
-        float tall = (0.34 + root.z * 0.34) * (1.0 + 0.45 * bloom) * edge;
-        // Wider further off, so the far blades still close up into a meadow.
-        float wide = (0.02 + root.w * 0.016) * (1.0 + away * 0.13) * (1.0 - along * 0.9);
-        // A flowering stalk carries a head of small yellow flowers at its top.
-        wide = mix(wide, (0.07 + root.z * 0.05) * (1.0 + away * 0.1), bloom * step(0.6, along));
-        float turn = fract(root.w * 7.31) * 6.2832;
-        vec2 across = vec2(cos(turn), sin(turn));
-        float gust = windField(standsAt, windTime);
-        float flutter = sin(windTime * 3.1 + root.z * 40.0) * 0.06 + sin(windTime * 1.7 + root.w * 25.0) * 0.04;
-        float lie = (0.3 + 1.1 * gust + flutter) * along * along;
-        lie *= 1.0 - 0.6 * bloom;
-        vec2 ownLean = vec2(cos(turn * 1.7), sin(turn * 1.7)) * 0.1 * along * along;
-        vec2 bend = (vec2(${WIND_TO[0]}, ${WIND_TO[1]}) * lie + ownLean) * tall;
-        vec3 transformed = vec3(standsAt.x + across.x * position.x * wide + bend.x, along * tall * (1.0 - 0.3 * lie), standsAt.y + across.y * position.x * wide + bend.y);
-        vAlong = along;
-        vGust = gust;
-        vSun = sunlit(standsAt, windTime);
-        vBloom = bloom;
-        vTint = root.z;`);
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", `#include <common>
-        uniform vec3 bladeRoot; uniform vec3 bladeMid; uniform vec3 bladeTip; uniform vec3 bladeDry;
-        varying float vAlong;
-        varying float vGust;
-        varying float vTint;
-        varying float vSun;
-        varying float vBloom;
-        uniform vec3 flower;`)
-      .replace("#include <color_fragment>", `
-        vec3 tip = mix(bladeTip, bladeDry, smoothstep(0.75, 1.0, vTint));
-        vec3 blade = vAlong < 0.5 ? mix(bladeRoot, bladeMid, vAlong * 2.0) : mix(bladeMid, tip, (vAlong - 0.5) * 2.0);
-        // Laid over by a gust, the blade shows the sky's light along its length.
-        // Each blade its own shade (some darker, some yellower), so the mass is not one flat green.
-        blade *= 0.72 + 0.4 * fract(vTint * 13.7);
-        blade = mix(blade, blade * vec3(1.12, 1.05, 0.7), smoothstep(0.55, 1.0, fract(vTint * 5.3)) * 0.6);
-        // A gust lays the blades over and they catch the light along their length; in sun the tips glow warm
-        // (light through the blade), in a cloud's shadow the whole blade sinks into deep green.
-        float shine = vGust * vAlong;
-        blade = mix(blade, blade * vec3(1.35, 1.28, 0.8) + vec3(0.1, 0.1, 0.02), shine);
-        blade *= mix(0.74, 1.18, vSun) * (0.8 + 0.2 * smoothstep(0.0, 0.6, vAlong));
-        blade += vec3(0.05, 0.05, 0.0) * vSun * vAlong * vAlong;
-        blade = mix(blade, flower * mix(0.8, 1.1, vSun) * (0.9 + 0.2 * vTint), vBloom * smoothstep(0.55, 0.7, vAlong));
-        diffuseColor.rgb = blade;`);
-  };
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.name = "scenery_grass";
-  mesh.frustumCulled = false;
-  return mesh;
+  return [0, 1, 2].map((kind) => {
+    const share = Math.floor(count / 3);
+    const roots = new Float32Array(share * 4);
+    for (let i = 0; i < share; i += 1) roots.set([(rnd() - 0.5) * GRASS_TILE, (rnd() - 0.5) * GRASS_TILE, rnd(), rnd()], i * 4);
+    const geometry = grassCardGeometry(share);
+    geometry.setAttribute("root", new THREE.InstancedBufferAttribute(roots, 4));
+    const material = new THREE.MeshLambertMaterial({ map: photo(`grass_card_${kind}.webp`), alphaTest: 0.45, alphaToCoverage: true, side: THREE.DoubleSide });
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.windTime = wind;
+      shader.uniforms.viewAt = viewAt;
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", `#include <common>
+          attribute vec4 root;
+          varying float vAlong;
+          varying float vGust;
+          varying float vSun;
+          varying float vTint;
+          ${WIND_GLSL}`)
+        .replace("#include <begin_vertex>", `
+          vec2 wrapped = mod(root.xy - viewAt + ${half}, ${GRASS_TILE.toFixed(1)}) - ${half};
+          vec2 standsAt = wrapped + viewAt;
+          float away = length(wrapped);
+          float edge = 1.0 - smoothstep(${(GRASS_TILE * 0.3).toFixed(1)}, ${(GRASS_TILE * 0.5).toFixed(1)}, away);
+          float along = position.y;
+          float turn = root.w * 6.2832;
+          float wide = 1.2 + root.z * 0.5;
+          float tall = (0.42 + root.z * 0.22) * edge;
+          vec2 spread = vec2(cos(turn) * position.x - sin(turn) * position.z, sin(turn) * position.x + cos(turn) * position.z) * wide;
+          float gust = windField(standsAt, windTime);
+          float flutter = sin(windTime * 2.3 + root.z * 30.0) * 0.05;
+          float lie = (0.12 + 0.5 * gust + flutter) * along * along;
+          vec2 bend = vec2(${WIND_TO[0]}, ${WIND_TO[1]}) * lie * tall;
+          vec3 transformed = vec3(standsAt.x + spread.x + bend.x, along * tall * (1.0 - 0.25 * lie), standsAt.y + spread.y + bend.y);
+          vAlong = along;
+          vGust = gust;
+          vSun = sunlit(standsAt, windTime);
+          vTint = root.z;`);
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <common>", `#include <common>
+          varying float vAlong;
+          varying float vGust;
+          varying float vSun;
+          varying float vTint;`)
+        // Both faces of a card lit alike, as the meadow (otherwise the back faces turn dark: black specks).
+        .replace("#include <normal_fragment_begin>", "#include <normal_fragment_begin>\n          normal = normalize(vNormal);")
+        .replace("#include <map_fragment>", `#include <map_fragment>
+          // The photograph's colour, a little greener or yellower card by card; lit in sun, shaded under cloud;
+          // brighter along the blades where a gust lays them over.
+          diffuseColor.rgb *= mix(vec3(0.84, 1.08, 0.72), vec3(0.98, 1.06, 0.7), vTint);
+          diffuseColor.rgb *= mix(0.82, 1.12, vSun) * (0.9 + 0.1 * vAlong) * (1.0 + vGust * vAlong * 0.35);`);
+    };
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `scenery_grass_${kind}`;
+    mesh.frustumCulled = false;
+    return mesh;
+  });
 }
 
 // The ground: the meadow seen from further than the blades reach, green, with the wind's waves running over it
@@ -184,7 +159,7 @@ function groundMesh(wind, viewAt) {
   const position = geometry.attributes.position;
   for (let i = 0; i < position.count; i += 1) position.setY(i, groundHeight(position.getX(i), position.getZ(i)));
   geometry.computeVertexNormals();
-  const uniforms = { windTime: wind, viewAt, near: { value: new THREE.Color(C.ground) }, far: { value: new THREE.Color(C.groundFar) }, flower: { value: new THREE.Color(C.flower) } };
+  const uniforms = { windTime: wind, viewAt, near: { value: new THREE.Color(C.ground) }, far: { value: new THREE.Color(C.groundFar) } };
   const material = new THREE.MeshLambertMaterial();
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -193,7 +168,7 @@ function groundMesh(wind, viewAt) {
       .replace("#include <begin_vertex>", "#include <begin_vertex>\nvGroundAt = (modelMatrix * vec4(transformed, 1.0)).xz;");
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>
-        uniform vec3 near; uniform vec3 far; uniform vec3 flower;
+        uniform vec3 near; uniform vec3 far;
         varying vec2 vGroundAt;
         ${WIND_GLSL}`)
       .replace("#include <color_fragment>", `
@@ -203,9 +178,8 @@ function groundMesh(wind, viewAt) {
         meadow *= 0.9 + 0.2 * mottle;
         // A fine grain of grass, so the meadow beyond the blades (and seen from high up) is not a flat colour.
         meadow *= 0.86 + 0.18 * windNoise(vGroundAt * 3.1) + 0.1 * windNoise(vGroundAt * vec2(9.0, 2.2) + 5.0);
-        meadow = mix(meadow, flower * (0.6 + 0.35 * windNoise(vGroundAt * 0.9)), flowerField(vGroundAt) * 0.7 * smoothstep(${(GRASS_TILE * 0.3).toFixed(1)}, ${(GRASS_TILE * 0.55).toFixed(1)}, away));
         meadow *= mix(0.74, 1.15, sunlit(vGroundAt, windTime));
-        meadow *= 1.0 + 0.45 * windField(vGroundAt, windTime) * smoothstep(${(GRASS_TILE * 0.25).toFixed(1)}, ${(GRASS_TILE * 0.5).toFixed(1)}, away);
+        meadow *= 1.0 + 0.25 * windField(vGroundAt, windTime) * smoothstep(${(GRASS_TILE * 0.25).toFixed(1)}, ${(GRASS_TILE * 0.5).toFixed(1)}, away);
         diffuseColor.rgb = meadow;`);
   };
   const mesh = new THREE.Mesh(geometry, material);
@@ -289,40 +263,12 @@ function treeTexture(kind) {
   });
 }
 
-// The sky: a dome that follows the camera, deep blue overhead, pale at the horizon, with soft white clouds.
+// The sky: a photographed sky (Poly Haven, "Kloofendal 48d Partly Cloudy (Pure Sky)", CC0) on a dome that
+// follows the camera.
 function skyDome() {
-  const texture = canvasTexture(1024, 512, (ctx, w, h) => {
-    const gradient = ctx.createLinearGradient(0, 0, 0, h);
-    gradient.addColorStop(0, C.skyTop);
-    gradient.addColorStop(0.36, "#8db7e2");
-    gradient.addColorStop(0.5, C.horizon);
-    gradient.addColorStop(1, C.horizon);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, w, h);
-    const rnd = variation(11);
-    // Clouds: clusters of soft puffs, flattened, thicker towards the horizon.
-    for (let c = 0; c < 26; c += 1) {
-      const cx = rnd() * w;
-      const cy = h * (0.12 + rnd() * 0.34);
-      const size = 30 + rnd() * 60 * (cy / h + 0.4);
-      for (let p = 0; p < 14; p += 1) {
-        for (const shift of [-w, 0, w]) {
-          const x = cx + (rnd() - 0.5) * size * 2.6 + shift;
-          const y = cy + (rnd() - 0.5) * size * 0.5;
-          const r = size * (0.35 + rnd() * 0.5);
-          const puff = ctx.createRadialGradient(x, y, 0, x, y, r);
-          puff.addColorStop(0, "rgba(255,255,255,0.5)");
-          puff.addColorStop(0.6, "rgba(250,252,255,0.22)");
-          puff.addColorStop(1, "rgba(250,252,255,0)");
-          ctx.fillStyle = puff;
-          ctx.fillRect(x - r, y - r, r * 2, r * 2);
-        }
-      }
-    }
-  });
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(240, 48, 24),
-    new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, fog: false, depthWrite: false })
+    new THREE.MeshBasicMaterial({ map: photo("sky_partly_cloudy.jpg"), side: THREE.BackSide, fog: false, depthWrite: false })
   );
   mesh.name = "scenery_sky";
   mesh.renderOrder = -10;
@@ -372,7 +318,7 @@ export function buildScenery(scene) {
 
   add(groundMesh(wind, viewAt));
   const sky = add(skyDome());
-  add(grassMesh(layout, wind, viewAt));
+  for (const mesh of grassMeshes(layout, wind, viewAt)) add(mesh);
   // The woods: painted bands round the horizon (three paintings, used in turn), each facing the field.
   for (let kind = 0; kind < 3; kind += 1) {
     const material = new THREE.MeshBasicMaterial({ map: woodsTexture(kind), alphaTest: 0.5, side: THREE.DoubleSide });

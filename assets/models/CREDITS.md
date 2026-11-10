@@ -5,3 +5,4 @@
   licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Changed: retextured, rescaled, new walk,
   trot, idle and death animations, gallop re-timed (tools/blender/build_horse.py).
 - `infantry_ally.glb`, `infantry_enemy.glb`: built on MakeHuman data (MPFB 2.0.18, CC0).
+- `castle_icon.png` (the repository root): made with Google Gemini (the owner, 2026-11-08).

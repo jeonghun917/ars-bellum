@@ -11,3 +11,4 @@ playwright-report/
 # Blender build caches (downloaded data, not committed)
 tools/blender/.cache/
 tools/blender/__pycache__/
+tools/scenery/.cache/
