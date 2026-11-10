@@ -44,18 +44,6 @@ function variation(seed) {
   return () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
 }
 
-function canvasTexture(width, height, paint, { repeat = false } = {}) {
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  paint(canvas.getContext("2d"), width, height);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  if (repeat) texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.anisotropy = 4;
-  return texture;
-}
-
 // Where the scenery's pictures are (next to the page, assets/scenery/).
 const ASSET = (name) => new URL(`../assets/scenery/${name}`, import.meta.url).href;
 function photo(name, { repeat = false } = {}) {
@@ -187,82 +175,6 @@ function groundMesh(wind, viewAt) {
   return mesh;
 }
 
-// A stretch of woodland, painted: round-topped crowns crowded together, darker below, lighter where the light
-// falls on their tops; transparent above the skyline.
-function woodsTexture(kind) {
-  return canvasTexture(1024, 256, (ctx, w, h) => {
-    const rnd = variation(101 + kind * 17);
-    const dark = ["#2a4a1e", "#305424", "#3a5e2a", "#436a30"];
-    const light = ["#6a9440", "#78a24a", "#86ad58"];
-    const crowns = [];
-    for (let x = -30; x < w + 30; x += 14 + rnd() * 18) crowns.push({ x, top: h * (0.12 + rnd() * 0.32), r: 26 + rnd() * 34 });
-    for (const crown of crowns) {
-      for (let b = 0; b < 26; b += 1) {
-        const bx = crown.x + (rnd() - 0.5) * crown.r * 1.6;
-        const by = crown.top + crown.r * 0.6 + rnd() * (h - crown.top);
-        ctx.fillStyle = dark[Math.floor(rnd() * dark.length)];
-        ctx.beginPath();
-        ctx.arc(bx, by, crown.r * (0.35 + rnd() * 0.45), 0, Math.PI * 2);
-        ctx.fill();
-      }
-      for (let b = 0; b < 10; b += 1) {
-        const bx = crown.x + (rnd() - 0.6) * crown.r * 1.1;
-        const by = crown.top + crown.r * (0.35 + rnd() * 0.6);
-        ctx.fillStyle = light[Math.floor(rnd() * light.length)];
-        ctx.globalAlpha = 0.55;
-        ctx.beginPath();
-        ctx.arc(bx, by, crown.r * (0.15 + rnd() * 0.25), 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-    }
-    // Leaf texture: fine dark and light flecks over the canopy (only where it is painted).
-    ctx.globalCompositeOperation = "source-atop";
-    for (let i = 0; i < 9000; i += 1) {
-      ctx.fillStyle = rnd() < 0.5 ? "rgba(20,36,14,0.3)" : "rgba(140,170,90,0.22)";
-      ctx.fillRect(rnd() * w, rnd() * h, 2, 2);
-    }
-    // Deeper shade at the foot of the woods.
-    const foot = ctx.createLinearGradient(0, h * 0.6, 0, h);
-    foot.addColorStop(0, "rgba(16,22,12,0)");
-    foot.addColorStop(1, "rgba(16,30,12,0.55)");
-    ctx.fillStyle = foot;
-    ctx.fillRect(0, 0, w, h);
-    ctx.globalCompositeOperation = "source-over";
-  });
-}
-
-// A big single tree, painted: a trunk and a broad round crown.
-function treeTexture(kind) {
-  return canvasTexture(256, 256, (ctx, w, h) => {
-    const rnd = variation(201 + kind * 13);
-    ctx.fillStyle = "#3b3226";
-    ctx.fillRect(w * 0.47, h * 0.55, w * 0.06, h * 0.45);
-    const cx = w / 2;
-    const cy = h * 0.42;
-    for (let b = 0; b < 70; b += 1) {
-      const a = rnd() * Math.PI * 2;
-      const d = Math.sqrt(rnd()) * w * 0.36;
-      ctx.fillStyle = ["#2a4a1e", "#305424", "#3a5e2a", "#436a30"][Math.floor(rnd() * 4)];
-      ctx.beginPath();
-      ctx.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.85, 14 + rnd() * 22, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    for (let b = 0; b < 26; b += 1) {
-      ctx.fillStyle = "rgba(120,160,80,0.5)";
-      ctx.beginPath();
-      ctx.arc(cx + (rnd() - 0.65) * w * 0.5, cy - rnd() * h * 0.28, 6 + rnd() * 12, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalCompositeOperation = "source-atop";
-    for (let i = 0; i < 3000; i += 1) {
-      ctx.fillStyle = rnd() < 0.5 ? "rgba(18,34,12,0.35)" : "rgba(140,170,90,0.22)";
-      ctx.fillRect(rnd() * w, rnd() * h, 2, 2);
-    }
-    ctx.globalCompositeOperation = "source-over";
-  });
-}
-
 // The sky: a photographed sky (Poly Haven, "Kloofendal 48d Partly Cloudy (Pure Sky)", CC0) on a dome that
 // follows the camera.
 function skyDome() {
@@ -292,22 +204,6 @@ const at = (matrix, x, y, z, turn, sx, sy, sz) => matrix.compose(
   new THREE.Vector3(sx, sy ?? sx, sz ?? sx)
 );
 
-// Two painted cards crossed (a big tree holds its shape from any side).
-function crossedCards() {
-  const one = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0).toNonIndexed();
-  const two = one.clone().rotateY(Math.PI / 2);
-  const geometry = new THREE.BufferGeometry();
-  for (const name of ["position", "uv", "normal"]) {
-    const a = one.attributes[name];
-    const b = two.attributes[name];
-    const array = new Float32Array(a.array.length * 2);
-    array.set(a.array, 0);
-    array.set(b.array, a.array.length);
-    geometry.setAttribute(name, new THREE.BufferAttribute(array, a.itemSize));
-  }
-  return geometry;
-}
-
 export function buildScenery(scene) {
   const layout = sceneryLayout();
   const objects = [];
@@ -319,16 +215,32 @@ export function buildScenery(scene) {
   add(groundMesh(wind, viewAt));
   const sky = add(skyDome());
   for (const mesh of grassMeshes(layout, wind, viewAt)) add(mesh);
-  // The woods: painted bands round the horizon (three paintings, used in turn), each facing the field.
-  for (let kind = 0; kind < 3; kind += 1) {
-    const material = new THREE.MeshBasicMaterial({ map: woodsTexture(kind), alphaTest: 0.5, side: THREE.DoubleSide });
-    add(instances(`scenery_woods_${kind}`, new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0), material, layout.woods.filter((w) => w.kind === kind),
-      (w, m) => at(m, w.x, w.y - 0.5, w.z, w.facing, w.width, w.height, 1)));
+  // The woods: each stretch of woodland in the layout is filled with photographed trees (tools/scenery/
+  // build_tree_cards.py: one tree from three sides) in three staggered rows, each tree a card facing the field;
+  // the big trees nearer the field are the same cards, larger.
+  const rnd = variation(1107);
+  const standing = [[], [], []];
+  for (const w of layout.woods) {
+    const along = [Math.cos(w.facing), -Math.sin(w.facing)];
+    const back = [-Math.sin(w.facing), -Math.cos(w.facing)];
+    // Four rows of trees of mixed heights, close together, and in front a row of crowns sunk to the ground
+    // (undergrowth hiding the trunks at the wood's edge).
+    for (let row = 0; row < 5; row += 1) {
+      const front = row === 0;
+      for (let x = -w.width / 2; x <= w.width / 2; x += (front ? 1.8 : 2.4) + rnd() * 2.2) {
+        const depth = (front ? -1 : (row - 1) * 5) + rnd() * 3;
+        const tx = w.x + along[0] * x + back[0] * depth;
+        const tz = w.z + along[1] * x + back[1] * depth;
+        const size = w.height * (front ? 0.45 + rnd() * 0.3 : 0.65 + rnd() * 0.85);
+        standing[Math.floor(rnd() * 3)].push({ x: tx, z: tz, y: groundHeight(tx, tz) - (front ? size * 0.5 : 0), size, facing: w.facing });
+      }
+    }
   }
+  for (const t of layout.trees) standing[t.kind].push({ x: t.x, z: t.z, y: t.y, size: 14 * t.scale, facing: Math.atan2(-t.x, -t.z) });
   for (let kind = 0; kind < 3; kind += 1) {
-    const material = new THREE.MeshBasicMaterial({ map: treeTexture(kind), alphaTest: 0.5, side: THREE.DoubleSide });
-    add(instances(`scenery_trees_${kind}`, crossedCards(), material, layout.trees.filter((t) => t.kind === kind),
-      (t, m) => at(m, t.x, t.y - 0.2, t.z, 0, 16 * t.scale, 15 * t.scale, 16 * t.scale)));
+    const material = new THREE.MeshBasicMaterial({ map: photo(`tree_card_${kind}.webp`), alphaTest: 0.5, alphaToCoverage: true, side: THREE.DoubleSide, color: 0xd8dccf });
+    add(instances(`scenery_trees_${kind}`, new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0), material, standing[kind],
+      (t, m) => at(m, t.x, t.y - 0.3, t.z, t.facing + (rnd() - 0.5) * 0.3, t.size * (rnd() < 0.5 ? -1 : 1), t.size, 1)));
   }
   const counts = { woods: layout.woods.length, trees: layout.trees.length, grass: layout.grass.count };
   return {
