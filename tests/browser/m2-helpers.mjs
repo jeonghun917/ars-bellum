@@ -73,12 +73,15 @@ export async function loadVariant(page, edit) {
     new Function('snapshot', editSource)(snapshot);
     const loaded = window.ArsM2Battle.loadSnapshot(snapshot);
     if (!loaded.ok) return loaded;
-    return window.ArsM2Battle.start();
+    const before = window.ArsM2Diagnostics.getSnapshot().fixedTickCount;
+    return { ...window.ArsM2Battle.start(), before };
   }, edit);
   expect(result.ok, JSON.stringify(result)).toBe(true);
   // A new battle is drawn afresh (every soldier's model again): in CI, drawing in software, its first tick can
-  // be most of a minute away.
-  await waitTicks(page, 1, 60_000);
+  // be most of a minute away. Counted from just before the start, and a battle over at its first tick (no
+  // enemies) ticks no more: either is enough (read after the start, a quick first tick was missed, PR #59).
+  await expect.poll(() => page.evaluate((before) => window.ArsM2Diagnostics.getSnapshot().fixedTickCount > before
+    || Boolean(window.ArsM2Battle.getResult()), result.before), { timeout: 60_000 }).toBe(true);
 }
 
 export async function noPageErrors(page, errors) {
