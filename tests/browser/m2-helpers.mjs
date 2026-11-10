@@ -3,8 +3,11 @@
 import { expect } from '@playwright/test';
 
 // Opens the prototype (at path: ?mixed, ?scale=N), fails on any page error, and waits until the battle API is
-// up and ticking.
-export async function openBattle(page, path = '/m2_prototype.html') {
+// up and ticking. The meadow's grass is left out (scenery=lite) unless fullScenery: drawn by the software
+// renderer the tests use it halves the frame rate and pushed the suite past its time limit (PR #59), and only
+// the scenery's own tests are about it.
+export async function openBattle(page, path = '/m2_prototype.html', { fullScenery = false } = {}) {
+  if (!fullScenery) path += (path.includes('?') ? '&' : '?') + 'scenery=lite';
   const errors = [];
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
@@ -70,12 +73,15 @@ export async function loadVariant(page, edit) {
     new Function('snapshot', editSource)(snapshot);
     const loaded = window.ArsM2Battle.loadSnapshot(snapshot);
     if (!loaded.ok) return loaded;
-    return window.ArsM2Battle.start();
+    const before = window.ArsM2Diagnostics.getSnapshot().fixedTickCount;
+    return { ...window.ArsM2Battle.start(), before };
   }, edit);
   expect(result.ok, JSON.stringify(result)).toBe(true);
   // A new battle is drawn afresh (every soldier's model again): in CI, drawing in software, its first tick can
-  // be most of a minute away.
-  await waitTicks(page, 1, 60_000);
+  // be most of a minute away. Counted from just before the start, and a battle over at its first tick (no
+  // enemies) ticks no more: either is enough (read after the start, a quick first tick was missed, PR #59).
+  await expect.poll(() => page.evaluate((before) => window.ArsM2Diagnostics.getSnapshot().fixedTickCount > before
+    || Boolean(window.ArsM2Battle.getResult()), result.before), { timeout: 60_000 }).toBe(true);
 }
 
 export async function noPageErrors(page, errors) {

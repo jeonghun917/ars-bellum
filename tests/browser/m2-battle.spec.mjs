@@ -302,7 +302,9 @@ test.describe('3D battle', () => {
     expect((await diagnostics(page)).aim).toBeNull();
     await tap(page, '#m2Bow');
     await expect.poll(async () => (await diagnostics(page)).hands.weapon).toBe('bow');
-    await expect.poll(async () => (await diagnostics(page)).aim).not.toBeNull();
+    // The circle is placed when the screen is next drawn; drawn in software, the first frame with the bow in
+    // hand can take seconds in CI (5 s was missed once, PR #59).
+    await expect.poll(async () => (await diagnostics(page)).aim, { timeout: 20_000 }).not.toBeNull();
     // Nobody in the way: the circle lies the bow's range ahead along the view.
     const [g, me] = [await diagnostics(page), await player(page)];
     const range = me.hero.ranged.range;
@@ -316,7 +318,7 @@ test.describe('3D battle', () => {
     expect((await diagnostics(page)).projectileLaunchCount).toBeGreaterThan(before);
     // Back to the weapon: no circle, and the attack button swings.
     await tap(page, '#m2Bow');
-    await expect.poll(async () => (await diagnostics(page)).aim).toBeNull();
+    await expect.poll(async () => (await diagnostics(page)).aim, { timeout: 20_000 }).toBeNull();
     await page.waitForFunction(() => {
       const s = window.ArsM2Battle.getSnapshot();
       return s.units.find((u) => u.unitId === s.playerCharacterId).attackCooldownTicks === 0;
@@ -674,6 +676,17 @@ test.describe('3D battle', () => {
     const along = aim.z - me.position.z;
     expect(Math.abs(along - (foe.position.z - me.position.z)), JSON.stringify({ aim, me: me.position, foe: foe.position })).toBeLessThan(0.6);
     expect(along).toBeLessThan(me.hero.ranged.range - 2);
+  });
+
+  // The owner, 2026-11-07: the background. Drawn around the field, a handful of draw calls.
+  test('[m2.scenery.drawn] the meadow\'s grass, woods and trees are drawn around the field', async ({ page }) => {
+    errors = await openBattle(page, '/m2_prototype.html', { fullScenery: true });
+    const scenery = (await diagnostics(page)).scenery;
+    expect(scenery, 'scenery reported').not.toBeNull();
+    for (const kind of ['grass', 'woods', 'trees']) expect(scenery[kind], kind).toBeGreaterThan(0);
+    // (The other tests open it without the grass; the page without it still has the rest.)
+    await openBattle(page);
+    expect((await diagnostics(page)).scenery).toMatchObject({ grass: 0, woods: scenery.woods, trees: scenery.trees });
   });
 
   test('[m2.page.no-errors] loading and playing the battle raises no page errors', async ({ page }) => {

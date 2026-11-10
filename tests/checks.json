@@ -421,6 +421,12 @@
       "source": "tests/browser/m2-battle.spec.mjs"
     },
     {
+      "id": "m2.scenery.drawn",
+      "title": "the meadow's grass, woods and trees are drawn around the field",
+      "kind": "browser",
+      "source": "tests/browser/m2-battle.spec.mjs"
+    },
+    {
       "id": "m2.page.no-errors",
       "title": "loading and playing the battle raises no page errors",
       "kind": "browser",
@@ -3706,6 +3712,24 @@
       "title": "an enemy out of sight is drawn faded where it was last seen, and solid again when the player's men come near",
       "kind": "browser",
       "source": "tests/browser/m2-vision.spec.mjs"
+    },
+    {
+      "id": "m2.scenery.field-clear",
+      "title": "the play area holds every army drawn up and its retreat edges, and only grass stands in it",
+      "kind": "unit",
+      "source": "tests/unit/m2-scenery.test.mjs"
+    },
+    {
+      "id": "m2.scenery.flat-ground",
+      "title": "the ground is flat where the battle is fought and around it, and rises only a little far off",
+      "kind": "unit",
+      "source": "tests/unit/m2-scenery.test.mjs"
+    },
+    {
+      "id": "m2.scenery.road-and-repeat",
+      "title": "the surroundings are the same every time",
+      "kind": "unit",
+      "source": "tests/unit/m2-scenery.test.mjs"
     }
   ]
 }

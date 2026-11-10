@@ -19,6 +19,8 @@ export class M2Diagnostics {
   #activeCharacters = 0;
   #renderedUnits = 0;
   #soldierModel = "none";
+  // What the battlefield's surroundings hold (M2_Scenery.js), or null before they are drawn.
+  #scenery = null;
   #soldierGear = Object.freeze({});
   // The player's latest blows and shots and those at him (M2_CombatSystem.js getPlayerFeed), newest last.
   #playerFeed = [];
@@ -110,6 +112,7 @@ export class M2Diagnostics {
     this.#triangles = Number(rendererInfo.triangles || 0);
     this.#renderedUnits = Number(rendererInfo.renderedUnits || 0);
     this.#soldierModel = rendererInfo.soldierModel || "none";
+    this.#scenery = rendererInfo.scenery ? Object.freeze({ ...rendererInfo.scenery }) : null;
     this.#soldierAnimations = Object.freeze({ ...(rendererInfo.soldierAnimations || {}) });
     this.#horseAnimations = Object.freeze({ ...(rendererInfo.horseAnimations || {}) });
     this.#soldierGear = Object.freeze({ ...(rendererInfo.soldierGear || {}) });
@@ -136,6 +139,7 @@ export class M2Diagnostics {
       soldierAnimations: this.#soldierAnimations,
       horseAnimations: this.#horseAnimations,
       soldierGear: this.#soldierGear,
+      scenery: this.#scenery,
       playerFeed: Object.freeze([...this.#playerFeed]),
       fadedSoldiers: this.#fadedSoldiers,
       view: this.#view,

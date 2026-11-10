@@ -1,6 +1,7 @@
 import * as THREE from "../vendor/three/r184/three.module.min.js";
 import { M2_CONFIG } from "./M2_Config.js";
 import { clone as cloneSkinned } from "../vendor/three/r184/addons/utils/SkeletonUtils.js";
+import { SCENERY_COLORS, buildScenery } from "./M2_Scenery.js";
 
 // Soldier models made in Blender (see M2_SoldierModels.js), one per side. Set before the runtime starts;
 // without them the renderer draws the simple box soldiers below.
@@ -404,45 +405,6 @@ function createHumanoid(material, markerMaterial, geometries, shadowMaterial) {
   return group;
 }
 
-// Sky: a vertical gradient from deep blue overhead to a pale haze at the horizon (the fog colour).
-function createSkyTexture() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 2;
-  canvas.height = 256;
-  const ctx = canvas.getContext("2d");
-  const gradient = ctx.createLinearGradient(0, 0, 0, 256);
-  gradient.addColorStop(0, "#3d6f9c");
-  gradient.addColorStop(0.55, "#8fb3cc");
-  gradient.addColorStop(1, "#" + M2_CONFIG.backgroundColor.toString(16).padStart(6, "0"));
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 2, 256);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-// Ground: a wide field with gentle patches of lighter and darker grass. The pattern is fixed (no random
-// numbers), so every load looks the same.
-function createGroundGeometry() {
-  const geometry = new THREE.PlaneGeometry(180, 180, 90, 90);
-  const base = new THREE.Color(M2_CONFIG.groundColor);
-  const dry = new THREE.Color(0x8a8a55);
-  const position = geometry.attributes.position;
-  const colors = new Float32Array(position.count * 3);
-  const color = new THREE.Color();
-  for (let i = 0; i < position.count; i += 1) {
-    const x = position.getX(i);
-    const y = position.getY(i);
-    const patch = Math.sin(x * 0.11) * Math.cos(y * 0.13) + Math.sin((x + y) * 0.047) * 0.8;
-    const fine = Math.sin(x * 0.9 + y * 0.37) * Math.cos(y * 0.83 - x * 0.21);
-    color.copy(base).lerp(dry, Math.max(0, patch) * 0.32);
-    color.multiplyScalar(0.94 + fine * 0.05 + Math.min(0, patch) * 0.06);
-    colors.set([color.r, color.g, color.b], i * 3);
-  }
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  return geometry;
-}
-
 export class M2RendererThree {
   #canvas;
   #renderer;
@@ -462,7 +424,8 @@ export class M2RendererThree {
   #resizeHandler;
   #raycaster = new THREE.Raycaster();
   #groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  #skyTexture = null;
+  // The battlefield's surroundings (M2_Scenery.js).
+  #scenery = null;
   #lastElapsed = null;
   #disposed = false;
 
@@ -475,19 +438,25 @@ export class M2RendererThree {
     this.#renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.#renderer.setClearColor(M2_CONFIG.backgroundColor, 1);
     this.#renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Film-like tone (highlights roll off softly instead of clipping flat).
+    this.#renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.#renderer.toneMappingExposure = 1.2;
 
     this.#scene = new THREE.Scene();
-    this.#skyTexture = createSkyTexture();
-    this.#scene.background = this.#skyTexture;
-    this.#scene.fog = new THREE.Fog(M2_CONFIG.backgroundColor, 45, 120);
+    // An overcast day over a meadow (the owner's pictures, M2_Scenery.js): a light grey haze from 100 m, so the
+    // woods on the horizon stand dark but softened.
+    this.#scene.background = new THREE.Color(SCENERY_COLORS.haze);
+    this.#scene.fog = new THREE.Fog(SCENERY_COLORS.haze, 110, 360);
     this.#camera = new THREE.PerspectiveCamera(M2_CONFIG.camera.fov, 1, M2_CONFIG.camera.near, M2_CONFIG.camera.far);
     this.#camera.position.set(M2_CONFIG.camera.x, M2_CONFIG.camera.y, M2_CONFIG.camera.z);
     this.#camera.lookAt(0, 0.9, 0);
 
-    const hemisphere = new THREE.HemisphereLight(0xcfe2f0, 0x4a5236, 1.9);
-    const sun = new THREE.DirectionalLight(0xffe6bf, 2.4);
+    // (Soft overcast light: mostly from the whole sky, little from the sun behind the clouds.)
+    const hemisphere = new THREE.HemisphereLight(0xd6e8ff, 0x4a6a2a, 2.0);
+    const sun = new THREE.DirectionalLight(0xffe6bc, 2.6);
     sun.position.set(14, 18, 8);
     this.#scene.add(hemisphere, sun);
+    this.#scenery = buildScenery(this.#scene, { sunDirection: sun.position.clone().normalize() });
 
     this.#geometries = Object.freeze({
       body: new THREE.BoxGeometry(0.55, 0.82, 0.34),
@@ -501,11 +470,9 @@ export class M2RendererThree {
       formation: new THREE.RingGeometry(0.72, 0.82, 24),
       // Where the player's arrow will come down, while he holds the bow (setAim).
       aim: new THREE.RingGeometry(0.42, 0.56, 28),
-      shadow: new THREE.CircleGeometry(0.42, 16),
-      ground: createGroundGeometry()
+      shadow: new THREE.CircleGeometry(0.42, 16)
     });
     this.#materials = Object.freeze({
-      ground: new THREE.MeshLambertMaterial({ vertexColors: true }),
       shadow: new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false }),
       ally: new THREE.MeshLambertMaterial({ color: M2_CONFIG.allyColor }),
       enemy: new THREE.MeshLambertMaterial({ color: M2_CONFIG.enemyColor }),
@@ -522,10 +489,6 @@ export class M2RendererThree {
     this.#aimRing.renderOrder = 10;
     this.#aimRing.visible = false;
     this.#scene.add(this.#aimRing);
-
-    const ground = new THREE.Mesh(this.#geometries.ground, this.#materials.ground);
-    ground.rotation.x = -Math.PI / 2;
-    this.#scene.add(ground);
 
     this.#resizeHandler = () => this.resize();
     window.addEventListener("resize", this.#resizeHandler, { passive: true });
@@ -715,6 +678,7 @@ export class M2RendererThree {
     this.#syncProjectiles(renderSnapshot, alpha);
     this.#syncFormationMarkers(renderSnapshot);
     this.#syncAim(renderSnapshot, alpha);
+    this.#scenery?.follow(this.#camera, now);
     this.#renderer.render(this.#scene, this.#camera);
   }
 
@@ -816,6 +780,8 @@ export class M2RendererThree {
       renderedProjectiles: this.#projectiles.size,
       // Which way the screen's right and up point on the ground, from the camera as drawn (unit vectors).
       view: this.#groundView(),
+      // What the surroundings hold (M2_Scenery.js).
+      scenery: this.#scenery ? { ...this.#scenery.counts } : null,
       aim: this.#aimPoint ? { ...this.#aimPoint } : null,
       soldierModel: soldierModels ? "blender" : "box"
     };
@@ -840,7 +806,7 @@ export class M2RendererThree {
     for (const material of Object.values(this.#materials)) material.dispose();
     for (const material of this.#fadedMaterials.values()) material.dispose();
     this.#fadedMaterials.clear();
-    this.#skyTexture?.dispose();
+    this.#scenery?.dispose();
     this.#renderer.dispose();
     this.#units.clear();
     this.#projectiles.clear();

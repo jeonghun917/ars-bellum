@@ -51,6 +51,11 @@ HTML/CSS/JavaScript 기반 전략 게임의 현재 플레이 가능한 개발 �
 겹칩니다. 원래 투구에서도 생기는 자세 문제라 모델 검사(`tools/blender/check_soldier.py`)는 이것을 "알려진
 문제"로 따로 적고, 새 투구가 원래 투구보다 크게 겹치거나 원래 투구가 안 겹치는 자세에서 겹치면 문제로 잡습니다.
 
+전장 배경(`M2_SceneryLayout.js`, `M2_Scenery.js`): 실제로 찍은 풀과 하늘을 씁니다(Poly Haven, CC0, `assets/scenery/`,
+출처는 `assets/scenery/CREDITS.md`). 풀 사진에서 풀잎과 풀포기를 오려 판에 세운 풀 판(`tools/scenery/build_grass_cards.py`가
+만듦)을 카메라 둘레에 빽빽이 세우고, 한 바람장이 풀을 흔들며 흘러가는 구름 그늘과 햇빛을 드리웁니다. 지평선의 숲과 큰
+나무는 실제 나무 모델을 Blender로 세 방향에서 찍은 그림(`tools/scenery/build_tree_cards.py`)을 여러 줄로 세운 것입니다. 싸우는 곳은 평평합니다. 전투에는 아무 영향이 없습니다.
+
 성능 측정(100 대 100)은 `docs/m2-scale/README.md`에 있습니다.
 
 ## 실행
