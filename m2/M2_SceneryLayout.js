@@ -15,7 +15,7 @@ export const FLAT = Object.freeze({ x: 58, z: 44 });
 export const GROUND_SIZE = 360;
 // The square of long grass that the drawing keeps round the camera (M2_Scenery.js), and its blades.
 export const GRASS_TILE = 44;
-export const GRASS_BLADES = 85000;
+export const GRASS_BLADES = 110000;
 
 // A small seeded random generator (mulberry32): the same numbers every time for a seed.
 function random(seed) {

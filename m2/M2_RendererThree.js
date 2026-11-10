@@ -438,6 +438,9 @@ export class M2RendererThree {
     this.#renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.#renderer.setClearColor(M2_CONFIG.backgroundColor, 1);
     this.#renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Film-like tone (highlights roll off softly instead of clipping flat).
+    this.#renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.#renderer.toneMappingExposure = 1.2;
 
     this.#scene = new THREE.Scene();
     // An overcast day over a meadow (the owner's pictures, M2_Scenery.js): a light grey haze from 100 m, so the
@@ -449,8 +452,8 @@ export class M2RendererThree {
     this.#camera.lookAt(0, 0.9, 0);
 
     // (Soft overcast light: mostly from the whole sky, little from the sun behind the clouds.)
-    const hemisphere = new THREE.HemisphereLight(0xd6e8ff, 0x58743a, 2.3);
-    const sun = new THREE.DirectionalLight(0xfff2da, 1.9);
+    const hemisphere = new THREE.HemisphereLight(0xd6e8ff, 0x4a6a2a, 2.0);
+    const sun = new THREE.DirectionalLight(0xffe6bc, 2.6);
     sun.position.set(14, 18, 8);
     this.#scene.add(hemisphere, sun);
     this.#scenery = buildScenery(this.#scene, { sunDirection: sun.position.clone().normalize() });

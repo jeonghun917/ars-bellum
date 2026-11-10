@@ -9,8 +9,8 @@ import { GRASS_TILE, GROUND_SIZE, groundHeight, sceneryLayout } from "./M2_Scene
 
 // The colours (sRGB hex).
 export const SCENERY_COLORS = Object.freeze({
-  bladeRoot: 0x2a4419, bladeMid: 0x4f7a2a, bladeTip: 0x98b85a, bladeDry: 0xbdbd78,
-  ground: 0x2c4519, groundFar: 0x45692a,
+  bladeRoot: 0x1d3410, bladeMid: 0x4d7a24, bladeTip: 0xb4c862, bladeDry: 0xd2cf7c,
+  ground: 0x22391a, groundFar: 0x3c5c1f,
   skyTop: "#4f8ad0", horizon: "#cfe2ef", haze: 0xc9dce8
 });
 const C = SCENERY_COLORS;
@@ -26,8 +26,17 @@ const WIND_GLSL = `
   }
   // 0 (still) to 1 (a gust laying the grass over), rolling downwind.
   float windField(vec2 p, float t) {
-    vec2 q = p * 0.07 - vec2(${WIND_TO[0]}, ${WIND_TO[1]}) * t * 0.55;
-    return clamp(0.65 * windNoise(q) + 0.35 * windNoise(q * 2.7 + 13.0), 0.0, 1.0);
+    vec2 to = vec2(${WIND_TO[0]}, ${WIND_TO[1]});
+    float down = dot(p, to);
+    float across = dot(p, vec2(-to.y, to.x));
+    // Long ridges across the wind (as in the owner's picture of grass in waves), rolling downwind.
+    vec2 q = vec2(down * 0.11 - t * 0.7, across * 0.035);
+    return clamp(0.7 * windNoise(q) + 0.3 * windNoise(q * 2.3 + 13.0), 0.0, 1.0);
+  }
+  // Sunlight through broken cloud: 0 in a cloud's shadow, 1 in sun; big patches drifting slowly.
+  float sunlit(vec2 p, float t) {
+    float n = windNoise(p * 0.04 + vec2(${WIND_TO[0]}, ${WIND_TO[1]}) * t * -0.05) * 0.7 + windNoise(p * 0.11 + 4.0) * 0.3;
+    return smoothstep(0.32, 0.6, n);
   }`;
 
 // A fixed random sequence for painting (the layout has its own).
@@ -100,6 +109,7 @@ function grassMesh(layout, wind, viewAt) {
         varying float vAlong;
         varying float vGust;
         varying float vTint;
+        varying float vSun;
         ${WIND_GLSL}`)
       .replace("#include <begin_vertex>", `
         vec2 wrapped = mod(root.xy - viewAt + ${half}, ${GRASS_TILE.toFixed(1)}) - ${half};
@@ -107,26 +117,28 @@ function grassMesh(layout, wind, viewAt) {
         float away = length(wrapped);
         float edge = 1.0 - smoothstep(${(GRASS_TILE * 0.3).toFixed(1)}, ${(GRASS_TILE * 0.5).toFixed(1)}, away);
         float along = position.y;
-        float tall = (0.3 + root.z * 0.3) * edge;
+        float tall = (0.34 + root.z * 0.34) * edge;
         // Wider further off, so the far blades still close up into a meadow.
-        float wide = (0.032 + root.w * 0.022) * (1.0 + away * 0.11) * (1.0 - along * 0.85);
+        float wide = (0.02 + root.w * 0.016) * (1.0 + away * 0.13) * (1.0 - along * 0.9);
         float turn = fract(root.w * 7.31) * 6.2832;
         vec2 across = vec2(cos(turn), sin(turn));
         float gust = windField(standsAt, windTime);
         float flutter = sin(windTime * 3.1 + root.z * 40.0) * 0.06 + sin(windTime * 1.7 + root.w * 25.0) * 0.04;
-        float lie = (0.38 + 0.8 * gust + flutter) * along * along;
+        float lie = (0.3 + 1.1 * gust + flutter) * along * along;
         vec2 ownLean = vec2(cos(turn * 1.7), sin(turn * 1.7)) * 0.1 * along * along;
         vec2 bend = (vec2(${WIND_TO[0]}, ${WIND_TO[1]}) * lie + ownLean) * tall;
         vec3 transformed = vec3(standsAt.x + across.x * position.x * wide + bend.x, along * tall * (1.0 - 0.3 * lie), standsAt.y + across.y * position.x * wide + bend.y);
         vAlong = along;
         vGust = gust;
+        vSun = sunlit(standsAt, windTime);
         vTint = root.z;`);
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>
         uniform vec3 bladeRoot; uniform vec3 bladeMid; uniform vec3 bladeTip; uniform vec3 bladeDry;
         varying float vAlong;
         varying float vGust;
-        varying float vTint;`)
+        varying float vTint;
+        varying float vSun;`)
       .replace("#include <color_fragment>", `
         vec3 tip = mix(bladeTip, bladeDry, smoothstep(0.75, 1.0, vTint));
         vec3 blade = vAlong < 0.5 ? mix(bladeRoot, bladeMid, vAlong * 2.0) : mix(bladeMid, tip, (vAlong - 0.5) * 2.0);
@@ -134,7 +146,12 @@ function grassMesh(layout, wind, viewAt) {
         // Each blade its own shade (some darker, some yellower), so the mass is not one flat green.
         blade *= 0.72 + 0.4 * fract(vTint * 13.7);
         blade = mix(blade, blade * vec3(1.12, 1.05, 0.7), smoothstep(0.55, 1.0, fract(vTint * 5.3)) * 0.6);
-        blade *= 1.0 + vGust * vAlong * 0.5;
+        // A gust lays the blades over and they catch the light along their length; in sun the tips glow warm
+        // (light through the blade), in a cloud's shadow the whole blade sinks into deep green.
+        float shine = vGust * vAlong;
+        blade = mix(blade, blade * vec3(1.35, 1.28, 0.8) + vec3(0.1, 0.1, 0.02), shine);
+        blade *= mix(0.58, 1.25, vSun) * (0.72 + 0.28 * smoothstep(0.0, 0.6, vAlong));
+        blade += vec3(0.05, 0.05, 0.0) * vSun * vAlong * vAlong;
         diffuseColor.rgb = blade;`);
   };
   const mesh = new THREE.Mesh(geometry, material);
@@ -170,7 +187,8 @@ function groundMesh(wind, viewAt) {
         meadow *= 0.9 + 0.2 * mottle;
         // A fine grain of grass, so the meadow beyond the blades (and seen from high up) is not a flat colour.
         meadow *= 0.86 + 0.18 * windNoise(vGroundAt * 3.1) + 0.1 * windNoise(vGroundAt * vec2(9.0, 2.2) + 5.0);
-        meadow *= 1.0 + 0.32 * windField(vGroundAt, windTime) * smoothstep(${(GRASS_TILE * 0.25).toFixed(1)}, ${(GRASS_TILE * 0.5).toFixed(1)}, away);
+        meadow *= mix(0.58, 1.2, sunlit(vGroundAt, windTime));
+        meadow *= 1.0 + 0.45 * windField(vGroundAt, windTime) * smoothstep(${(GRASS_TILE * 0.25).toFixed(1)}, ${(GRASS_TILE * 0.5).toFixed(1)}, away);
         diffuseColor.rgb = meadow;`);
   };
   const mesh = new THREE.Mesh(geometry, material);
