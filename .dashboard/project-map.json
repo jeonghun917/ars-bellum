@@ -844,6 +844,10 @@
         {
           "path": "tests/unit/m2-defense.test.mjs",
           "kind": "TEST"
+        },
+        {
+          "path": "tests/unit/m2-hit-feed.test.mjs",
+          "kind": "TEST"
         }
       ],
       "storage": {
@@ -1198,6 +1202,7 @@
       "m2/M2_Diagnostics.js",
       "m2/M2_FormationSystem.js",
       "m2/M2_InputController.js",
+      "m2/M2_UnitPanel.js",
       "m2/M2_MoraleSystem.js",
       "m2/M2_MovementSystem.js",
       "m2/M2_RenderSnapshot.js",

@@ -1,6 +1,4 @@
-import { M2_PLANS } from "./M2_Plans.js";
-import { M2_ORDERS } from "./M2_Orders.js";
-import { M2_UNIT_TYPES } from "./M2_UnitKinds.js";
+import { M2UnitPanel } from "./M2_UnitPanel.js";
 function stopEvent(event) {
   event.preventDefault?.();
   event.stopPropagation?.();
@@ -28,10 +26,16 @@ export class M2InputController {
   #virtualStick = { x: 0, z: 0 };
   #inputContextRevision = 0;
   #commandSequence = 0;
-  #selectedFormationId = null;
-  #selectedEnemyFormationId = null;
+  // The formations selected (several only in the tactical view), the battalions the player has made of them
+  // ({ groupId, name, members }), and the battalion selected, if one is (M2_UnitPanel.js).
+  #selected = [];
+  #groups = [];
+  #selectedGroupId = null;
+  #panel = null;
   #disposed = false;
   #canvasGestureMoved = false;
+  // The player cleared the selection himself (none is chosen for him again).
+  #deselected = false;
   // The player's weapon in hand ("melee" or "bow") and whether his shield is up: both switched with a tap
   // (the owner, 2026-11-02: one button swaps weapon and bow at once; the shield is raised and lowered).
   #weapon = "melee";
@@ -42,6 +46,17 @@ export class M2InputController {
     this.#camera = cameraController;
     this.#diagnostics = diagnostics;
     this.#elements = elements;
+    this.#panel = new M2UnitPanel(elements.unitPanel || {}, {
+      listen: (target, type, handler) => this.#listen(target, type, handler),
+      select: (ids) => this.#select(ids),
+      selectGroup: (groupId) => this.#selectGroup(groupId),
+      attackEnemy: (formationId) => this.#forSelected((id) => this.#issue("formation_attack", { formationId: id, targetFormationId: formationId })),
+      command: (name, value) => {
+        if (name === "tactic") this.#forSelected((id) => this.#issue("formation_set_tactic", { formationId: id, tacticId: value }));
+        if (name === "plan") this.#issue("army_set_plan", { planId: value });
+      },
+      redraw: () => this.refreshFormationLists()
+    });
     this.refreshFormationLists();
     this.#install();
     this.#observe();
@@ -50,7 +65,53 @@ export class M2InputController {
   get inputContextRevision() { return this.#inputContextRevision; }
   get activePointerCount() { return this.#activePointers.size; }
   get inputListenerCount() { return this.#listeners.length; }
-  get selectedFormationId() { return this.#selectedFormationId; }
+  get selectedFormationId() { return this.#selected[0] ?? null; }
+  get selectedFormationIds() { return [...this.#selected]; }
+  get panelOpen() { return Boolean(this.#panel?.open); }
+  get groups() { return this.#groups.map((g) => ({ ...g, members: [...g.members] })); }
+
+  // Gives each selected formation an order.
+  #forSelected(give) {
+    for (const id of this.#selected) give(id);
+    this.refreshFormationLists();
+  }
+
+  // A tap on a formation's circle: in the tactical view it joins the selection or leaves it; behind the player
+  // it is the only one selected (the owner, 2026-11-02: several at once only in the tactical view).
+  #select(ids) {
+    const [id] = ids;
+    if (this.#camera.mode === "tactical") this.#selected = this.#selected.includes(id) ? this.#selected.filter((x) => x !== id) : [...this.#selected, id];
+    else this.#selected = [id];
+    this.#selectedGroupId = null;
+    this.refreshFormationLists();
+  }
+
+  #selectGroup(groupId) {
+    const group = this.#groups.find((g) => g.groupId === groupId);
+    if (!group) return;
+    this.#selected = [...group.members];
+    this.#selectedGroupId = groupId;
+    this.refreshFormationLists();
+  }
+
+  // 묶기: the selected formations (two or more) become a battalion, leaving any other they were in.
+  #makeGroup() {
+    if (this.#selected.length < 2) return;
+    this.#groups = this.#groups.map((g) => ({ ...g, members: g.members.filter((id) => !this.#selected.includes(id)) })).filter((g) => g.members.length >= 2);
+    let n = 1;
+    while (this.#groups.some((g) => g.name === `${n}대대`)) n += 1;
+    const group = { groupId: `group_${n}`, name: `${n}대대`, members: [...this.#selected] };
+    this.#groups = [...this.#groups, group].sort((a, b) => a.name.localeCompare(b.name, "ko", { numeric: true }));
+    this.#selectedGroupId = group.groupId;
+    this.refreshFormationLists();
+  }
+
+  #breakGroup() {
+    if (!this.#selectedGroupId) return;
+    this.#groups = this.#groups.filter((g) => g.groupId !== this.#selectedGroupId);
+    this.#selectedGroupId = null;
+    this.refreshFormationLists();
+  }
   get weapon() { return this.#weapon; }
   get shieldUp() { return this.#shieldUp; }
 
@@ -177,73 +238,31 @@ export class M2InputController {
     this.#observe();
   }
 
+  // The selected formations to a point on the field, each keeping its place relative to the others.
+  #moveSelected(target) {
+    const formations = (this.#runtime.getSnapshot()?.formations || []).filter((f) => this.#selected.includes(f.formationId));
+    if (!formations.length) return;
+    const mid = { x: formations.reduce((s, f) => s + f.anchor.x, 0) / formations.length, z: formations.reduce((s, f) => s + f.anchor.z, 0) / formations.length };
+    for (const f of formations) this.#issue("formation_move", { formationId: f.formationId, target: { x: target.x + f.anchor.x - mid.x, z: target.z + f.anchor.z - mid.z } });
+  }
+
+  // Redraws the formations' row and menu (M2_UnitPanel.js), keeping the selection to formations that exist.
   refreshFormationLists() {
     const snapshot = this.#runtime.getSnapshot();
     if (!snapshot) return;
     const player = snapshot.units.find((unit) => unit.isPlayer);
-    const friendly = snapshot.formations.filter((formation) => formation.sideId === player?.sideId).sort((a,b)=>a.formationId.localeCompare(b.formationId));
-    const enemy = snapshot.formations.filter((formation) => formation.sideId !== player?.sideId).sort((a,b)=>a.formationId.localeCompare(b.formationId));
-    if (!this.#selectedFormationId || !friendly.some((entry)=>entry.formationId===this.#selectedFormationId)) {
-      this.#selectedFormationId = (friendly.find((entry)=>entry.formationTypeId==="line") || friendly[0])?.formationId || friendly[0]?.formationId || null;
+    const sideId = player?.sideId || "ally";
+    const friendly = snapshot.formations.filter((formation) => formation.sideId === sideId).sort((a, b) => a.formationId.localeCompare(b.formationId));
+    const exists = (id) => friendly.some((entry) => entry.formationId === id);
+    this.#selected = this.#selected.filter(exists);
+    this.#groups = this.#groups.map((g) => ({ ...g, members: g.members.filter(exists) })).filter((g) => g.members.length >= 2);
+    if (!this.#groups.some((g) => g.groupId === this.#selectedGroupId)) this.#selectedGroupId = null;
+    if (!this.#selected.length && !this.#deselected) {
+      const first = friendly.find((entry) => entry.formationTypeId === "line") || friendly[0];
+      if (first) this.#selected = [first.formationId];
     }
-    if (!this.#selectedEnemyFormationId || !enemy.some((entry)=>entry.formationId===this.#selectedEnemyFormationId)) {
-      this.#selectedEnemyFormationId = enemy[0]?.formationId || null;
-    }
-
-    const fill = (select, rows, selected) => {
-      if (!select) return;
-      select.textContent = "";
-      for (const row of rows) {
-        const option = document.createElement("option");
-        option.value = row.formationId;
-        // With its subtype (병종), if it has one.
-        option.textContent = M2_UNIT_TYPES[row.unitTypeId] ? `${row.formationId} (${M2_UNIT_TYPES[row.unitTypeId].label})` : row.formationId;
-        option.selected = row.formationId === selected;
-        select.appendChild(option);
-      }
-    };
-    fill(this.#elements.friendlyFormation, friendly, this.#selectedFormationId);
-    fill(this.#elements.enemyFormation, enemy, this.#selectedEnemyFormationId);
-    this.#fillTactics(friendly.find((entry) => entry.formationId === this.#selectedFormationId));
-    this.#showPursuit(friendly.find((entry) => entry.formationId === this.#selectedFormationId)?.pursuit);
-    this.#fillPlans(snapshot);
-  }
-
-  // The battle plans the player's side can use now (M2_Plans.js), and none.
-  #fillPlans(snapshot) {
-    const select = this.#elements.plan;
-    if (!select) return;
-    select.textContent = "";
-    const current = snapshot.plans?.ally?.planId || null;
-    for (const planId of [null, ...(snapshot.plansAvailable?.ally || [])]) {
-      const option = document.createElement("option");
-      option.value = planId || "";
-      option.textContent = planId ? M2_PLANS[planId].label : "없음";
-      option.selected = current === planId;
-      select.appendChild(option);
-    }
-  }
-
-  // Whether the selected formation pursues an enemy it breaks (M2_Pursuit.js).
-  #showPursuit(pursue) {
-    const button = this.#elements.pursuit;
-    if (!button) return;
-    button.textContent = pursue ? "추격: 켬" : "추격: 끔";
-    button.setAttribute("aria-pressed", pursue ? "true" : "false");
-  }
-
-  // The orders the selected formation can be given (M2_Orders.js), and none.
-  #fillTactics(formation) {
-    const select = this.#elements.tactic;
-    if (!select) return;
-    select.textContent = "";
-    for (const tacticId of [null, ...(formation?.tactics || [])]) {
-      const option = document.createElement("option");
-      option.value = tacticId || "";
-      option.textContent = tacticId ? M2_ORDERS[tacticId].label : "없음";
-      option.selected = (formation?.tactic || null) === tacticId;
-      select.appendChild(option);
-    }
+    this.#panel?.draw({ snapshot, selected: this.#selected, groups: this.#groups, selectedGroupId: this.#selectedGroupId, sideId });
+    this.#observe();
   }
 
   #install() {
@@ -267,7 +286,7 @@ export class M2InputController {
         this.switchMode();
       } else if (this.#camera.mode === "tactical" && ["Digit1","Digit2","Digit3","Digit4","Digit5","Digit6"].includes(event.code)) {
         const formationTypeId = { Digit1: "line", Digit2: "column", Digit3: "loose", Digit4: "shield_wall", Digit5: "wedge", Digit6: "circle" }[event.code];
-        if (this.#selectedFormationId) this.#issue("formation_set_type", { formationId: this.#selectedFormationId, formationTypeId });
+        this.#forSelected((id) => this.#issue("formation_set_type", { formationId: id, formationTypeId }));
       }
     });
 
@@ -331,10 +350,10 @@ export class M2InputController {
         !cancelled &&
         this.#camera.mode === "tactical" &&
         !this.#canvasGestureMoved &&
-        this.#selectedFormationId
+        this.#selected.length
       ) {
         const target = this.#runtime.screenPointToGround(event.clientX, event.clientY);
-        if (target) this.#issue("formation_move", { formationId: this.#selectedFormationId, target });
+        if (target) this.#moveSelected(target);
       }
       this.#observe();
     };
@@ -351,49 +370,32 @@ export class M2InputController {
     control(this.#elements.bow, "pointerdown", () => this.#switchWeapon());
     this.#showHands();
     control(this.#elements.tactical, "pointerdown", () => this.switchMode());
-    control(this.#elements.attackOrder, "pointerdown", () => {
-      if (this.#selectedFormationId && this.#selectedEnemyFormationId) {
-        this.#issue("formation_attack", { formationId: this.#selectedFormationId, targetFormationId: this.#selectedEnemyFormationId });
-      }
-    });
-    control(this.#elements.rally, "pointerdown", () => {
-      if (this.#selectedFormationId) this.#issue("formation_rally", { formationId: this.#selectedFormationId });
-    });
-    control(this.#elements.retreat, "pointerdown", () => {
-      if (this.#selectedFormationId) this.#issue("formation_retreat", { formationId: this.#selectedFormationId });
-    });
+    // 목표 공격 opens the row of enemy formations to pick from (M2_UnitPanel.js).
+    control(this.#elements.attackOrder, "pointerdown", () => this.#panel.pickEnemy(true));
+    control(this.#elements.holdOrder, "pointerdown", () => this.#forSelected((id) => this.#issue("formation_hold", { formationId: id })));
+    control(this.#elements.rally, "pointerdown", () => this.#forSelected((id) => this.#issue("formation_rally", { formationId: id })));
+    control(this.#elements.retreat, "pointerdown", () => this.#forSelected((id) => this.#issue("formation_retreat", { formationId: id })));
     control(this.#elements.pursuit, "pointerdown", () => {
-      if (!this.#selectedFormationId) return;
       const pursue = this.#elements.pursuit.getAttribute("aria-pressed") !== "true";
-      if (this.#issue("formation_set_pursuit", { formationId: this.#selectedFormationId, pursue }).ok) this.#showPursuit(pursue);
+      this.#forSelected((id) => this.#issue("formation_set_pursuit", { formationId: id, pursue }));
+      // (Shown at once; the battle takes it on its next tick.)
+      this.#elements.pursuit.setAttribute("aria-pressed", String(pursue));
+      this.#elements.pursuit.textContent = pursue ? "추격: 켬" : "추격: 끔";
     });
+    control(this.#elements.deselect, "pointerdown", () => { this.#selected = []; this.#selectedGroupId = null; this.#deselected = true; this.refreshFormationLists(); });
+    control(this.#elements.group, "pointerdown", () => this.#makeGroup());
+    control(this.#elements.ungroup, "pointerdown", () => this.#breakGroup());
 
     for (const [element, formationTypeId] of [
       [this.#elements.line, "line"], [this.#elements.column, "column"], [this.#elements.loose, "loose"],
       [this.#elements.shieldWall, "shield_wall"], [this.#elements.wedge, "wedge"], [this.#elements.circle, "circle"]
     ]) {
-      control(element, "pointerdown", () => {
-        if (this.#selectedFormationId) this.#issue("formation_set_type", { formationId: this.#selectedFormationId, formationTypeId });
-      });
+      control(element, "pointerdown", () => this.#forSelected((id) => this.#issue("formation_set_type", { formationId: id, formationTypeId })));
     }
 
     for (const [element, scale] of [
       [this.#elements.time0, 0], [this.#elements.time025, 0.25], [this.#elements.time05, 0.5], [this.#elements.time1, 1]
     ]) control(element, "pointerdown", () => this.#runtime.setTimeScale(scale));
-
-    this.#listen(this.#elements.friendlyFormation, "change", (event) => {
-      this.#selectedFormationId = event.target.value || null;
-      this.refreshFormationLists();
-    });
-    this.#listen(this.#elements.plan, "change", (event) => {
-      this.#issue("army_set_plan", { planId: event.target.value || null });
-    });
-    this.#listen(this.#elements.tactic, "change", (event) => {
-      if (this.#selectedFormationId) this.#issue("formation_set_tactic", { formationId: this.#selectedFormationId, tacticId: event.target.value || null });
-    });
-    this.#listen(this.#elements.enemyFormation, "change", (event) => {
-      this.#selectedEnemyFormationId = event.target.value || null;
-    });
 
     const stick = this.#elements.virtualStick;
     this.#listen(stick, "pointerdown", (event) => {

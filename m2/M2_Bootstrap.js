@@ -40,30 +40,42 @@ const elements = {
   shieldWall: document.getElementById("m2ShieldWall"),
   wedge: document.getElementById("m2Wedge"),
   circle: document.getElementById("m2Circle"),
-  tactic: document.getElementById("m2Tactic"),
   pursuit: document.getElementById("m2Pursuit"),
-  plan: document.getElementById("m2Plan"),
   time0: document.getElementById("m2Time0"),
   time025: document.getElementById("m2Time025"),
   time05: document.getElementById("m2Time05"),
   time1: document.getElementById("m2Time1"),
-  friendlyFormation: document.getElementById("m2FriendlyFormation"),
-  enemyFormation: document.getElementById("m2EnemyFormation"),
   virtualStick: document.getElementById("m2VirtualStick"),
   moraleAlly: document.getElementById("m2MoraleAlly"),
   moraleEnemy: document.getElementById("m2MoraleEnemy"),
   routingAlly: document.getElementById("m2RoutingAlly"),
   routingEnemy: document.getElementById("m2RoutingEnemy"),
   result: document.getElementById("m2Result"),
-  tacticalPanel: document.getElementById("m2TacticalPanel"),
-  panelToggle: document.getElementById("m2PanelToggle"),
-  summaryAlly: document.getElementById("m2SummaryAlly"),
-  summaryEnemy: document.getElementById("m2SummaryEnemy"),
+  holdOrder: document.getElementById("m2HoldOrder"),
+  deselect: document.getElementById("m2Deselect"),
+  group: document.getElementById("m2Group"),
+  ungroup: document.getElementById("m2Ungroup"),
+  // The formations' round button, row and menu (M2_UnitPanel.js).
+  unitPanel: {
+    toggle: document.getElementById("m2UnitsToggle"),
+    strip: document.getElementById("m2UnitStrip"),
+    menu: document.getElementById("m2UnitMenu"),
+    title: document.getElementById("m2UnitTitle"),
+    tabs: document.getElementById("m2UnitTabs"),
+    panes: {
+      control: document.getElementById("m2PaneControl"),
+      tactic: document.getElementById("m2PaneTactic"),
+      shape: document.getElementById("m2PaneShape"),
+      more: document.getElementById("m2PaneMore")
+    },
+    tacticChips: document.getElementById("m2TacticChips"),
+    planChips: document.getElementById("m2PlanChips"),
+    enemyPicker: document.getElementById("m2EnemyPicker"),
+    pursuit: document.getElementById("m2Pursuit")
+  },
   debugToggle: document.getElementById("m2DebugToggle")
 };
 
-// Small screens: the command panel would cover the battle, so it starts folded to one line.
-const SMALL_SCREEN = "(max-width: 760px), (max-height: 500px)";
 
 const profileCatalog = createCombatProfileCatalog(M2_TECHNICAL_COMBAT_PROFILES);
 let diagnostics = null;
@@ -79,7 +91,7 @@ function setStatus(text) {
 
 function setCommandControlsDisabled(disabled) {
   for (const element of [
-    elements.attack, elements.block, elements.bow, elements.attackOrder,
+    elements.attack, elements.block, elements.bow, elements.attackOrder, elements.holdOrder, elements.pursuit,
     elements.line, elements.column, elements.loose, elements.shieldWall, elements.wedge, elements.circle, elements.rally, elements.retreat
   ]) {
     if (element) element.disabled = Boolean(disabled);
@@ -110,6 +122,8 @@ function showPlayerFeed(observation) {
 
 function updateHud() {
   if (diagnostics) showPlayerFeed(diagnostics.getSnapshot());
+  // The formations' row and menu follow the battle (a formation's orders, its pursuit, who still stands).
+  if (inputController?.panelOpen) inputController.refreshFormationLists();
   if (!diagnostics || !elements.diagnostics) return;
   const runtimeSnapshot = runtime?.getSnapshot();
   const result = runtime?.getResult() || null;
@@ -129,8 +143,6 @@ function updateHud() {
     m9BridgeRequired: true
   }, null, 2);
   if (elements.tactical) elements.tactical.textContent = observation.cameraMode === "tactical" ? "3인칭" : "전술";
-  if (elements.summaryAlly) elements.summaryAlly.textContent = String(Math.round(observation.moraleSummary?.ally ?? 0));
-  if (elements.summaryEnemy) elements.summaryEnemy.textContent = String(Math.round(observation.moraleSummary?.enemy ?? 0));
   if (result && elements.status && elements.status.textContent === "전투 중") setStatus("전투 끝");
   if (elements.moraleAlly) elements.moraleAlly.textContent = String(observation.moraleSummary?.ally ?? 0);
   if (elements.moraleEnemy) elements.moraleEnemy.textContent = String(observation.moraleSummary?.enemy ?? 0);
@@ -140,11 +152,6 @@ function updateHud() {
   setCommandControlsDisabled(result !== null);
 }
 
-function setPanelCollapsed(collapsed) {
-  if (!elements.tacticalPanel) return;
-  elements.tacticalPanel.classList.toggle("is-collapsed", collapsed);
-  elements.panelToggle?.setAttribute("aria-expanded", collapsed ? "false" : "true");
-}
 
 // The diagnostics panel is for development: hidden unless asked for (button, or ?debug in the address).
 function setDiagnosticsVisible(visible) {
@@ -228,9 +235,7 @@ try {
   elements.pause?.addEventListener("click", pause);
   elements.restart?.addEventListener("click", restart);
   elements.dispose?.addEventListener("click", dispose);
-  elements.panelToggle?.addEventListener("click", () => setPanelCollapsed(!elements.tacticalPanel.classList.contains("is-collapsed")));
   elements.debugToggle?.addEventListener("click", () => setDiagnosticsVisible(elements.diagnostics?.hidden ?? false));
-  setPanelCollapsed(window.matchMedia?.(SMALL_SCREEN).matches ?? false);
   setDiagnosticsVisible(new URLSearchParams(window.location.search).has("debug"));
 
   window.ArsM2Battle = Object.freeze({
