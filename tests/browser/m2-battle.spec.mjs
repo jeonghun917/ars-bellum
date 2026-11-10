@@ -302,7 +302,9 @@ test.describe('3D battle', () => {
     expect((await diagnostics(page)).aim).toBeNull();
     await tap(page, '#m2Bow');
     await expect.poll(async () => (await diagnostics(page)).hands.weapon).toBe('bow');
-    await expect.poll(async () => (await diagnostics(page)).aim).not.toBeNull();
+    // The circle is placed when the screen is next drawn; drawn in software, the first frame with the bow in
+    // hand can take seconds in CI (5 s was missed once, PR #59).
+    await expect.poll(async () => (await diagnostics(page)).aim, { timeout: 20_000 }).not.toBeNull();
     // Nobody in the way: the circle lies the bow's range ahead along the view.
     const [g, me] = [await diagnostics(page), await player(page)];
     const range = me.hero.ranged.range;
@@ -316,7 +318,7 @@ test.describe('3D battle', () => {
     expect((await diagnostics(page)).projectileLaunchCount).toBeGreaterThan(before);
     // Back to the weapon: no circle, and the attack button swings.
     await tap(page, '#m2Bow');
-    await expect.poll(async () => (await diagnostics(page)).aim).toBeNull();
+    await expect.poll(async () => (await diagnostics(page)).aim, { timeout: 20_000 }).toBeNull();
     await page.waitForFunction(() => {
       const s = window.ArsM2Battle.getSnapshot();
       return s.units.find((u) => u.unitId === s.playerCharacterId).attackCooldownTicks === 0;
